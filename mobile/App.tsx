@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -17,6 +17,21 @@ import { colors } from './src/theme';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
+
+// Custom dark theme for Lightning Bot
+const LightningTheme = {
+  ...DefaultTheme,
+  dark: true,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.lpCyan,
+    background: colors.lpBlack,
+    card: colors.lpSurface,
+    text: colors.textPrimary,
+    border: colors.borderDark,
+    notification: colors.lpCyan,
+  },
+};
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -43,37 +58,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.container} onLayout={onLayoutRootView}>
-        <NavigationContainer
-          theme={{
-            dark: true,
-            colors: {
-              primary: colors.lpCyan,
-              background: colors.lpBlack,
-              card: colors.lpSurface,
-              text: colors.textPrimary,
-              border: colors.borderDark,
-              notification: colors.lpCyan,
-            },
-            fonts: {
-              regular: {
-                fontFamily: 'Rajdhani_400Regular',
-                fontWeight: '400',
-              },
-              medium: {
-                fontFamily: 'Rajdhani_500Medium',
-                fontWeight: '500',
-              },
-              bold: {
-                fontFamily: 'Rajdhani_700Bold',
-                fontWeight: '700',
-              },
-              heavy: {
-                fontFamily: 'Rajdhani_700Bold',
-                fontWeight: '900',
-              },
-            },
-          }}
-        >
+        <NavigationContainer theme={LightningTheme}>
           <TabNavigator />
         </NavigationContainer>
         <StatusBar style="light" />
