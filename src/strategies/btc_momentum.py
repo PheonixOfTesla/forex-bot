@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 BTC Trend Breakout / Momentum Strategy
 

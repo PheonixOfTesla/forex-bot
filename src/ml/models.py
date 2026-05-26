@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Data Models for ML Classifier Layer
 

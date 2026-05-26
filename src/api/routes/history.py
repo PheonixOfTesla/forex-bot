@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Trade History API Routes
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Database layer for forex-bot trading system.
 Provides async SQLAlchemy models, repositories, and connection management.

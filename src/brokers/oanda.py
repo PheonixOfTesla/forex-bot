@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 OANDA Broker Integration for Forex Trading Bot
 

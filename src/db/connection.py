@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Database connection management for async SQLAlchemy with PostgreSQL.
 Provides connection pooling, session management, and table operations.

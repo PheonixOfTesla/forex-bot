@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 WebSocket Handler for Real-Time Updates
 

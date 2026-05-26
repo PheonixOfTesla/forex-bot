@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Risk Management Data Models
 Defines configuration and assessment structures for the risk management system.

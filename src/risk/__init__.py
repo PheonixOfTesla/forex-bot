@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Risk Management System
 Provides comprehensive risk controls for forex trading.

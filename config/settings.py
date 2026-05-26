@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Forex Bot Configuration Settings
 
@@ -17,8 +19,8 @@ class OANDASettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="OANDA_")
 
-    account_id: str = Field(..., description="OANDA account ID")
-    access_token: str = Field(..., description="OANDA API access token")
+    account_id: str = Field(default="", description="OANDA account ID")
+    access_token: str = Field(default="", description="OANDA API access token")
     environment: Literal["practice", "live"] = Field(
         default="practice", description="Trading environment"
     )
@@ -43,8 +45,8 @@ class BinanceSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="BINANCE_")
 
-    api_key: str = Field(..., description="Binance API key")
-    api_secret: str = Field(..., description="Binance API secret")
+    api_key: str = Field(default="", description="Binance API key")
+    api_secret: str = Field(default="", description="Binance API secret")
     testnet: bool = Field(default=True, description="Use testnet environment")
 
     @property

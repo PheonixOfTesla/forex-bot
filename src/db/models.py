@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 SQLAlchemy models for the forex trading system.
 All models use async-compatible SQLAlchemy with PostgreSQL support.

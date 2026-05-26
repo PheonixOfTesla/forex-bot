@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Telegram Bot for Trading Alerts
 

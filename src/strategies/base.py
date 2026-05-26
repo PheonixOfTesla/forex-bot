@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Base Strategy Classes for Forex Trading Bot
 

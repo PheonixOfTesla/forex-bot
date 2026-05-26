@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Lightning Forex Bot - Main Entry Point
 

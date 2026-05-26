@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Binance Futures Client Integration
 

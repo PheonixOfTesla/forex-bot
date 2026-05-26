@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Circuit Breaker - Emergency Trading Controls
 Implements automatic trading halts based on risk thresholds.

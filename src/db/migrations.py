@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Alembic migration setup helpers for forex trading database.
 Provides utilities for managing database schema migrations.

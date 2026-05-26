@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Kelly Criterion Calculator
 Implements optimal position sizing using the Kelly formula with safety adjustments.

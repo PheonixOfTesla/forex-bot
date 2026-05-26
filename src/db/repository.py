@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Data Access Layer (Repository Pattern) for forex trading system.
 Provides async CRUD operations for all trading entities.

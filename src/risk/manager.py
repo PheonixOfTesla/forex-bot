@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Core Risk Manager
 Central risk management system coordinating all risk controls.

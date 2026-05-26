@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 ML Classifier Layer for Forex Trading Bot
 

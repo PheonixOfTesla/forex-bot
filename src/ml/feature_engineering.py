@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Feature Engineering for ML Classifier
 
