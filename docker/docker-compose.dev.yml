@@ -1,0 +1,85 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        - DEBUG=true
+    environment:
+      - LOG_LEVEL=DEBUG
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../src:/app/src:ro
+      - ../config:/app/config:ro
+      - ../data:/app/data
+      - ../logs:/app/logs
+    command: ["python", "-m", "src.main", "--debug"]
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    environment:
+      - LOG_LEVEL=DEBUG
+      - API_DEBUG=true
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../src:/app/src:ro
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+    command: ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "8000:8000"
+
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: dev_password
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  # Development tools
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: forex-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@forex.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - forex-network
+    profiles:
+      - tools
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: forex-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - forex-network
+    profiles:
+      - tools
+
+volumes:
+  pgadmin_data:

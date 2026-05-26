@@ -1,0 +1,306 @@
+import React, { useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { colors, typography, spacing, borderRadius } from '../theme';
+import {
+  SignalConfidenceBar,
+  TradeDirectionPill,
+  StatusBadge,
+} from '../components';
+import { useSignals } from '../hooks/useApi';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { Signal } from '../services/api';
+
+type RootStackParamList = {
+  SignalDetail: { signalId: string };
+};
+
+export const SignalsScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { data, loading, refetch } = useSignals();
+  const { isConnected } = useWebSocket({
+    onSignal: () => refetch(),
+  });
+
+  const onRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  // Mock data for development
+  const signals: Signal[] = data || [
+    {
+      id: '1',
+      asset: 'EUR/USD',
+      direction: 'LONG',
+      confidence: 87,
+      strategy: 'Trend Following',
+      session: 'London',
+      atr: 0.0045,
+      volume: 125000,
+      entry: 1.0892,
+      stopLoss: 1.0862,
+      takeProfit: 1.0952,
+      riskReward: 2.0,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: '2',
+      asset: 'BTC/USD',
+      direction: 'SHORT',
+      confidence: 72,
+      strategy: 'Mean Reversion',
+      session: 'Asian',
+      atr: 450,
+      volume: 85000,
+      entry: 42500,
+      stopLoss: 43200,
+      takeProfit: 41100,
+      riskReward: 2.0,
+      createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    },
+    {
+      id: '3',
+      asset: 'XRP/USD',
+      direction: 'LONG',
+      confidence: 91,
+      strategy: 'Breakout',
+      session: 'New York',
+      atr: 0.015,
+      volume: 200000,
+      entry: 0.612,
+      stopLoss: 0.598,
+      takeProfit: 0.648,
+      riskReward: 2.57,
+      createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    },
+  ];
+
+  const formatTime = (isoString: string): string => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    return `${Math.floor(diffMin / 60)}h ago`;
+  };
+
+  const handleSignalPress = (signalId: string) => {
+    navigation.navigate('SignalDetail', { signalId });
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={onRefresh}
+            tintColor={colors.lpCyan}
+          />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>ML Signals</Text>
+          <StatusBadge status={isConnected ? 'LIVE' : 'STOPPED'} />
+        </View>
+
+        {/* Signal Count */}
+        <View style={styles.countRow}>
+          <Text style={styles.countText}>
+            {signals.length} active signal{signals.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+
+        {/* Signals List */}
+        <View style={styles.signalsList}>
+          {signals.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No Active Signals</Text>
+              <Text style={styles.emptyText}>
+                The ML engine is analyzing markets. New signals will appear here.
+              </Text>
+            </View>
+          ) : (
+            signals.map((signal) => (
+              <TouchableOpacity
+                key={signal.id}
+                style={styles.signalCard}
+                onPress={() => handleSignalPress(signal.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.signalHeader}>
+                  <View style={styles.signalAssetRow}>
+                    <Text style={styles.signalAsset}>{signal.asset}</Text>
+                    <TradeDirectionPill direction={signal.direction} size="sm" />
+                  </View>
+                  <Text style={styles.signalTime}>{formatTime(signal.createdAt)}</Text>
+                </View>
+
+                <View style={styles.confidenceRow}>
+                  <Text style={styles.confidenceValue}>{signal.confidence}%</Text>
+                  <View style={styles.confidenceBarWrapper}>
+                    <SignalConfidenceBar
+                      confidence={signal.confidence}
+                      height={8}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.signalDetails}>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Strategy</Text>
+                    <Text style={styles.detailValue}>{signal.strategy}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>R:R</Text>
+                    <Text style={styles.detailValue}>
+                      1:{signal.riskReward.toFixed(1)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Session</Text>
+                    <Text style={styles.detailValue}>{signal.session}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.tapHint}>
+                  <Text style={styles.tapHintText}>Tap to view details</Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.lpBlack,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: spacing.xl,
+    paddingBottom: 100,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  title: {
+    ...typography.h1,
+    color: colors.textPrimary,
+  },
+  countRow: {
+    marginBottom: spacing.xl,
+  },
+  countText: {
+    ...typography.bodyMD,
+    color: colors.textSecondary,
+  },
+  signalsList: {
+    gap: spacing.md,
+  },
+  signalCard: {
+    backgroundColor: colors.lpSurface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.lpCyan,
+  },
+  signalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  signalAssetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  signalAsset: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  signalTime: {
+    ...typography.bodySM,
+    color: colors.textMuted,
+  },
+  confidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  confidenceValue: {
+    ...typography.h2,
+    color: colors.lpCyan,
+    fontWeight: '700',
+    width: 60,
+  },
+  confidenceBarWrapper: {
+    flex: 1,
+  },
+  signalDetails: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  detailItem: {
+    flex: 1,
+  },
+  detailLabel: {
+    ...typography.labelSM,
+    color: colors.textMuted,
+    marginBottom: 2,
+  },
+  detailValue: {
+    ...typography.bodyMD,
+    color: colors.textSecondary,
+  },
+  tapHint: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderDark,
+  },
+  tapHintText: {
+    ...typography.bodySM,
+    color: colors.textMuted,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxxl,
+  },
+  emptyTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  emptyText: {
+    ...typography.bodyMD,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+});

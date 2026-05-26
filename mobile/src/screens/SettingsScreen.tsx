@@ -1,0 +1,457 @@
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Switch,
+  TextInput,
+  Alert,
+  Modal,
+  TouchableOpacity,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, typography, spacing, borderRadius } from '../theme';
+import { PrimaryButton, GhostButton } from '../components';
+import { useSettings, useUpdateSettings, useEngineControl } from '../hooks/useApi';
+
+const ASSETS = [
+  { id: 'eurusd', name: 'EUR/USD', category: 'Forex' },
+  { id: 'gbpusd', name: 'GBP/USD', category: 'Forex' },
+  { id: 'usdjpy', name: 'USD/JPY', category: 'Forex' },
+  { id: 'btcusd', name: 'BTC/USD', category: 'Crypto' },
+  { id: 'ethusd', name: 'ETH/USD', category: 'Crypto' },
+  { id: 'xrpusd', name: 'XRP/USD', category: 'Crypto' },
+];
+
+export const SettingsScreen: React.FC = () => {
+  const { data: settings, refetch } = useSettings();
+  const { update, loading: updating } = useUpdateSettings();
+  const { pause, stop, loading: engineLoading } = useEngineControl();
+
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+
+  // Local state for form
+  const [maxRiskPerTrade, setMaxRiskPerTrade] = useState('2');
+  const [maxDailyTrades, setMaxDailyTrades] = useState('10');
+  const [minConfidence, setMinConfidence] = useState('70');
+  const [maxDrawdown, setMaxDrawdown] = useState('15');
+  const [enabledAssets, setEnabledAssets] = useState<string[]>([
+    'eurusd',
+    'btcusd',
+    'xrpusd',
+  ]);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const toggleAsset = useCallback((assetId: string) => {
+    setEnabledAssets((prev) =>
+      prev.includes(assetId)
+        ? prev.filter((id) => id !== assetId)
+        : [...prev, assetId]
+    );
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    await update({
+      risk: {
+        maxRiskPerTrade: parseFloat(maxRiskPerTrade),
+        maxDailyTrades: parseInt(maxDailyTrades, 10),
+        minConfidence: parseInt(minConfidence, 10),
+        maxDrawdown: parseFloat(maxDrawdown),
+      },
+      enabledAssets,
+      alertsEnabled,
+      soundEnabled,
+    });
+    Alert.alert('Success', 'Settings saved successfully');
+  }, [
+    maxRiskPerTrade,
+    maxDailyTrades,
+    minConfidence,
+    maxDrawdown,
+    enabledAssets,
+    alertsEnabled,
+    soundEnabled,
+    update,
+  ]);
+
+  const handlePauseEngine = useCallback(async () => {
+    Alert.alert(
+      'Pause Engine',
+      'This will pause all trading activity. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pause',
+          onPress: async () => {
+            const success = await pause();
+            if (success) {
+              Alert.alert('Engine Paused', 'Trading has been paused.');
+              refetch();
+            }
+          },
+        },
+      ]
+    );
+  }, [pause, refetch]);
+
+  const handleEmergencyStop = useCallback(async () => {
+    const success = await stop();
+    setShowEmergencyModal(false);
+    if (success) {
+      Alert.alert(
+        'Emergency Stop Activated',
+        'All positions will be closed and trading is halted.'
+      );
+      refetch();
+    }
+  }, [stop, refetch]);
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Settings</Text>
+        </View>
+
+        {/* Risk Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>RISK MANAGEMENT</Text>
+          <View style={styles.card}>
+            <View style={styles.inputRow}>
+              <Text style={styles.inputLabel}>Max Risk Per Trade</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  value={maxRiskPerTrade}
+                  onChangeText={setMaxRiskPerTrade}
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.inputSuffix}>%</Text>
+              </View>
+            </View>
+
+            <View style={styles.inputRow}>
+              <Text style={styles.inputLabel}>Max Daily Trades</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  value={maxDailyTrades}
+                  onChangeText={setMaxDailyTrades}
+                  keyboardType="number-pad"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputRow}>
+              <Text style={styles.inputLabel}>Min Confidence</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  value={minConfidence}
+                  onChangeText={setMinConfidence}
+                  keyboardType="number-pad"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.inputSuffix}>%</Text>
+              </View>
+            </View>
+
+            <View style={[styles.inputRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.inputLabel}>Max Drawdown</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  value={maxDrawdown}
+                  onChangeText={setMaxDrawdown}
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.inputSuffix}>%</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Asset Toggles */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>TRADING ASSETS</Text>
+          <View style={styles.card}>
+            {ASSETS.map((asset, index) => (
+              <View
+                key={asset.id}
+                style={[
+                  styles.toggleRow,
+                  index === ASSETS.length - 1 && { borderBottomWidth: 0 },
+                ]}
+              >
+                <View>
+                  <Text style={styles.toggleLabel}>{asset.name}</Text>
+                  <Text style={styles.toggleCategory}>{asset.category}</Text>
+                </View>
+                <Switch
+                  value={enabledAssets.includes(asset.id)}
+                  onValueChange={() => toggleAsset(asset.id)}
+                  trackColor={{ false: colors.borderDark, true: colors.lpCyan + '50' }}
+                  thumbColor={
+                    enabledAssets.includes(asset.id)
+                      ? colors.lpCyan
+                      : colors.textMuted
+                  }
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Alert Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>NOTIFICATIONS</Text>
+          <View style={styles.card}>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Push Alerts</Text>
+              <Switch
+                value={alertsEnabled}
+                onValueChange={setAlertsEnabled}
+                trackColor={{ false: colors.borderDark, true: colors.lpCyan + '50' }}
+                thumbColor={alertsEnabled ? colors.lpCyan : colors.textMuted}
+              />
+            </View>
+            <View style={[styles.toggleRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.toggleLabel}>Sound Effects</Text>
+              <Switch
+                value={soundEnabled}
+                onValueChange={setSoundEnabled}
+                trackColor={{ false: colors.borderDark, true: colors.lpCyan + '50' }}
+                thumbColor={soundEnabled ? colors.lpCyan : colors.textMuted}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Save Button */}
+        <PrimaryButton
+          title="SAVE SETTINGS"
+          onPress={handleSave}
+          loading={updating}
+          style={styles.saveButton}
+          size="lg"
+        />
+
+        {/* Engine Controls */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ENGINE CONTROL</Text>
+          <View style={styles.engineButtons}>
+            <GhostButton
+              title="PAUSE ENGINE"
+              onPress={handlePauseEngine}
+              color={colors.lpAmber}
+              loading={engineLoading}
+              style={styles.pauseButton}
+              size="lg"
+            />
+            <PrimaryButton
+              title="EMERGENCY STOP"
+              onPress={() => setShowEmergencyModal(true)}
+              color={colors.lpRed}
+              style={styles.stopButton}
+              size="lg"
+            />
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Emergency Stop Modal */}
+      <Modal
+        visible={showEmergencyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEmergencyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Emergency Stop</Text>
+            <Text style={styles.modalText}>
+              This will immediately close all open positions and halt all trading
+              activity. This action cannot be undone.
+            </Text>
+            <Text style={styles.modalWarning}>Are you absolutely sure?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowEmergencyModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmButton}
+                onPress={handleEmergencyStop}
+              >
+                <Text style={styles.modalConfirmText}>CONFIRM STOP</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.lpBlack,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: spacing.xl,
+    paddingBottom: 100,
+  },
+  header: {
+    marginBottom: spacing.xl,
+  },
+  title: {
+    ...typography.h1,
+    color: colors.textPrimary,
+  },
+  section: {
+    marginBottom: spacing.xl,
+  },
+  sectionTitle: {
+    ...typography.labelMD,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  card: {
+    backgroundColor: colors.lpSurface,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  inputLabel: {
+    ...typography.bodyLG,
+    color: colors.textPrimary,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lpBlack,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+  },
+  input: {
+    ...typography.h4,
+    color: colors.lpCyan,
+    width: 60,
+    textAlign: 'right',
+    paddingVertical: spacing.sm,
+  },
+  inputSuffix: {
+    ...typography.bodyMD,
+    color: colors.textMuted,
+    marginLeft: spacing.xs,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  toggleLabel: {
+    ...typography.bodyLG,
+    color: colors.textPrimary,
+  },
+  toggleCategory: {
+    ...typography.bodySM,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  saveButton: {
+    marginBottom: spacing.xxl,
+  },
+  engineButtons: {
+    gap: spacing.md,
+  },
+  pauseButton: {
+    borderColor: colors.lpAmber,
+  },
+  stopButton: {},
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  modalContent: {
+    backgroundColor: colors.lpSurface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.lpRed,
+  },
+  modalTitle: {
+    ...typography.h2,
+    color: colors.lpRed,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalText: {
+    ...typography.bodyLG,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  modalWarning: {
+    ...typography.h4,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.textMuted,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    ...typography.labelLG,
+    color: colors.textSecondary,
+  },
+  modalConfirmButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.lpRed,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    ...typography.labelLG,
+    color: colors.textPrimary,
+  },
+});
