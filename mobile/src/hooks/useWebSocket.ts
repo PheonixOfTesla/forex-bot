@@ -5,6 +5,11 @@ import { Signal, Trade, EngineStatus } from '../services/api';
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://web-production-7d1c.up.railway.app';
 const WS_URL = API_URL.replace(/^http/, 'ws') + '/ws';
 
+// Reconnect settings
+const MAX_RECONNECT_ATTEMPTS = 5;
+const INITIAL_RECONNECT_DELAY = 3000;
+const MAX_RECONNECT_DELAY = 30000;
+
 type WebSocketMessage =
   | { type: 'signal'; data: Signal }
   | { type: 'trade_update'; data: Trade }
@@ -38,17 +43,23 @@ export function useWebSocket(
     onEngineStatus,
     onBalanceUpdate,
     autoReconnect = true,
-    reconnectInterval = 3000,
   } = options;
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    // Stop if max attempts reached
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.log('[WebSocket] Max reconnect attempts reached, giving up');
       return;
     }
 
@@ -59,6 +70,7 @@ export function useWebSocket(
         console.log('[WebSocket] Connected');
         setIsConnected(true);
         setError(null);
+        reconnectAttemptsRef.current = 0; // Reset on successful connection
       };
 
       ws.onmessage = (event) => {
@@ -98,11 +110,17 @@ export function useWebSocket(
         setIsConnected(false);
         wsRef.current = null;
 
-        if (autoReconnect) {
+        if (autoReconnect && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttemptsRef.current += 1;
+          // Exponential backoff: 3s, 6s, 12s, 24s, 30s (capped)
+          const delay = Math.min(
+            INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current - 1),
+            MAX_RECONNECT_DELAY
+          );
+          console.log(`[WebSocket] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('[WebSocket] Attempting reconnect...');
             connect();
-          }, reconnectInterval);
+          }, delay);
         }
       };
 
@@ -116,7 +134,6 @@ export function useWebSocket(
     onEngineStatus,
     onBalanceUpdate,
     autoReconnect,
-    reconnectInterval,
   ]);
 
   const disconnect = useCallback(() => {
