@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,22 @@ export const SettingsScreen: React.FC = () => {
   ]);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Load settings from API
+  useEffect(() => {
+    if (settings) {
+      const s = settings as any;
+      if (s.risk) {
+        setMaxRiskPerTrade(String(s.risk.risk_per_trade_pct ?? s.risk.risk_per_trade ?? 2));
+        setMaxDailyTrades(String(s.risk.max_open_positions ?? 10));
+        setMinConfidence(String(s.risk.min_confidence_threshold ?? s.risk.min_confidence ?? 70));
+        setMaxDrawdown(String(s.risk.max_drawdown_pct ?? s.risk.max_daily_loss ?? 15));
+      }
+      if (s.notifications) {
+        setAlertsEnabled(s.notifications.telegram_enabled ?? true);
+      }
+    }
+  }, [settings]);
 
   const toggleAsset = useCallback((assetId: string) => {
     setEnabledAssets((prev) =>

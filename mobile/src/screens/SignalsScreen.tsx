@@ -36,24 +36,24 @@ export const SignalsScreen: React.FC = () => {
   }, [refetch]);
 
   // Transform API signals to UI format
-  const signals = (data ?? []).map((s, i) => {
-    const rr = s.take_profit && s.stop_loss && s.entry_price
+  const signals = (data ?? []).map((s: any, i: number) => {
+    const rr = s.risk_reward_ratio ?? (s.take_profit && s.stop_loss && s.entry_price
       ? Math.abs(s.take_profit - s.entry_price) / Math.abs(s.stop_loss - s.entry_price)
-      : 2.0;
+      : 2.0);
     return {
       id: s.id ?? `signal-${i}`,
       asset: s.pair,
       direction: (s.direction === 'buy' ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT',
       confidence: s.confidence,
-      strategy: 'ML Signal',
-      session: 'Active',
+      strategy: s.strategy?.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) ?? 'ML Signal',
+      session: s.status ?? 'Active',
       atr: 0,
       volume: 0,
       entry: s.entry_price,
       stopLoss: s.stop_loss,
       takeProfit: s.take_profit,
       riskReward: rr,
-      createdAt: s.timestamp,
+      createdAt: s.created_at ?? s.timestamp ?? new Date().toISOString(),
     };
   });
 

@@ -34,20 +34,20 @@ export const SignalDetailScreen: React.FC = () => {
   const s = signal as any;
   const displaySignal = {
     id: s?.id ?? '1',
-    asset: s?.pair ?? 'EUR/USD',
+    asset: s?.pair ?? 'Loading...',
     direction: (s?.direction === 'buy' ? 'LONG' : s?.direction === 'sell' ? 'SHORT' : 'LONG') as 'LONG' | 'SHORT',
     confidence: s?.confidence ?? 0,
-    strategy: s?.strategy ?? 'ML Signal',
-    session: 'Active',
+    strategy: s?.strategy?.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) ?? 'ML Signal',
+    session: s?.status ?? 'Active',
     atr: 0,
     volume: 0,
     entry: s?.entry_price ?? 0,
     stopLoss: s?.stop_loss ?? 0,
     takeProfit: s?.take_profit ?? 0,
-    riskReward: s?.entry_price && s?.stop_loss && s?.take_profit
+    riskReward: s?.risk_reward_ratio ?? (s?.entry_price && s?.stop_loss && s?.take_profit
       ? Math.abs(s.take_profit - s.entry_price) / Math.abs(s.stop_loss - s.entry_price)
-      : 2.0,
-    createdAt: s?.timestamp ?? new Date().toISOString(),
+      : 2.0),
+    createdAt: s?.created_at ?? s?.timestamp ?? new Date().toISOString(),
   };
 
   const handleExecute = async () => {

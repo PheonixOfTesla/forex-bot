@@ -43,27 +43,31 @@ export const EngineStatusScreen: React.FC = () => {
     return 'STOPPED';
   };
 
-  const parseUptime = (uptime: string | number): number => {
-    if (typeof uptime === 'number') return uptime;
-    // Parse "Xd Xh Xm" format
-    const match = uptime.match(/(\d+)d?\s*(\d+)?h?\s*(\d+)?m?/);
-    if (!match) return 0;
-    const days = parseInt(match[1] || '0');
-    const hours = parseInt(match[2] || '0');
-    const mins = parseInt(match[3] || '0');
-    return days * 86400 + hours * 3600 + mins * 60;
+  const mapComponentStatus = (s: string): 'active' | 'degraded' | 'down' => {
+    if (s === 'running') return 'active';
+    if (s === 'degraded') return 'degraded';
+    return 'down';
+  };
+
+  // Extract components from API response (they're individual objects, not an array)
+  const extractComponents = (d: any) => {
+    if (!d) return [];
+    const componentKeys = ['websocket_feed', 'feature_engine', 'ml_classifier', 'risk_manager', 'order_executor', 'logger'];
+    return componentKeys
+      .filter(key => d[key])
+      .map(key => ({
+        name: d[key].name?.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) ?? key,
+        status: mapComponentStatus(d[key].status),
+        lastHeartbeat: d[key].last_heartbeat ?? new Date().toISOString(),
+        details: d[key].message ?? undefined,
+      }));
   };
 
   const engineStatus = {
-    status: data ? mapStatus(data.status) : 'LIVE',
-    uptime: data ? parseUptime(data.uptime) : 86400,
-    tradeCount: 0,
-    components: (data?.components ?? []).map((c: any) => ({
-      name: c.name,
-      status: c.status as 'active' | 'degraded' | 'down',
-      lastHeartbeat: new Date().toISOString(),
-      details: c.latency ? `Latency: ${c.latency}ms` : undefined,
-    })),
+    status: data ? mapStatus(data.status) : 'STOPPED',
+    uptime: (data as any)?.uptime_seconds ?? 0,
+    tradeCount: (data as any)?.trades_executed_today ?? 0,
+    components: extractComponents(data),
   };
 
   const formatUptime = (seconds: number): string => {
