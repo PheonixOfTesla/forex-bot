@@ -7,7 +7,7 @@ const WS_URL = API_URL.replace(/^http/, 'ws') + '/ws';
 
 // Reconnect settings
 const MAX_RECONNECT_ATTEMPTS = 5;
-const INITIAL_RECONNECT_DELAY = 3000;
+const INITIAL_RECONNECT_DELAY = 2000;
 const MAX_RECONNECT_DELAY = 30000;
 
 type WebSocketMessage =
@@ -23,11 +23,11 @@ interface UseWebSocketOptions {
   onEngineStatus?: (status: EngineStatus) => void;
   onBalanceUpdate?: (data: { balance: number; pnl: number }) => void;
   autoReconnect?: boolean;
-  reconnectInterval?: number;
 }
 
 interface UseWebSocketReturn {
   isConnected: boolean;
+  isWebSocketLive: boolean;
   lastMessage: WebSocketMessage | null;
   error: Error | null;
   reconnect: () => void;
@@ -42,31 +42,66 @@ export function useWebSocket(
     onTradeUpdate,
     onEngineStatus,
     onBalanceUpdate,
+    autoReconnect = true,
   } = options;
 
   const wsRef = useRef<WebSocket | null>(null);
-  const triedOnce = useRef(false);
-  const [isConnected, setIsConnected] = useState(true); // Default true (REST works)
+  const reconnectAttempts = useRef(0);
+  const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+
+  // isConnected = REST API works (always true for UI purposes)
+  // isWebSocketLive = actual WebSocket connection state
+  const [isConnected] = useState(true);
+  const [isWebSocketLive, setIsWebSocketLive] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeout.current) {
+      clearTimeout(reconnectTimeout.current);
+      reconnectTimeout.current = null;
+    }
+  }, []);
+
+  const scheduleReconnect = useCallback(() => {
+    if (!autoReconnect || !mountedRef.current) return;
+    if (reconnectAttempts.current >= MAX_RECONNECT_ATTEMPTS) return;
+
+    clearReconnectTimeout();
+
+    const delay = Math.min(
+      INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempts.current),
+      MAX_RECONNECT_DELAY
+    );
+
+    reconnectTimeout.current = setTimeout(() => {
+      if (mountedRef.current) {
+        reconnectAttempts.current++;
+        connect();
+      }
+    }, delay);
+  }, [autoReconnect, clearReconnectTimeout]);
+
   const connect = useCallback(() => {
-    // Only try WebSocket once - if it fails, silently use REST
-    if (triedOnce.current || wsRef.current?.readyState === WebSocket.OPEN) {
+    // Don't connect if already connected or connecting
+    if (wsRef.current?.readyState === WebSocket.OPEN ||
+        wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
-    triedOnce.current = true;
 
     try {
       const ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
-        // WebSocket connected - use real-time updates
-        setIsConnected(true);
+        if (!mountedRef.current) return;
+        reconnectAttempts.current = 0;
+        setIsWebSocketLive(true);
         setError(null);
       };
 
       ws.onmessage = (event) => {
+        if (!mountedRef.current) return;
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
           setLastMessage(message);
@@ -85,7 +120,7 @@ export function useWebSocket(
               onBalanceUpdate?.(message.data);
               break;
             case 'heartbeat':
-              // Keep-alive, no action needed
+              // Keep-alive acknowledged
               break;
           }
         } catch {
@@ -94,44 +129,58 @@ export function useWebSocket(
       };
 
       ws.onerror = () => {
-        // WebSocket failed - fall back to REST polling silently
-        // Keep isConnected true since REST API works
+        // Don't log - just track state
+        if (!mountedRef.current) return;
+        setError(new Error('WebSocket error'));
       };
 
       ws.onclose = () => {
-        // Don't retry - just use REST polling
+        if (!mountedRef.current) return;
         wsRef.current = null;
-        // Keep isConnected true since REST API works
+        setIsWebSocketLive(false);
+        scheduleReconnect();
       };
 
       wsRef.current = ws;
     } catch {
-      // Silently fail - REST API is the fallback
+      // Connection failed - schedule reconnect
+      scheduleReconnect();
     }
-  }, [onSignal, onTradeUpdate, onEngineStatus, onBalanceUpdate]);
+  }, [onSignal, onTradeUpdate, onEngineStatus, onBalanceUpdate, scheduleReconnect]);
 
   const disconnect = useCallback(() => {
+    clearReconnectTimeout();
+    reconnectAttempts.current = MAX_RECONNECT_ATTEMPTS; // Prevent auto-reconnect
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-  }, []);
+    setIsWebSocketLive(false);
+  }, [clearReconnectTimeout]);
 
   const reconnect = useCallback(() => {
     disconnect();
+    reconnectAttempts.current = 0;
     connect();
   }, [disconnect, connect]);
 
   useEffect(() => {
+    mountedRef.current = true;
     connect();
 
     return () => {
-      disconnect();
+      mountedRef.current = false;
+      clearReconnectTimeout();
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
-  }, [connect, disconnect]);
+  }, [connect, clearReconnectTimeout]);
 
   return {
     isConnected,
+    isWebSocketLive,
     lastMessage,
     error,
     reconnect,
