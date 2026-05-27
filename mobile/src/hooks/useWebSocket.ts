@@ -37,6 +37,37 @@ interface UseWebSocketReturn {
 export function useWebSocket(
   options: UseWebSocketOptions = {}
 ): UseWebSocketReturn {
+  // WebSocket disabled - Railway backend doesn't support it
+  // Using REST API polling instead
+  const [isConnected] = useState(true); // Always show as "connected" since REST works
+  const [lastMessage] = useState<WebSocketMessage | null>(null);
+  const [error] = useState<Error | null>(null);
+
+  const connect = useCallback(() => {
+    // No-op: WebSocket disabled
+  }, []);
+
+  const disconnect = useCallback(() => {
+    // No-op: WebSocket disabled
+  }, []);
+
+  const reconnect = useCallback(() => {
+    // No-op: WebSocket disabled
+  }, []);
+
+  return {
+    isConnected,
+    lastMessage,
+    error,
+    reconnect,
+    disconnect,
+  };
+}
+
+// Original WebSocket implementation (disabled)
+export function useWebSocketOriginal(
+  options: UseWebSocketOptions = {}
+): UseWebSocketReturn {
   const {
     onSignal,
     onTradeUpdate,
