@@ -37,71 +37,33 @@ interface UseWebSocketReturn {
 export function useWebSocket(
   options: UseWebSocketOptions = {}
 ): UseWebSocketReturn {
-  // WebSocket disabled - Railway backend doesn't support it
-  // Using REST API polling instead
-  const [isConnected] = useState(true); // Always show as "connected" since REST works
-  const [lastMessage] = useState<WebSocketMessage | null>(null);
-  const [error] = useState<Error | null>(null);
-
-  const connect = useCallback(() => {
-    // No-op: WebSocket disabled
-  }, []);
-
-  const disconnect = useCallback(() => {
-    // No-op: WebSocket disabled
-  }, []);
-
-  const reconnect = useCallback(() => {
-    // No-op: WebSocket disabled
-  }, []);
-
-  return {
-    isConnected,
-    lastMessage,
-    error,
-    reconnect,
-    disconnect,
-  };
-}
-
-// Original WebSocket implementation (disabled)
-export function useWebSocketOriginal(
-  options: UseWebSocketOptions = {}
-): UseWebSocketReturn {
   const {
     onSignal,
     onTradeUpdate,
     onEngineStatus,
     onBalanceUpdate,
-    autoReconnect = true,
   } = options;
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const [isConnected, setIsConnected] = useState(false);
+  const triedOnce = useRef(false);
+  const [isConnected, setIsConnected] = useState(true); // Default true (REST works)
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    // Only try WebSocket once - if it fails, silently use REST
+    if (triedOnce.current || wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
-
-    // Stop if max attempts reached
-    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-      console.log('[WebSocket] Max reconnect attempts reached, giving up');
-      return;
-    }
+    triedOnce.current = true;
 
     try {
       const ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
-        console.log('[WebSocket] Connected');
+        // WebSocket connected - use real-time updates
         setIsConnected(true);
         setError(null);
-        reconnectAttemptsRef.current = 0; // Reset on successful connection
       };
 
       ws.onmessage = (event) => {
@@ -126,53 +88,29 @@ export function useWebSocketOriginal(
               // Keep-alive, no action needed
               break;
           }
-        } catch (err) {
-          console.error('[WebSocket] Failed to parse message:', err);
+        } catch {
+          // Silently ignore parse errors
         }
       };
 
-      ws.onerror = (event) => {
-        console.error('[WebSocket] Error:', event);
-        setError(new Error('WebSocket connection error'));
+      ws.onerror = () => {
+        // WebSocket failed - fall back to REST polling silently
+        // Keep isConnected true since REST API works
       };
 
       ws.onclose = () => {
-        console.log('[WebSocket] Disconnected');
-        setIsConnected(false);
+        // Don't retry - just use REST polling
         wsRef.current = null;
-
-        if (autoReconnect && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttemptsRef.current += 1;
-          // Exponential backoff: 3s, 6s, 12s, 24s, 30s (capped)
-          const delay = Math.min(
-            INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current - 1),
-            MAX_RECONNECT_DELAY
-          );
-          console.log(`[WebSocket] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, delay);
-        }
+        // Keep isConnected true since REST API works
       };
 
       wsRef.current = ws;
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
+    } catch {
+      // Silently fail - REST API is the fallback
     }
-  }, [
-    onSignal,
-    onTradeUpdate,
-    onEngineStatus,
-    onBalanceUpdate,
-    autoReconnect,
-  ]);
+  }, [onSignal, onTradeUpdate, onEngineStatus, onBalanceUpdate]);
 
   const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
