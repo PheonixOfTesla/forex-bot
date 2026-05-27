@@ -7,6 +7,7 @@ Provides endpoints for ML trading signals - listing, details, execution, and ski
 """
 
 import logging
+import random
 from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import uuid4
@@ -29,138 +30,213 @@ router = APIRouter()
 
 
 # =============================================================================
+# Dynamic Data Generation Utilities
+# =============================================================================
+
+
+def _add_variance(base: float, variance_pct: float = 5.0) -> float:
+    """Add percentage-based variance to a value."""
+    variance = base * (variance_pct / 100) * random.uniform(-1, 1)
+    return round(base + variance, 4)
+
+
+def _add_confidence_variance(base: float) -> float:
+    """Add slight variance to confidence scores (±3%)."""
+    variance = random.uniform(-3, 3)
+    return round(max(50.0, min(99.0, base + variance)), 1)
+
+
+def _add_win_rate_variance(base: float) -> float:
+    """Add variance to historical win rate (±5%, clamped 55-85%)."""
+    variance = random.uniform(-5, 5)
+    return round(max(55.0, min(85.0, base + variance)), 1)
+
+
+def _add_feature_variance(features: dict) -> dict:
+    """Add small variance to ML features to simulate live updates."""
+    varied = {}
+    for key, value in features.items():
+        if isinstance(value, (int, float)):
+            # Different variance for different feature types
+            if key in ("rsi", "trend_strength"):
+                # Oscillators: ±3 points
+                variance = random.uniform(-3, 3)
+                varied[key] = round(max(0, min(100, value + variance)), 1)
+            elif key in ("bb_position",):
+                # Bounded 0-1: ±0.05
+                variance = random.uniform(-0.05, 0.05)
+                varied[key] = round(max(0, min(1, value + variance)), 2)
+            elif key in ("volume_ratio",):
+                # Ratio: ±10%
+                varied[key] = round(value * random.uniform(0.9, 1.1), 2)
+            elif key in ("support_level", "resistance_level"):
+                # Price levels: ±0.1%
+                varied[key] = round(value * random.uniform(0.999, 1.001), 5)
+            else:
+                # Default: ±5%
+                varied[key] = _add_variance(value, 5.0)
+        else:
+            varied[key] = value
+    return varied
+
+
+# =============================================================================
 # Mock Data Store (Replace with actual database)
 # =============================================================================
 
 
-# In-memory signal store for development
-_signals_store: dict = {}
-
-
-def _init_mock_signals():
-    """Initialize mock signals for development."""
-    global _signals_store
-
-    if _signals_store:
-        return
-
-    mock_signals = [
-        {
-            "id": "sig_001",
-            "pair": "EUR/USD",
-            "direction": SignalDirection.BUY,
-            "confidence": 87.5,
-            "entry_price": 1.0845,
-            "stop_loss": 1.0815,
-            "take_profit": 1.0905,
-            "risk_reward_ratio": 2.0,
-            "status": SignalStatus.ACTIVE,
-            "strategy": "momentum_breakout",
-            "created_at": datetime.utcnow() - timedelta(minutes=15),
-            "expires_at": datetime.utcnow() + timedelta(minutes=45),
-            "features": {
-                "rsi": 65.3,
-                "macd": 0.0025,
-                "macd_signal": 0.0018,
-                "bb_position": 0.75,
-                "atr": 0.0045,
-                "volume_ratio": 1.35,
-                "trend_strength": 72.5,
-                "support_level": 1.0800,
-                "resistance_level": 1.0920,
-            },
-            "model_version": "v2.3.1",
-            "feature_importance": {
-                "rsi": 0.18,
-                "macd": 0.22,
-                "trend_strength": 0.25,
-                "volume_ratio": 0.15,
-                "bb_position": 0.12,
-                "atr": 0.08,
-            },
-            "similar_historical_trades": 45,
-            "historical_win_rate": 71.2,
+# Base signal data (static reference values)
+_BASE_SIGNALS = [
+    {
+        "id": "sig_001",
+        "pair": "EUR/USD",
+        "direction": SignalDirection.BUY,
+        "base_confidence": 87.5,
+        "entry_price": 1.0845,
+        "stop_loss": 1.0815,
+        "take_profit": 1.0905,
+        "risk_reward_ratio": 2.0,
+        "status": SignalStatus.ACTIVE,
+        "strategy": "momentum_breakout",
+        "minutes_ago": 15,
+        "expires_in_minutes": 45,
+        "base_features": {
+            "rsi": 65.3,
+            "macd": 0.0025,
+            "macd_signal": 0.0018,
+            "bb_position": 0.75,
+            "atr": 0.0045,
+            "volume_ratio": 1.35,
+            "trend_strength": 72.5,
+            "support_level": 1.0800,
+            "resistance_level": 1.0920,
         },
-        {
-            "id": "sig_002",
-            "pair": "GBP/USD",
-            "direction": SignalDirection.SELL,
-            "confidence": 76.2,
-            "entry_price": 1.2650,
-            "stop_loss": 1.2695,
-            "take_profit": 1.2560,
-            "risk_reward_ratio": 2.0,
-            "status": SignalStatus.ACTIVE,
-            "strategy": "mean_reversion",
-            "created_at": datetime.utcnow() - timedelta(minutes=8),
-            "expires_at": datetime.utcnow() + timedelta(minutes=52),
-            "features": {
-                "rsi": 78.5,
-                "macd": -0.0015,
-                "macd_signal": 0.0005,
-                "bb_position": 0.92,
-                "atr": 0.0062,
-                "volume_ratio": 0.85,
-                "trend_strength": 45.2,
-                "support_level": 1.2540,
-                "resistance_level": 1.2680,
-            },
-            "model_version": "v2.3.1",
-            "feature_importance": {
-                "rsi": 0.28,
-                "bb_position": 0.25,
-                "macd": 0.18,
-                "trend_strength": 0.12,
-                "volume_ratio": 0.10,
-                "atr": 0.07,
-            },
-            "similar_historical_trades": 32,
-            "historical_win_rate": 65.8,
+        "model_version": "v2.3.1",
+        "feature_importance": {
+            "rsi": 0.18,
+            "macd": 0.22,
+            "trend_strength": 0.25,
+            "volume_ratio": 0.15,
+            "bb_position": 0.12,
+            "atr": 0.08,
         },
-        {
-            "id": "sig_003",
-            "pair": "USD/JPY",
-            "direction": SignalDirection.BUY,
-            "confidence": 82.1,
-            "entry_price": 149.25,
-            "stop_loss": 148.85,
-            "take_profit": 150.05,
-            "risk_reward_ratio": 2.0,
-            "status": SignalStatus.ACTIVE,
-            "strategy": "trend_following",
-            "created_at": datetime.utcnow() - timedelta(minutes=3),
-            "expires_at": datetime.utcnow() + timedelta(minutes=57),
-            "features": {
-                "rsi": 58.2,
-                "macd": 0.15,
-                "macd_signal": 0.08,
-                "bb_position": 0.55,
-                "atr": 0.42,
-                "volume_ratio": 1.15,
-                "trend_strength": 78.3,
-                "support_level": 148.50,
-                "resistance_level": 150.25,
-            },
-            "model_version": "v2.3.1",
-            "feature_importance": {
-                "trend_strength": 0.30,
-                "macd": 0.22,
-                "rsi": 0.18,
-                "volume_ratio": 0.12,
-                "bb_position": 0.10,
-                "atr": 0.08,
-            },
-            "similar_historical_trades": 58,
-            "historical_win_rate": 73.5,
+        "similar_historical_trades": 45,
+        "base_historical_win_rate": 71.2,
+    },
+    {
+        "id": "sig_002",
+        "pair": "GBP/USD",
+        "direction": SignalDirection.SELL,
+        "base_confidence": 76.2,
+        "entry_price": 1.2650,
+        "stop_loss": 1.2695,
+        "take_profit": 1.2560,
+        "risk_reward_ratio": 2.0,
+        "status": SignalStatus.ACTIVE,
+        "strategy": "mean_reversion",
+        "minutes_ago": 8,
+        "expires_in_minutes": 52,
+        "base_features": {
+            "rsi": 78.5,
+            "macd": -0.0015,
+            "macd_signal": 0.0005,
+            "bb_position": 0.92,
+            "atr": 0.0062,
+            "volume_ratio": 0.85,
+            "trend_strength": 45.2,
+            "support_level": 1.2540,
+            "resistance_level": 1.2680,
         },
-    ]
+        "model_version": "v2.3.1",
+        "feature_importance": {
+            "rsi": 0.28,
+            "bb_position": 0.25,
+            "macd": 0.18,
+            "trend_strength": 0.12,
+            "volume_ratio": 0.10,
+            "atr": 0.07,
+        },
+        "similar_historical_trades": 32,
+        "base_historical_win_rate": 65.8,
+    },
+    {
+        "id": "sig_003",
+        "pair": "USD/JPY",
+        "direction": SignalDirection.BUY,
+        "base_confidence": 82.1,
+        "entry_price": 149.25,
+        "stop_loss": 148.85,
+        "take_profit": 150.05,
+        "risk_reward_ratio": 2.0,
+        "status": SignalStatus.ACTIVE,
+        "strategy": "trend_following",
+        "minutes_ago": 3,
+        "expires_in_minutes": 57,
+        "base_features": {
+            "rsi": 58.2,
+            "macd": 0.15,
+            "macd_signal": 0.08,
+            "bb_position": 0.55,
+            "atr": 0.42,
+            "volume_ratio": 1.15,
+            "trend_strength": 78.3,
+            "support_level": 148.50,
+            "resistance_level": 150.25,
+        },
+        "model_version": "v2.3.1",
+        "feature_importance": {
+            "trend_strength": 0.30,
+            "macd": 0.22,
+            "rsi": 0.18,
+            "volume_ratio": 0.12,
+            "bb_position": 0.10,
+            "atr": 0.08,
+        },
+        "similar_historical_trades": 58,
+        "base_historical_win_rate": 73.5,
+    },
+]
 
-    for sig in mock_signals:
-        _signals_store[sig["id"]] = sig
+
+# In-memory signal store for tracking status changes
+_signals_status_store: dict = {}
 
 
-# Initialize mock data
-_init_mock_signals()
+def _get_dynamic_signal(base_signal: dict) -> dict:
+    """Generate a dynamic signal from base data with live variance."""
+    now = datetime.utcnow()
+
+    # Check if we have a stored status for this signal
+    stored_status = _signals_status_store.get(base_signal["id"], {})
+    status = stored_status.get("status", base_signal["status"])
+
+    return {
+        "id": base_signal["id"],
+        "pair": base_signal["pair"],
+        "direction": base_signal["direction"],
+        "confidence": _add_confidence_variance(base_signal["base_confidence"]),
+        "entry_price": base_signal["entry_price"],
+        "stop_loss": base_signal["stop_loss"],
+        "take_profit": base_signal["take_profit"],
+        "risk_reward_ratio": base_signal["risk_reward_ratio"],
+        "status": status,
+        "strategy": base_signal["strategy"],
+        "created_at": now - timedelta(minutes=base_signal["minutes_ago"]),
+        "expires_at": now + timedelta(minutes=base_signal["expires_in_minutes"]),
+        "features": _add_feature_variance(base_signal["base_features"]),
+        "model_version": base_signal["model_version"],
+        "feature_importance": base_signal["feature_importance"],
+        "similar_historical_trades": base_signal["similar_historical_trades"] + random.randint(-3, 3),
+        "historical_win_rate": _add_win_rate_variance(base_signal["base_historical_win_rate"]),
+    }
+
+
+def _get_signals_store() -> dict:
+    """Get current signals with dynamic data."""
+    signals = {}
+    for base_signal in _BASE_SIGNALS:
+        signals[base_signal["id"]] = _get_dynamic_signal(base_signal)
+    return signals
 
 
 # =============================================================================
@@ -239,7 +315,7 @@ async def get_active_signals(
     ),
 ) -> List[SignalResponse]:
     """
-    Get list of trading signals.
+    Get list of trading signals with dynamic data.
 
     Args:
         status: Filter by signal status (active, executed, skipped, expired)
@@ -255,8 +331,8 @@ async def get_active_signals(
         f"min_confidence={min_confidence}, limit={limit}"
     )
 
-    # Filter signals
-    signals = list(_signals_store.values())
+    # Get fresh dynamic signals
+    signals = list(_get_signals_store().values())
 
     if status:
         signals = [s for s in signals if s["status"] == status]
@@ -281,7 +357,7 @@ async def get_signal_detail(
     signal_id: str = Path(..., description="Signal ID"),
 ) -> SignalDetailResponse:
     """
-    Get detailed information about a specific signal.
+    Get detailed information about a specific signal with dynamic data.
 
     Args:
         signal_id: The unique signal identifier
@@ -294,7 +370,8 @@ async def get_signal_detail(
     """
     logger.info(f"Fetching signal detail: {signal_id}")
 
-    signal = _signals_store.get(signal_id)
+    signals = _get_signals_store()
+    signal = signals.get(signal_id)
     if not signal:
         raise HTTPException(
             status_code=404,
@@ -328,23 +405,27 @@ async def execute_signal(
     """
     logger.info(f"Executing signal: {signal_id}")
 
-    signal = _signals_store.get(signal_id)
+    signals = _get_signals_store()
+    signal = signals.get(signal_id)
     if not signal:
         raise HTTPException(
             status_code=404,
             detail=f"Signal not found: {signal_id}",
         )
 
+    # Check stored status
+    stored_status = _signals_status_store.get(signal_id, {}).get("status", SignalStatus.ACTIVE)
+
     # Check if signal can be executed
-    if signal["status"] != SignalStatus.ACTIVE:
+    if stored_status != SignalStatus.ACTIVE:
         raise HTTPException(
             status_code=400,
-            detail=f"Signal cannot be executed: status is {signal['status'].value}",
+            detail=f"Signal cannot be executed: status is {stored_status.value}",
         )
 
     # Check if signal is expired
     if signal.get("expires_at") and signal["expires_at"] < datetime.utcnow():
-        signal["status"] = SignalStatus.EXPIRED
+        _signals_status_store[signal_id] = {"status": SignalStatus.EXPIRED}
         raise HTTPException(
             status_code=400,
             detail="Signal has expired",
@@ -359,15 +440,16 @@ async def execute_signal(
         # In real implementation, these would be used for order placement
         pass
 
-    # Simulate some slippage
-    slippage = 0.0001 if signal["direction"] == SignalDirection.BUY else -0.0001
+    # Simulate realistic slippage (±0.5-2 pips)
+    slippage_pips = random.uniform(0.5, 2.0)
+    slippage = slippage_pips * 0.0001 if signal["direction"] == SignalDirection.BUY else -slippage_pips * 0.0001
     executed_price += slippage
 
     # Generate trade ID
     trade_id = f"trd_{uuid4().hex[:8]}"
 
-    # Update signal status
-    signal["status"] = SignalStatus.EXECUTED
+    # Update signal status in persistent store
+    _signals_status_store[signal_id] = {"status": SignalStatus.EXECUTED}
 
     logger.info(f"Signal {signal_id} executed: trade_id={trade_id}")
 
@@ -375,9 +457,9 @@ async def execute_signal(
         success=True,
         signal_id=signal_id,
         trade_id=trade_id,
-        executed_price=executed_price,
-        slippage=slippage,
-        message=f"Trade executed successfully at {executed_price}",
+        executed_price=round(executed_price, 5),
+        slippage=round(slippage, 5),
+        message=f"Trade executed successfully at {executed_price:.5f}",
         executed_at=datetime.utcnow(),
     )
 
@@ -403,22 +485,26 @@ async def skip_signal(
     """
     logger.info(f"Skipping signal: {signal_id}")
 
-    signal = _signals_store.get(signal_id)
+    signals = _get_signals_store()
+    signal = signals.get(signal_id)
     if not signal:
         raise HTTPException(
             status_code=404,
             detail=f"Signal not found: {signal_id}",
         )
 
+    # Check stored status
+    stored_status = _signals_status_store.get(signal_id, {}).get("status", SignalStatus.ACTIVE)
+
     # Check if signal can be skipped
-    if signal["status"] == SignalStatus.EXECUTED:
+    if stored_status == SignalStatus.EXECUTED:
         raise HTTPException(
             status_code=400,
             detail="Cannot skip an executed signal",
         )
 
-    # Update signal status
-    signal["status"] = SignalStatus.SKIPPED
+    # Update signal status in persistent store
+    _signals_status_store[signal_id] = {"status": SignalStatus.SKIPPED}
 
     logger.info(f"Signal {signal_id} skipped")
 
@@ -432,9 +518,9 @@ async def skip_signal(
 @router.get("/signals/stats/summary")
 async def get_signals_summary():
     """
-    Get summary statistics for signals.
+    Get summary statistics for signals with dynamic data.
     """
-    signals = list(_signals_store.values())
+    signals = list(_get_signals_store().values())
 
     active = len([s for s in signals if s["status"] == SignalStatus.ACTIVE])
     executed = len([s for s in signals if s["status"] == SignalStatus.EXECUTED])
@@ -447,6 +533,11 @@ async def get_signals_summary():
         else 0
     )
 
+    # Add some variance to execution rate for realism
+    base_execution_rate = executed / len(signals) * 100 if signals else 0
+    execution_rate_variance = random.uniform(-2, 2)
+    execution_rate = max(0, min(100, base_execution_rate + execution_rate_variance))
+
     return {
         "total": len(signals),
         "active": active,
@@ -454,6 +545,6 @@ async def get_signals_summary():
         "skipped": skipped,
         "expired": expired,
         "average_confidence": round(avg_confidence, 2),
-        "execution_rate": round(executed / len(signals) * 100, 2) if signals else 0,
+        "execution_rate": round(execution_rate, 2),
         "timestamp": datetime.utcnow().isoformat(),
     }

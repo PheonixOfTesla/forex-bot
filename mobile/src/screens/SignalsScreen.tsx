@@ -5,7 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
+  Pressable,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -20,12 +21,13 @@ import { useSignals } from '../hooks/useApi';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Signal } from '../services/api';
 
-type RootStackParamList = {
+type SignalsStackParamList = {
+  SignalsList: undefined;
   SignalDetail: { signalId: string };
 };
 
 export const SignalsScreen: React.FC = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<SignalsStackParamList>>();
   const { data, loading, refetch } = useSignals();
   const { isConnected } = useWebSocket({
     onSignal: () => refetch(),
@@ -109,11 +111,14 @@ export const SignalsScreen: React.FC = () => {
             </View>
           ) : (
             signals.map((signal) => (
-              <TouchableOpacity
+              <Pressable
                 key={signal.id}
-                style={styles.signalCard}
+                style={({ pressed }) => [
+                  styles.signalCard,
+                  pressed && styles.signalCardPressed,
+                  Platform.OS === 'web' && styles.signalCardWeb,
+                ]}
                 onPress={() => handleSignalPress(signal.id)}
-                activeOpacity={0.7}
               >
                 <View style={styles.signalHeader}>
                   <View style={styles.signalAssetRow}>
@@ -153,7 +158,7 @@ export const SignalsScreen: React.FC = () => {
                 <View style={styles.tapHint}>
                   <Text style={styles.tapHintText}>Tap to view details</Text>
                 </View>
-              </TouchableOpacity>
+              </Pressable>
             ))
           )}
         </View>
@@ -201,6 +206,14 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: colors.lpCyan,
   },
+  signalCardPressed: {
+    opacity: 0.7,
+    backgroundColor: colors.borderDark,
+  },
+  signalCardWeb: {
+    cursor: 'pointer',
+    transition: 'opacity 0.2s ease',
+  } as any,
   signalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

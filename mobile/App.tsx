@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { View, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { NavigationContainer, DefaultTheme, LinkingOptions } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -14,6 +14,45 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { TabNavigator } from './src/navigation';
 import { colors } from './src/theme';
+
+// Type definitions for navigation
+type SignalsStackParamList = {
+  SignalsList: undefined;
+  SignalDetail: { signalId: string };
+};
+
+type RootTabParamList = {
+  Home: undefined;
+  Signals: undefined;
+  Engine: undefined;
+  History: undefined;
+  Settings: undefined;
+};
+
+// Linking configuration for web navigation
+const linking: LinkingOptions<RootTabParamList> = {
+  prefixes: [
+    // Add your app's URL scheme here
+    'forexbot://',
+    // Web URLs - only add on web platform
+    ...(Platform.OS === 'web' ? [typeof window !== 'undefined' ? window.location.origin : ''] : []),
+  ],
+  config: {
+    screens: {
+      Home: 'home',
+      Signals: {
+        path: 'signals',
+        screens: {
+          SignalsList: '',
+          SignalDetail: 'detail/:signalId',
+        },
+      },
+      Engine: 'engine',
+      History: 'history',
+      Settings: 'settings',
+    },
+  },
+};
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -58,7 +97,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.container} onLayout={onLayoutRootView}>
-        <NavigationContainer theme={LightningTheme}>
+        <NavigationContainer theme={LightningTheme} linking={linking}>
           <TabNavigator />
         </NavigationContainer>
         <StatusBar style="light" />
