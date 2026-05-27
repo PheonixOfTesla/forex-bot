@@ -15,6 +15,7 @@ import {
   SignalConfidenceBar,
   TradeDirectionPill,
   BalanceSparkline,
+  LightningIcon,
 } from '../components';
 import { useDashboard } from '../hooks/useApi';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -80,7 +81,10 @@ export const DashboardScreen: React.FC = () => {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Lightning Bot</Text>
+          <View style={styles.titleRow}>
+            <LightningIcon size={28} gradient />
+            <Text style={styles.title}>Lightning Trading</Text>
+          </View>
           <StatusBadge status={isConnected ? 'LIVE' : 'STOPPED'} />
         </View>
 
@@ -208,6 +212,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.xl,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   title: {
     ...typography.h1,

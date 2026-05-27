@@ -6,3 +6,4 @@ export * from './TradeRow';
 export * from './PrimaryButton';
 export * from './GhostButton';
 export * from './BalanceSparkline';
+export * from './LightningIcon';
