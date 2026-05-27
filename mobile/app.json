@@ -11,7 +11,11 @@
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
@@ -22,7 +26,9 @@
       "backgroundColor": "#000000",
       "themeColor": "#00d4ff"
     },
-    "plugins": [],
+    "plugins": [
+      "expo-splash-screen"
+    ],
     "experiments": {
       "typedRoutes": true
     }
