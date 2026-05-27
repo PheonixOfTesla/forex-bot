@@ -55,14 +55,21 @@ export const SettingsScreen: React.FC = () => {
   const handleSave = useCallback(async () => {
     await update({
       risk: {
-        maxRiskPerTrade: parseFloat(maxRiskPerTrade),
-        maxDailyTrades: parseInt(maxDailyTrades, 10),
-        minConfidence: parseInt(minConfidence, 10),
-        maxDrawdown: parseFloat(maxDrawdown),
+        risk_per_trade: parseFloat(maxRiskPerTrade),
+        max_open_trades: parseInt(maxDailyTrades, 10),
+        min_confidence: parseInt(minConfidence, 10),
+        max_daily_loss: parseFloat(maxDrawdown),
+        max_leverage: 10,
       },
-      enabledAssets,
-      alertsEnabled,
-      soundEnabled,
+      notifications: {
+        telegram_enabled: alertsEnabled,
+        trade_alerts: alertsEnabled,
+        daily_summary: true,
+      },
+      trading: {
+        auto_trade: true,
+        pairs: enabledAssets.reduce((acc, id) => ({ ...acc, [id]: true }), {}),
+      },
     });
     Alert.alert('Success', 'Settings saved successfully');
   }, [
@@ -72,7 +79,6 @@ export const SettingsScreen: React.FC = () => {
     maxDrawdown,
     enabledAssets,
     alertsEnabled,
-    soundEnabled,
     update,
   ]);
 

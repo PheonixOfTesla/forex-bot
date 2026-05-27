@@ -36,19 +36,34 @@ export const EngineStatusScreen: React.FC = () => {
     refetch();
   }, [refetch]);
 
-  // Mock data for development
-  const engineStatus = data || {
-    status: 'LIVE' as const,
-    uptime: 86400 * 7 + 3600 * 5 + 60 * 23, // 7d 5h 23m
-    tradeCount: 234,
-    components: [
-      { name: 'WebSocket Server', status: 'active' as const, lastHeartbeat: new Date().toISOString() },
-      { name: 'Feature Engine', status: 'active' as const, lastHeartbeat: new Date().toISOString() },
-      { name: 'ML Classifier', status: 'active' as const, lastHeartbeat: new Date().toISOString() },
-      { name: 'Risk Manager', status: 'active' as const, lastHeartbeat: new Date().toISOString() },
-      { name: 'Order Executor', status: 'degraded' as const, lastHeartbeat: new Date().toISOString(), details: 'High latency detected' },
-      { name: 'Logger', status: 'active' as const, lastHeartbeat: new Date().toISOString() },
-    ],
+  // Transform API data to UI format
+  const mapStatus = (s: string): 'LIVE' | 'PAUSED' | 'STOPPED' => {
+    if (s === 'running') return 'LIVE';
+    if (s === 'paused') return 'PAUSED';
+    return 'STOPPED';
+  };
+
+  const parseUptime = (uptime: string | number): number => {
+    if (typeof uptime === 'number') return uptime;
+    // Parse "Xd Xh Xm" format
+    const match = uptime.match(/(\d+)d?\s*(\d+)?h?\s*(\d+)?m?/);
+    if (!match) return 0;
+    const days = parseInt(match[1] || '0');
+    const hours = parseInt(match[2] || '0');
+    const mins = parseInt(match[3] || '0');
+    return days * 86400 + hours * 3600 + mins * 60;
+  };
+
+  const engineStatus = {
+    status: data ? mapStatus(data.status) : 'LIVE',
+    uptime: data ? parseUptime(data.uptime) : 86400,
+    tradeCount: 0,
+    components: (data?.components ?? []).map((c: any) => ({
+      name: c.name,
+      status: c.status as 'active' | 'degraded' | 'down',
+      lastHeartbeat: new Date().toISOString(),
+      details: c.latency ? `Latency: ${c.latency}ms` : undefined,
+    })),
   };
 
   const formatUptime = (seconds: number): string => {

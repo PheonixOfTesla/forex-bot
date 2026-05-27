@@ -32,46 +32,33 @@ export const DashboardScreen: React.FC = () => {
     refetch();
   }, [refetch]);
 
-  // Mock data for development
-  const dashboard = data || {
-    balance: 12547.82,
-    todayPnl: 342.18,
-    winRate: 68,
-    openPositions: 3,
-    signals: [
-      {
-        id: '1',
-        asset: 'EUR/USD',
-        direction: 'LONG' as const,
-        confidence: 87,
-        strategy: 'Trend Following',
-      },
-      {
-        id: '2',
-        asset: 'BTC/USD',
-        direction: 'SHORT' as const,
-        confidence: 72,
-        strategy: 'Mean Reversion',
-      },
-    ],
-    recentTrades: [
-      {
-        id: '1',
-        asset: 'XRP/USD',
-        direction: 'LONG' as const,
-        pnl: 124.5,
-        status: 'OPEN' as const,
-      },
-      {
-        id: '2',
-        asset: 'EUR/USD',
-        direction: 'SHORT' as const,
-        pnl: -45.2,
-        status: 'OPEN' as const,
-      },
-    ],
+  // Transform API data to UI format
+  const dashboard = {
+    balance: data?.balance ?? 0,
+    todayPnl: data?.today_pnl ?? 0,
+    winRate: data?.win_rate ?? 0,
+    openPositions: data?.open_positions_count ?? 0,
+    signals: (data?.ml_signals ?? []).map((s: any, i: number) => ({
+      id: s.id ?? `signal-${i}`,
+      asset: s.pair,
+      direction: s.direction === 'buy' ? 'LONG' as const : 'SHORT' as const,
+      confidence: s.confidence,
+      strategy: 'ML Signal',
+    })),
+    recentTrades: (data?.open_positions ?? []).map((p: any, i: number) => ({
+      id: p.id ?? `pos-${i}`,
+      asset: p.pair,
+      direction: (p.direction === 'buy' || p.direction === 'long') ? 'LONG' as const : 'SHORT' as const,
+      pnl: p.unrealized_pnl ?? p.pnl ?? 0,
+      status: 'OPEN' as const,
+    })),
     balanceHistory: [
-      12000, 12100, 12050, 12200, 12150, 12300, 12400, 12350, 12500, 12547,
+      data?.balance ? data.balance * 0.95 : 10000,
+      data?.balance ? data.balance * 0.96 : 10100,
+      data?.balance ? data.balance * 0.97 : 10200,
+      data?.balance ? data.balance * 0.98 : 10300,
+      data?.balance ? data.balance * 0.99 : 10400,
+      data?.balance ?? 10500,
     ],
   };
 

@@ -30,21 +30,24 @@ export const SignalDetailScreen: React.FC = () => {
   const { execute, loading: executing } = useExecuteSignal();
   const { skip, loading: skipping } = useSkipSignal();
 
-  // Mock data for development
-  const displaySignal = signal || {
-    id: '1',
-    asset: 'EUR/USD',
-    direction: 'LONG' as const,
-    confidence: 87,
-    strategy: 'Trend Following',
-    session: 'London',
-    atr: 0.0045,
-    volume: 125000,
-    entry: 1.0892,
-    stopLoss: 1.0862,
-    takeProfit: 1.0952,
-    riskReward: 2.0,
-    createdAt: new Date().toISOString(),
+  // Transform API data to UI format
+  const s = signal as any;
+  const displaySignal = {
+    id: s?.id ?? '1',
+    asset: s?.pair ?? 'EUR/USD',
+    direction: (s?.direction === 'buy' ? 'LONG' : s?.direction === 'sell' ? 'SHORT' : 'LONG') as 'LONG' | 'SHORT',
+    confidence: s?.confidence ?? 0,
+    strategy: s?.strategy ?? 'ML Signal',
+    session: 'Active',
+    atr: 0,
+    volume: 0,
+    entry: s?.entry_price ?? 0,
+    stopLoss: s?.stop_loss ?? 0,
+    takeProfit: s?.take_profit ?? 0,
+    riskReward: s?.entry_price && s?.stop_loss && s?.take_profit
+      ? Math.abs(s.take_profit - s.entry_price) / Math.abs(s.stop_loss - s.entry_price)
+      : 2.0,
+    createdAt: s?.timestamp ?? new Date().toISOString(),
   };
 
   const handleExecute = async () => {

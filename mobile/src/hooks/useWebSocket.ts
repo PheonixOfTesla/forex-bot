@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Signal, Trade, EngineStatus } from '../services/api';
 
-const WS_URL = process.env.EXPO_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
+// Derive WebSocket URL from API URL
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://web-production-7d1c.up.railway.app';
+const WS_URL = API_URL.replace(/^http/, 'ws') + '/ws';
 
 type WebSocketMessage =
   | { type: 'signal'; data: Signal }

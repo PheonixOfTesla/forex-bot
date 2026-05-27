@@ -28,9 +28,6 @@
     },
     "plugins": [
       "expo-splash-screen"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    ]
   }
 }

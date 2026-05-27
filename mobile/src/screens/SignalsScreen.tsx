@@ -35,54 +35,27 @@ export const SignalsScreen: React.FC = () => {
     refetch();
   }, [refetch]);
 
-  // Mock data for development
-  const signals: Signal[] = data || [
-    {
-      id: '1',
-      asset: 'EUR/USD',
-      direction: 'LONG',
-      confidence: 87,
-      strategy: 'Trend Following',
-      session: 'London',
-      atr: 0.0045,
-      volume: 125000,
-      entry: 1.0892,
-      stopLoss: 1.0862,
-      takeProfit: 1.0952,
-      riskReward: 2.0,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      asset: 'BTC/USD',
-      direction: 'SHORT',
-      confidence: 72,
-      strategy: 'Mean Reversion',
-      session: 'Asian',
-      atr: 450,
-      volume: 85000,
-      entry: 42500,
-      stopLoss: 43200,
-      takeProfit: 41100,
-      riskReward: 2.0,
-      createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    },
-    {
-      id: '3',
-      asset: 'XRP/USD',
-      direction: 'LONG',
-      confidence: 91,
-      strategy: 'Breakout',
-      session: 'New York',
-      atr: 0.015,
-      volume: 200000,
-      entry: 0.612,
-      stopLoss: 0.598,
-      takeProfit: 0.648,
-      riskReward: 2.57,
-      createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    },
-  ];
+  // Transform API signals to UI format
+  const signals = (data ?? []).map((s, i) => {
+    const rr = s.take_profit && s.stop_loss && s.entry_price
+      ? Math.abs(s.take_profit - s.entry_price) / Math.abs(s.stop_loss - s.entry_price)
+      : 2.0;
+    return {
+      id: s.id ?? `signal-${i}`,
+      asset: s.pair,
+      direction: (s.direction === 'buy' ? 'LONG' : 'SHORT') as 'LONG' | 'SHORT',
+      confidence: s.confidence,
+      strategy: 'ML Signal',
+      session: 'Active',
+      atr: 0,
+      volume: 0,
+      entry: s.entry_price,
+      stopLoss: s.stop_loss,
+      takeProfit: s.take_profit,
+      riskReward: rr,
+      createdAt: s.timestamp,
+    };
+  });
 
   const formatTime = (isoString: string): string => {
     const date = new Date(isoString);
