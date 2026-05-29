@@ -6,6 +6,13 @@ import {
   Trade,
   EngineStatus,
   Settings,
+  WalletData,
+  DepositResponse,
+  WithdrawResponse,
+  TransactionsResponse,
+  TransactionType,
+  AccountMode,
+  BalanceHistoryPoint,
 } from '../services/api';
 
 interface UseApiState<T> {
@@ -191,4 +198,93 @@ export function useUpdateSettings() {
   );
 
   return { update, loading, error };
+}
+
+// Wallet
+export function useWallet(): UseApiState<WalletData> {
+  return useApiCall(() => api.getWallet(), []);
+}
+
+export function useWalletBalanceHistory(days: number = 30): UseApiState<BalanceHistoryPoint[]> {
+  return useApiCall(() => api.getWalletBalanceHistory(days), [days]);
+}
+
+export function useTransactions(
+  page: number = 1,
+  pageSize: number = 20,
+  type?: TransactionType
+): UseApiState<TransactionsResponse> {
+  return useApiCall(() => api.getTransactions(page, pageSize, type), [page, pageSize, type]);
+}
+
+export function useDeposit() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const deposit = useCallback(
+    async (amount: number, paymentMethod?: string): Promise<DepositResponse | null> => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await api.deposit(amount, paymentMethod);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return { deposit, loading, error };
+}
+
+export function useWithdraw() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const withdraw = useCallback(
+    async (amount: number, destination?: string): Promise<WithdrawResponse | null> => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await api.withdraw(amount, destination);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return { withdraw, loading, error };
+}
+
+export function useSetWalletMode() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const setMode = useCallback(
+    async (mode: AccountMode): Promise<{ success: boolean; balance: number } | null> => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await api.setWalletMode(mode);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return { setMode, loading, error };
 }

@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .routes import dashboard, engine, history, settings, signals
+from .routes import dashboard, engine, history, intelligence, predictions, settings, signals, wallet
 from .websocket import router as websocket_router
 
 # Configure logging
@@ -232,6 +232,27 @@ app.include_router(
     settings.router,
     prefix="/api/v1",
     tags=["Settings"],
+)
+
+# Wallet routes
+app.include_router(
+    wallet.router,
+    prefix="/api/v1",
+    tags=["Wallet"],
+)
+
+# Predictions routes
+app.include_router(
+    predictions.router,
+    prefix="/api/v1",
+    tags=["Predictions"],
+)
+
+# Intelligence routes
+app.include_router(
+    intelligence.router,
+    prefix="/api/v1",
+    tags=["Intelligence"],
 )
 
 # WebSocket routes

@@ -9,11 +9,13 @@ import {
   Alert,
   Modal,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, borderRadius } from '../theme';
-import { PrimaryButton, GhostButton } from '../components';
+import { PrimaryButton, GhostButton, TradingModeToggle } from '../components';
 import { useSettings, useUpdateSettings, useEngineControl } from '../hooks/useApi';
+import { useTradingMode } from '../context/TradingModeContext';
 
 const ASSETS = [
   { id: 'eurusd', name: 'EUR/USD', category: 'Forex' },
@@ -28,8 +30,15 @@ export const SettingsScreen: React.FC = () => {
   const { data: settings, refetch } = useSettings();
   const { update, loading: updating } = useUpdateSettings();
   const { pause, stop, loading: engineLoading } = useEngineControl();
+  const { mode, apiKeys, setApiKeys, isLoading: modeLoading } = useTradingMode();
 
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+
+  // API Keys form state
+  const [oandaAccountId, setOandaAccountId] = useState('');
+  const [oandaAccessToken, setOandaAccessToken] = useState('');
+  const [showAccessToken, setShowAccessToken] = useState(false);
+  const [savingKeys, setSavingKeys] = useState(false);
 
   // Local state for form
   const [maxRiskPerTrade, setMaxRiskPerTrade] = useState('2');
@@ -59,6 +68,39 @@ export const SettingsScreen: React.FC = () => {
       }
     }
   }, [settings]);
+
+  // Load API keys into form
+  useEffect(() => {
+    if (apiKeys) {
+      setOandaAccountId(apiKeys.oandaAccountId || '');
+      setOandaAccessToken(apiKeys.oandaAccessToken || '');
+    }
+  }, [apiKeys]);
+
+  const handleSaveApiKeys = useCallback(async () => {
+    if (!oandaAccountId.trim() || !oandaAccessToken.trim()) {
+      Alert.alert('Validation Error', 'Please fill in both Account ID and Access Token.');
+      return;
+    }
+
+    setSavingKeys(true);
+    try {
+      await setApiKeys({
+        oandaAccountId: oandaAccountId.trim(),
+        oandaAccessToken: oandaAccessToken.trim(),
+      });
+      Alert.alert('Success', 'API keys saved successfully.');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save API keys. Please try again.');
+    } finally {
+      setSavingKeys(false);
+    }
+  }, [oandaAccountId, oandaAccessToken, setApiKeys]);
+
+  const maskToken = (token: string): string => {
+    if (!token || token.length < 8) return token;
+    return token.substring(0, 4) + '*'.repeat(token.length - 8) + token.substring(token.length - 4);
+  };
 
   const toggleAsset = useCallback((assetId: string) => {
     setEnabledAssets((prev) =>
@@ -139,6 +181,86 @@ export const SettingsScreen: React.FC = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Settings</Text>
+        </View>
+
+        {/* Trading Mode Section - TOP PRIORITY */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>TRADING MODE</Text>
+          {modeLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={colors.lpCyan} />
+            </View>
+          ) : (
+            <>
+              <TradingModeToggle />
+
+              {/* API Keys Section - Only show when Live mode is selected or keys need configuration */}
+              <View style={styles.card}>
+                <View style={styles.apiKeysHeader}>
+                  <Text style={styles.apiKeysTitle}>OANDA API Configuration</Text>
+                  {mode === 'live' && (
+                    <View style={styles.liveIndicator}>
+                      <Text style={styles.liveIndicatorText}>REQUIRED</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.inputRow}>
+                  <Text style={styles.inputLabel}>Account ID</Text>
+                  <View style={styles.apiInputWrapper}>
+                    <TextInput
+                      style={styles.apiInput}
+                      value={oandaAccountId}
+                      onChangeText={setOandaAccountId}
+                      placeholder="XXX-XXX-XXXXXXXX-XXX"
+                      placeholderTextColor={colors.textMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                <View style={[styles.inputRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.inputLabel}>Access Token</Text>
+                  <View style={styles.apiInputWrapper}>
+                    <TextInput
+                      style={styles.apiInput}
+                      value={showAccessToken ? oandaAccessToken : maskToken(oandaAccessToken)}
+                      onChangeText={setOandaAccessToken}
+                      placeholder="Enter your access token"
+                      placeholderTextColor={colors.textMuted}
+                      secureTextEntry={!showAccessToken}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.showTokenButton}
+                      onPress={() => setShowAccessToken(!showAccessToken)}
+                    >
+                      <Text style={styles.showTokenText}>
+                        {showAccessToken ? 'HIDE' : 'SHOW'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.saveKeysButton,
+                    savingKeys && styles.saveKeysButtonDisabled,
+                  ]}
+                  onPress={handleSaveApiKeys}
+                  disabled={savingKeys}
+                >
+                  {savingKeys ? (
+                    <ActivityIndicator color={colors.lpBlack} size="small" />
+                  ) : (
+                    <Text style={styles.saveKeysButtonText}>SAVE API KEYS</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Risk Settings */}
@@ -416,6 +538,69 @@ const styles = StyleSheet.create({
     borderColor: colors.lpAmber,
   },
   stopButton: {},
+  loadingContainer: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  apiKeysHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  apiKeysTitle: {
+    ...typography.labelMD,
+    color: colors.textSecondary,
+  },
+  liveIndicator: {
+    backgroundColor: colors.lpRed + '30',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  liveIndicatorText: {
+    ...typography.labelSM,
+    color: colors.lpRed,
+  },
+  apiInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.lpBlack,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    marginLeft: spacing.md,
+  },
+  apiInput: {
+    ...typography.bodyMD,
+    color: colors.lpCyan,
+    flex: 1,
+    paddingVertical: spacing.md,
+  },
+  showTokenButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  showTokenText: {
+    ...typography.labelSM,
+    color: colors.textMuted,
+  },
+  saveKeysButton: {
+    backgroundColor: colors.lpCyan,
+    margin: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  saveKeysButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveKeysButtonText: {
+    ...typography.labelLG,
+    color: colors.lpBlack,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',

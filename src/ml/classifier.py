@@ -17,7 +17,12 @@ from typing import Dict, List, Optional, Any, Tuple
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
-import xgboost as xgb
+try:
+    import xgboost as xgb
+    HAS_XGBOOST = True
+except Exception:
+    xgb = None
+    HAS_XGBOOST = False
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score,
@@ -95,9 +100,11 @@ class TradingClassifier:
             confidence_threshold: Minimum confidence to generate trade signal
             params: XGBoost parameters (uses defaults if not provided)
         """
+        if not HAS_XGBOOST:
+            logger.warning("XGBoost not available. ML classifier features will be limited.")
         self.confidence_threshold = confidence_threshold
         self.params = {**self.DEFAULT_PARAMS, **(params or {})}
-        self.model: Optional[xgb.XGBClassifier] = None
+        self.model = None  # Will be xgb.XGBClassifier when fitted
         self.feature_engineer = FeatureEngineer()
         self.feature_columns: List[str] = []
         self.is_fitted = False
@@ -129,6 +136,9 @@ class TradingClassifier:
             TrainingMetrics with training results
         """
         import time
+
+        if not HAS_XGBOOST:
+            raise RuntimeError("XGBoost is required for training. Install with: pip install xgboost")
 
         start_time = time.time()
         logger.info(f"Training classifier on {len(X)} samples")

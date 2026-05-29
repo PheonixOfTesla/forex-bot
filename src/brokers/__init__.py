@@ -4,8 +4,9 @@ from __future__ import annotations
 Broker Integrations
 
 This module provides unified interfaces to trading brokers:
+- Kraken: Crypto Futures (primary engine - BTC, ETH, XRP perpetuals)
 - OANDA: Forex trading (EUR/USD, GBP/USD, etc.)
-- Binance: Cryptocurrency trading (BTC, XRP, ETH, etc.)
+- Binance: Cryptocurrency spot/futures (BTC, XRP, ETH, etc.)
 
 Each broker client implements a common interface for:
 - Account information retrieval
@@ -13,6 +14,39 @@ Each broker client implements a common interface for:
 - Order placement and management
 - Position tracking
 """
+
+from .kraken_client import (
+    # Main Client
+    KrakenClient,
+    create_kraken_client,
+    # Data Models
+    Position as KrakenPosition,
+    Order as KrakenOrder,
+    Ticker as KrakenTicker,
+    AccountSummary as KrakenAccountSummary,
+    # Risk Management
+    CircuitBreaker,
+    TieredLeverage,
+    # Enums
+    OrderSide as KrakenOrderSide,
+    OrderType as KrakenOrderType,
+    OrderStatus as KrakenOrderStatus,
+    PositionSide as KrakenPositionSide,
+    MarginMode,
+    # Exceptions
+    KrakenError,
+    InsufficientMarginError as KrakenInsufficientMarginError,
+    LeverageError as KrakenLeverageError,
+    InvalidSymbolError as KrakenInvalidSymbolError,
+    OrderError as KrakenOrderError,
+    AuthenticationError as KrakenAuthenticationError,
+    RateLimitError as KrakenRateLimitError,
+    ConnectionError as KrakenConnectionError,
+    # Constants
+    DEMO_URL as KRAKEN_DEMO_URL,
+    LIVE_URL as KRAKEN_LIVE_URL,
+    SUPPORTED_SYMBOLS as KRAKEN_SYMBOLS,
+)
 
 from .binance_client import (
     # Main Client
@@ -70,6 +104,31 @@ from .oanda import (
 )
 
 __all__ = [
+    # Kraken Exports (Primary Engine)
+    "KrakenClient",
+    "create_kraken_client",
+    "KrakenPosition",
+    "KrakenOrder",
+    "KrakenTicker",
+    "KrakenAccountSummary",
+    "CircuitBreaker",
+    "TieredLeverage",
+    "KrakenOrderSide",
+    "KrakenOrderType",
+    "KrakenOrderStatus",
+    "KrakenPositionSide",
+    "MarginMode",
+    "KrakenError",
+    "KrakenInsufficientMarginError",
+    "KrakenLeverageError",
+    "KrakenInvalidSymbolError",
+    "KrakenOrderError",
+    "KrakenAuthenticationError",
+    "KrakenRateLimitError",
+    "KrakenConnectionError",
+    "KRAKEN_DEMO_URL",
+    "KRAKEN_LIVE_URL",
+    "KRAKEN_SYMBOLS",
     # Binance Exports
     "BinanceClient",
     "create_binance_client",

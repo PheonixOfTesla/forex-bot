@@ -78,6 +78,71 @@ export interface Settings {
   };
 }
 
+// Wallet Types
+export type TransactionType = 'deposit' | 'withdrawal' | 'trade_pnl' | 'fee' | 'adjustment';
+export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
+export type AccountMode = 'paper' | 'live';
+
+export interface Transaction {
+  id: string;
+  type: TransactionType;
+  amount: number;
+  balance_after: number;
+  status: TransactionStatus;
+  description: string;
+  created_at: string;
+  completed_at?: string;
+  reference?: string;
+}
+
+export interface WalletData {
+  mode: AccountMode;
+  balance: number;
+  paper_balance: number;
+  live_balance: number;
+  available_balance: number;
+  pending_deposits: number;
+  pending_withdrawals: number;
+  total_deposited: number;
+  total_withdrawn: number;
+  total_pnl: number;
+  recent_transactions: Transaction[];
+  last_updated: string;
+}
+
+export interface DepositResponse {
+  success: boolean;
+  transaction_id: string;
+  amount: number;
+  new_balance: number;
+  status: TransactionStatus;
+  message: string;
+  broker_redirect_url?: string;
+}
+
+export interface WithdrawResponse {
+  success: boolean;
+  transaction_id: string;
+  amount: number;
+  new_balance: number;
+  status: TransactionStatus;
+  message: string;
+  estimated_completion?: string;
+  broker_redirect_url?: string;
+}
+
+export interface TransactionsResponse {
+  transactions: Transaction[];
+  total_count: number;
+  page: number;
+  page_size: number;
+}
+
+export interface BalanceHistoryPoint {
+  timestamp: string;
+  balance: number;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -169,6 +234,46 @@ class ApiClient {
   // Performance
   async getPerformance(days: number = 30): Promise<any> {
     return this.fetch(`/api/v1/performance?days=${days}`);
+  }
+
+  // Wallet
+  async getWallet(): Promise<WalletData> {
+    return this.fetch('/api/v1/wallet');
+  }
+
+  async deposit(amount: number, paymentMethod?: string): Promise<DepositResponse> {
+    return this.fetch('/api/v1/wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify({ amount, payment_method: paymentMethod }),
+    });
+  }
+
+  async withdraw(amount: number, destination?: string): Promise<WithdrawResponse> {
+    return this.fetch('/api/v1/wallet/withdraw', {
+      method: 'POST',
+      body: JSON.stringify({ amount, destination }),
+    });
+  }
+
+  async getTransactions(
+    page: number = 1,
+    pageSize: number = 20,
+    type?: TransactionType
+  ): Promise<TransactionsResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    if (type) params.append('type', type);
+    return this.fetch(`/api/v1/wallet/transactions?${params}`);
+  }
+
+  async getWalletBalanceHistory(days: number = 30): Promise<BalanceHistoryPoint[]> {
+    return this.fetch(`/api/v1/wallet/balance-history?days=${days}`);
+  }
+
+  async setWalletMode(mode: AccountMode): Promise<{ success: boolean; current_mode: AccountMode; balance: number }> {
+    return this.fetch(`/api/v1/wallet/mode?mode=${mode}`, { method: 'POST' });
   }
 }
 

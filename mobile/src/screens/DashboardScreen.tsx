@@ -6,8 +6,10 @@ import {
   ScrollView,
   RefreshControl,
   Dimensions,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import {
   StatusBadge,

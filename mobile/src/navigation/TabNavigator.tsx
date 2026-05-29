@@ -1,17 +1,24 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
-import { colors } from '../theme';
+import { colors, typography, spacing, borderRadius } from '../theme';
 import {
   DashboardScreen,
   SignalsScreen,
   SignalDetailScreen,
-  EngineStatusScreen,
-  HistoryScreen,
   SettingsScreen,
+  WalletScreen,
+  DepositScreen,
+  WithdrawScreen,
+  PredictionsScreen,
+  IntelligenceScreen,
+  HistoryScreen,
+  EngineStatusScreen,
 } from '../screens';
+import { useTradingMode } from '../context/TradingModeContext';
+import { TradingModeBanner } from '../components';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -48,17 +55,19 @@ const SignalsIcon = ({ color, size }: { color: string; size: number }) => (
   </Svg>
 );
 
-const EngineIcon = ({ color, size }: { color: string; size: number }) => (
+const PredictIcon = ({ color, size }: { color: string; size: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle
-      cx="12"
-      cy="12"
-      r="3"
+    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={2} />
+    <Path
+      d="M12 6v6l4 2"
       stroke={color}
       strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
+    <Circle cx="12" cy="12" r="3" stroke={color} strokeWidth={2} />
     <Path
-      d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+      d="M12 2v2M12 20v2M2 12h2M20 12h2"
       stroke={color}
       strokeWidth={2}
       strokeLinecap="round"
@@ -67,17 +76,37 @@ const EngineIcon = ({ color, size }: { color: string; size: number }) => (
   </Svg>
 );
 
-const HistoryIcon = ({ color, size }: { color: string; size: number }) => (
+const WalletIcon = ({ color, size }: { color: string; size: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle
-      cx="12"
-      cy="12"
-      r="10"
+    <Path
+      d="M21 12V7H5a2 2 0 010-4h14v4"
       stroke={color}
       strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
     <Path
-      d="M12 6v6l4 2"
+      d="M3 5v14a2 2 0 002 2h16v-5"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Circle cx="18" cy="14" r="2" stroke={color} strokeWidth={2} />
+  </Svg>
+);
+
+const IntelIcon = ({ color, size }: { color: string; size: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M9 18h6M10 22h4"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M12 2a7 7 0 00-4 12.73V16a1 1 0 001 1h6a1 1 0 001-1v-1.27A7 7 0 0012 2z"
       stroke={color}
       strokeWidth={2}
       strokeLinecap="round"
@@ -95,7 +124,7 @@ const SettingsIcon = ({ color, size }: { color: string; size: number }) => (
   </Svg>
 );
 
-// Signals Stack Navigator
+// Signals Stack Navigator (includes SignalDetail)
 const SignalsStack = () => (
   <Stack.Navigator
     screenOptions={{
@@ -108,79 +137,155 @@ const SignalsStack = () => (
   </Stack.Navigator>
 );
 
+// Wallet Stack Navigator (includes Deposit/Withdraw)
+const WalletStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: colors.lpBlack },
+    }}
+  >
+    <Stack.Screen name="WalletMain" component={WalletScreen} />
+    <Stack.Screen name="Deposit" component={DepositScreen} />
+    <Stack.Screen name="Withdraw" component={WithdrawScreen} />
+  </Stack.Navigator>
+);
+
+// Settings Stack Navigator (includes Engine Status and History)
+const SettingsStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: colors.lpBlack },
+    }}
+  >
+    <Stack.Screen name="SettingsMain" component={SettingsScreen} />
+    <Stack.Screen name="EngineStatus" component={EngineStatusScreen} />
+    <Stack.Screen name="History" component={HistoryScreen} />
+  </Stack.Navigator>
+);
+
+// Dashboard Stack Navigator (includes History link)
+const DashboardStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: colors.lpBlack },
+    }}
+  >
+    <Stack.Screen name="DashboardMain" component={DashboardScreen} />
+    <Stack.Screen name="History" component={HistoryScreen} />
+  </Stack.Navigator>
+);
+
+// Trading Mode Banner Wrapper
+const TradingModeBannerWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { mode, setMode, isLoading } = useTradingMode();
+
+  const handleModeChange = (newMode: 'paper' | 'live') => {
+    setMode(newMode);
+  };
+
+  if (isLoading) {
+    return <>{children}</>;
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <TradingModeBanner mode={mode} onModeChange={handleModeChange} />
+      {children}
+    </View>
+  );
+};
+
 export const TabNavigator: React.FC = () => {
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.lpCyan,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarShowLabel: false,
-        tabBarItemStyle: styles.tabBarItem,
-      }}
-    >
-      <Tab.Screen
-        name="Home"
-        component={DashboardScreen}
-        options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconContainer}>
-              {focused && <View style={styles.activeIndicator} />}
-              <HomeIcon color={color} size={24} />
-            </View>
-          ),
+    <TradingModeBannerWrapper>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: styles.tabBar,
+          tabBarActiveTintColor: colors.lpCyan,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarShowLabel: true,
+          tabBarLabelStyle: styles.tabBarLabel,
+          tabBarItemStyle: styles.tabBarItem,
         }}
-      />
-      <Tab.Screen
-        name="Signals"
-        component={SignalsStack}
-        options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconContainer}>
-              {focused && <View style={styles.activeIndicator} />}
-              <SignalsIcon color={color} size={24} />
-            </View>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Engine"
-        component={EngineStatusScreen}
-        options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconContainer}>
-              {focused && <View style={styles.activeIndicator} />}
-              <EngineIcon color={color} size={24} />
-            </View>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="History"
-        component={HistoryScreen}
-        options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconContainer}>
-              {focused && <View style={styles.activeIndicator} />}
-              <HistoryIcon color={color} size={24} />
-            </View>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconContainer}>
-              {focused && <View style={styles.activeIndicator} />}
-              <SettingsIcon color={color} size={24} />
-            </View>
-          ),
-        }}
-      />
-    </Tab.Navigator>
+      >
+        <Tab.Screen
+          name="Home"
+          component={DashboardStack}
+          options={{
+            tabBarIcon: ({ color, focused }) => (
+              <View style={styles.iconContainer}>
+                {focused && <View style={styles.activeIndicator} />}
+                <HomeIcon color={color} size={22} />
+              </View>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Signals"
+          component={SignalsStack}
+          options={{
+            tabBarIcon: ({ color, focused }) => (
+              <View style={styles.iconContainer}>
+                {focused && <View style={styles.activeIndicator} />}
+                <SignalsIcon color={color} size={22} />
+              </View>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Predict"
+          component={PredictionsScreen}
+          options={{
+            tabBarIcon: ({ color, focused }) => (
+              <View style={styles.iconContainer}>
+                {focused && <View style={styles.activeIndicator} />}
+                <PredictIcon color={color} size={22} />
+              </View>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Wallet"
+          component={WalletStack}
+          options={{
+            tabBarIcon: ({ color, focused }) => (
+              <View style={styles.iconContainer}>
+                {focused && <View style={styles.activeIndicator} />}
+                <WalletIcon color={color} size={22} />
+              </View>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Intel"
+          component={IntelligenceScreen}
+          options={{
+            tabBarIcon: ({ color, focused }) => (
+              <View style={styles.iconContainer}>
+                {focused && <View style={styles.activeIndicator} />}
+                <IntelIcon color={color} size={22} />
+              </View>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Settings"
+          component={SettingsStack}
+          options={{
+            tabBarIcon: ({ color, focused }) => (
+              <View style={styles.iconContainer}>
+                {focused && <View style={styles.activeIndicator} />}
+                <SettingsIcon color={color} size={22} />
+              </View>
+            ),
+          }}
+        />
+      </Tab.Navigator>
+    </TradingModeBannerWrapper>
   );
 };
 
@@ -190,23 +295,28 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     height: 70,
     paddingBottom: 8,
-    paddingTop: 8,
+    paddingTop: 4,
     position: 'absolute',
     elevation: 0,
     shadowOpacity: 0,
   },
   tabBarItem: {
-    paddingTop: 8,
+    paddingTop: 4,
+  },
+  tabBarLabel: {
+    ...typography.labelSM,
+    fontSize: 10,
+    marginTop: 2,
   },
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 8,
+    paddingTop: 4,
   },
   activeIndicator: {
     position: 'absolute',
-    top: 0,
-    width: 24,
+    top: -2,
+    width: 20,
     height: 2,
     backgroundColor: colors.lpCyan,
     borderRadius: 1,

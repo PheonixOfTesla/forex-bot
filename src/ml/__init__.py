@@ -48,10 +48,23 @@ from .models import (
     ComparisonReport,
     SignalType,
 )
-from .classifier import TradingClassifier
 from .feature_engineering import FeatureEngineer
-from .training import TrainingPipeline
-from .backtester import Backtester, BaseStrategy, MLStrategy
+
+# Optional imports that require XGBoost
+try:
+    from .classifier import TradingClassifier
+    from .training import TrainingPipeline
+    from .backtester import Backtester, BaseStrategy, MLStrategy
+    HAS_ML = True
+except Exception as e:
+    TradingClassifier = None
+    TrainingPipeline = None
+    Backtester = None
+    BaseStrategy = None
+    MLStrategy = None
+    HAS_ML = False
+    import logging
+    logging.getLogger(__name__).warning(f"ML components unavailable: {e}")
 
 __all__ = [
     # Models
@@ -66,11 +79,12 @@ __all__ = [
     "TrainedModel",
     "ComparisonReport",
     "SignalType",
-    # Classes
+    # Classes (may be None if XGBoost unavailable)
     "TradingClassifier",
     "FeatureEngineer",
     "TrainingPipeline",
     "Backtester",
     "BaseStrategy",
     "MLStrategy",
+    "HAS_ML",
 ]

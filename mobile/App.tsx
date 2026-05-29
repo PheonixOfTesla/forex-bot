@@ -14,6 +14,7 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { TabNavigator } from './src/navigation';
 import { colors } from './src/theme';
+import { TradingModeProvider } from './src/context/TradingModeContext';
 
 // Type definitions for navigation
 type SignalsStackParamList = {
@@ -21,11 +22,29 @@ type SignalsStackParamList = {
   SignalDetail: { signalId: string };
 };
 
+type WalletStackParamList = {
+  WalletMain: undefined;
+  Deposit: undefined;
+  Withdraw: undefined;
+};
+
+type SettingsStackParamList = {
+  SettingsMain: undefined;
+  EngineStatus: undefined;
+  History: undefined;
+};
+
+type DashboardStackParamList = {
+  DashboardMain: undefined;
+  History: undefined;
+};
+
 type RootTabParamList = {
   Home: undefined;
   Signals: undefined;
-  Engine: undefined;
-  History: undefined;
+  Predict: undefined;
+  Wallet: undefined;
+  Intel: undefined;
   Settings: undefined;
 };
 
@@ -39,7 +58,13 @@ const linking: LinkingOptions<RootTabParamList> = {
   ],
   config: {
     screens: {
-      Home: 'home',
+      Home: {
+        path: 'home',
+        screens: {
+          DashboardMain: '',
+          History: 'history',
+        },
+      },
       Signals: {
         path: 'signals',
         screens: {
@@ -47,9 +72,24 @@ const linking: LinkingOptions<RootTabParamList> = {
           SignalDetail: 'detail/:signalId',
         },
       },
-      Engine: 'engine',
-      History: 'history',
-      Settings: 'settings',
+      Predict: 'predict',
+      Wallet: {
+        path: 'wallet',
+        screens: {
+          WalletMain: '',
+          Deposit: 'deposit',
+          Withdraw: 'withdraw',
+        },
+      },
+      Intel: 'intel',
+      Settings: {
+        path: 'settings',
+        screens: {
+          SettingsMain: '',
+          EngineStatus: 'engine',
+          History: 'history',
+        },
+      },
     },
   },
 };
@@ -96,12 +136,14 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <View style={styles.container} onLayout={onLayoutRootView}>
-        <NavigationContainer theme={LightningTheme} linking={linking}>
-          <TabNavigator />
-        </NavigationContainer>
-        <StatusBar style="light" />
-      </View>
+      <TradingModeProvider>
+        <View style={styles.container} onLayout={onLayoutRootView}>
+          <NavigationContainer theme={LightningTheme} linking={linking}>
+            <TabNavigator />
+          </NavigationContainer>
+          <StatusBar style="light" />
+        </View>
+      </TradingModeProvider>
     </SafeAreaProvider>
   );
 }

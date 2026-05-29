@@ -4,3 +4,8 @@ export * from './SignalDetailScreen';
 export * from './EngineStatusScreen';
 export * from './HistoryScreen';
 export * from './SettingsScreen';
+export * from './WalletScreen';
+export * from './DepositScreen';
+export * from './WithdrawScreen';
+export * from './PredictionsScreen';
+export * from './IntelligenceScreen';
