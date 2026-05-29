@@ -1,4 +1,4 @@
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://web-production-7d1c.up.railway.app';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://forex-bot-ten.vercel.app';
 
 export interface Signal {
   id: string;
@@ -143,6 +143,38 @@ export interface BalanceHistoryPoint {
   balance: number;
 }
 
+// Predictions Types
+export interface Prediction {
+  pair: string;
+  timeframe: string;
+  direction: 'UP' | 'DOWN';
+  confidence: number;
+  current_price: number;
+  predicted_low: number;
+  predicted_high: number;
+  key_factors: string[];
+  generated_at: string;
+  valid_until: string;
+}
+
+export interface PredictionsResponse {
+  predictions: Prediction[];
+  total: number;
+}
+
+export interface PredictionAccuracy {
+  overall_accuracy: {
+    '1h': number;
+    '4h': number;
+    '24h': number;
+  };
+  by_pair: Record<string, {
+    '1h': { accuracy: number; total_predictions: number };
+    '4h': { accuracy: number; total_predictions: number };
+    '24h': { accuracy: number; total_predictions: number };
+  }>;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -274,6 +306,36 @@ class ApiClient {
 
   async setWalletMode(mode: AccountMode): Promise<{ success: boolean; current_mode: AccountMode; balance: number }> {
     return this.fetch(`/api/v1/wallet/mode?mode=${mode}`, { method: 'POST' });
+  }
+
+  // Predictions
+  async getPredictions(pair?: string, timeframe?: string): Promise<PredictionsResponse> {
+    const params = new URLSearchParams();
+    if (pair) params.append('pair', pair);
+    if (timeframe) params.append('timeframe', timeframe);
+    const query = params.toString() ? `?${params}` : '';
+    return this.fetch(`/api/v1/predictions${query}`);
+  }
+
+  async getPredictionAccuracy(): Promise<PredictionAccuracy> {
+    return this.fetch('/api/v1/predictions/accuracy');
+  }
+
+  // Intelligence
+  async getSentiment(): Promise<{ fear_greed_index: number; fear_greed_label: string; market_mood: string }> {
+    return this.fetch('/api/v1/intelligence/sentiment');
+  }
+
+  async getIndicators(): Promise<{ indicators: any[]; updated_at: string }> {
+    return this.fetch('/api/v1/intelligence/indicators');
+  }
+
+  async getInsights(): Promise<{ insights: any[]; total: number }> {
+    return this.fetch('/api/v1/intelligence/insights');
+  }
+
+  async getPatterns(): Promise<{ patterns: any[]; total: number }> {
+    return this.fetch('/api/v1/intelligence/patterns');
   }
 }
 

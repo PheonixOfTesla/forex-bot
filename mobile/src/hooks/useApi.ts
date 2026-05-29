@@ -13,6 +13,8 @@ import {
   TransactionType,
   AccountMode,
   BalanceHistoryPoint,
+  PredictionsResponse,
+  PredictionAccuracy,
 } from '../services/api';
 
 interface UseApiState<T> {
@@ -287,4 +289,49 @@ export function useSetWalletMode() {
   );
 
   return { setMode, loading, error };
+}
+
+// Predictions
+export function usePredictions(
+  pair?: string,
+  timeframe?: string
+): UseApiState<PredictionsResponse> {
+  return useApiCall(() => api.getPredictions(pair, timeframe), [pair, timeframe]);
+}
+
+export function usePredictionAccuracy(): UseApiState<PredictionAccuracy> {
+  return useApiCall(() => api.getPredictionAccuracy(), []);
+}
+
+// Intelligence
+export function useSentiment(): UseApiState<{ fear_greed_index: number; fear_greed_label: string; market_mood: string }> {
+  return useApiCall(() => api.getSentiment(), []);
+}
+
+export function useMarketSentiment(): UseApiState<any> {
+  return useApiCall(() => api.getSentiment(), []);
+}
+
+export function useIndicators(): UseApiState<{ indicators: any[]; updated_at: string }> {
+  return useApiCall(() => api.getIndicators(), []);
+}
+
+export function useTechnicalIndicators(): UseApiState<any> {
+  return useApiCall(() => api.getIndicators(), []);
+}
+
+export function useInsights(): UseApiState<{ insights: any[]; total: number }> {
+  return useApiCall(() => api.getInsights(), []);
+}
+
+export function useAIInsights(): UseApiState<any> {
+  return useApiCall(() => api.getInsights(), []);
+}
+
+export function usePatterns(): UseApiState<{ patterns: any[]; total: number }> {
+  return useApiCall(() => api.getPatterns(), []);
+}
+
+export function useDetectedPatterns(): UseApiState<any> {
+  return useApiCall(() => api.getPatterns(), []);
 }
