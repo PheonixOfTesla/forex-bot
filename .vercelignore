@@ -1,0 +1,23 @@
+# Ignore virtual environment
+venv/
+.venv/
+env/
+
+# Ignore test files
+tests/
+__pycache__/
+*.pyc
+
+# Ignore mobile app
+mobile/
+
+# Ignore logs and data
+logs/
+*.log
+*.db
+*.sqlite
+
+# Ignore dev files
+.git/
+.github/
+*.md
