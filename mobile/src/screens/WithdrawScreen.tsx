@@ -11,7 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import { PrimaryButton, GhostButton } from '../components';
@@ -93,7 +93,7 @@ const ClockIcon = ({ color, size }: { color: string; size: number }) => (
 type WithdrawMethod = 'bank' | 'crypto';
 
 export const WithdrawScreen: React.FC = () => {
-  const router = useRouter();
+  const navigation = useNavigation<any>();
   const { data: wallet, refetch: refetchWallet } = useWallet();
   const { withdraw, loading } = useWithdraw();
 
@@ -193,7 +193,7 @@ export const WithdrawScreen: React.FC = () => {
 
   const handleSuccessClose = () => {
     setShowSuccessModal(false);
-    router.back();
+    navigation.goBack();
   };
 
   const handleMaxAmount = () => {
@@ -209,7 +209,7 @@ export const WithdrawScreen: React.FC = () => {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => navigation.goBack()}
           >
             <BackIcon color={colors.textPrimary} size={24} />
           </TouchableOpacity>
@@ -360,7 +360,7 @@ export const WithdrawScreen: React.FC = () => {
           />
           <GhostButton
             title="CANCEL"
-            onPress={() => router.back()}
+            onPress={() => navigation.goBack()}
             size="lg"
             style={styles.cancelButton}
           />

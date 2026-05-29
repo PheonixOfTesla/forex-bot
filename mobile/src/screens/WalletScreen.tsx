@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import {
@@ -169,7 +169,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction }) => {
 };
 
 export const WalletScreen: React.FC = () => {
-  const router = useRouter();
+  const navigation = useNavigation<any>();
   const { data: wallet, loading, refetch } = useWallet();
   const { data: balanceHistory } = useWalletBalanceHistory(30);
 
@@ -178,11 +178,11 @@ export const WalletScreen: React.FC = () => {
   }, [refetch]);
 
   const handleDeposit = () => {
-    router.push('/deposit' as any);
+    navigation.navigate('Deposit');
   };
 
   const handleWithdraw = () => {
-    router.push('/withdraw' as any);
+    navigation.navigate('Withdraw');
   };
 
   // Transform balance history for sparkline

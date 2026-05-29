@@ -11,7 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import { PrimaryButton, GhostButton } from '../components';
@@ -93,7 +93,7 @@ type PaymentMethod = 'bank' | 'card' | 'crypto';
 const PRESET_AMOUNTS = [100, 500, 1000, 5000];
 
 export const DepositScreen: React.FC = () => {
-  const router = useRouter();
+  const navigation = useNavigation<any>();
   const { data: wallet, refetch: refetchWallet } = useWallet();
   const { deposit, loading } = useDeposit();
 
@@ -175,7 +175,7 @@ export const DepositScreen: React.FC = () => {
 
   const handleSuccessClose = () => {
     setShowSuccessModal(false);
-    router.back();
+    navigation.goBack();
   };
 
   const parsedAmount = parseFloat(amount) || 0;
@@ -189,7 +189,7 @@ export const DepositScreen: React.FC = () => {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => navigation.goBack()}
           >
             <BackIcon color={colors.textPrimary} size={24} />
           </TouchableOpacity>
@@ -327,7 +327,7 @@ export const DepositScreen: React.FC = () => {
           />
           <GhostButton
             title="CANCEL"
-            onPress={() => router.back()}
+            onPress={() => navigation.goBack()}
             size="lg"
             style={styles.cancelButton}
           />
