@@ -300,26 +300,25 @@ async def paper_balance():
     """Get paper trading balance and metrics."""
     wins = len([t for t in paper_state.closed_trades if t.get("pnl", 0) > 0])
     total = len(paper_state.closed_trades)
-    win_rate = (wins / total * 100) if total > 0 else 0
     total_pnl = sum(t.get("pnl", 0) for t in paper_state.closed_trades)
+    realized_pnl = total_pnl
+    unrealized_pnl = sum(
+        (t["entry_price"] * 0.001 * t["quantity"]) if t["direction"] in ["buy", "long"] else -(t["entry_price"] * 0.001 * t["quantity"])
+        for t in paper_state.open_trades
+    )
+    used_margin = sum(t.get("entry_price", 0) * t.get("quantity", 0) for t in paper_state.open_trades)
+    pnl_percentage = ((paper_state.balance - paper_state.initial_balance) / paper_state.initial_balance * 100) if paper_state.initial_balance > 0 else 0
 
     return {
-        "initial_balance": paper_state.initial_balance,
         "balance": paper_state.balance,
-        "equity": paper_state.balance,
-        "unrealized_pnl": 0.0,
-        "open_positions_count": len(paper_state.open_trades),
-        "open_positions_value": sum(t.get("entry_price", 0) * t.get("quantity", 0) for t in paper_state.open_trades),
-        "metrics": {
-            "win_rate": round(win_rate, 2),
-            "total_pnl": round(total_pnl, 2),
-            "trades_count": total,
-            "winning_trades": wins,
-            "losing_trades": total - wins,
-        },
-        "peak_balance": max(paper_state.balance, paper_state.initial_balance),
-        "created_at": paper_state.created_at,
-        "last_updated": paper_state.last_updated,
+        "equity": paper_state.balance + unrealized_pnl,
+        "available_margin": paper_state.balance,
+        "used_margin": round(used_margin, 2),
+        "unrealized_pnl": round(unrealized_pnl, 2),
+        "realized_pnl": round(realized_pnl, 2),
+        "total_pnl": round(total_pnl + unrealized_pnl, 2),
+        "initial_balance": paper_state.initial_balance,
+        "pnl_percentage": round(pnl_percentage, 2),
     }
 
 
@@ -363,26 +362,29 @@ async def paper_positions():
         pnl = (current_price - trade["entry_price"]) * trade["quantity"]
         if trade["direction"] in ["sell", "short"]:
             pnl = -pnl
+        pnl_pct = (pnl / (trade["entry_price"] * trade["quantity"]) * 100) if trade["quantity"] > 0 else 0
+
+        # Map direction for frontend compatibility
+        direction = "long" if trade["direction"] in ["buy", "long"] else "short"
 
         positions.append({
-            "trade_id": trade["id"],
+            "id": trade["id"],
+            "signal_id": trade.get("signal_id", ""),
             "pair": trade["pair"],
-            "direction": trade["direction"],
+            "direction": direction,
             "entry_price": trade["entry_price"],
             "current_price": current_price,
-            "quantity": trade["quantity"],
-            "unrealized_pnl": round(pnl, 2),
-            "unrealized_pnl_pct": round(pnl / (trade["entry_price"] * trade["quantity"]) * 100, 2),
+            "size": trade["quantity"],
+            "pnl": round(pnl, 2),
+            "pnl_pct": round(pnl_pct, 2),
+            "stop_loss": trade.get("stop_loss", 0),
+            "take_profit": trade.get("take_profit", 0),
             "opened_at": trade["opened_at"],
-            "stop_loss": trade.get("stop_loss"),
-            "take_profit": trade.get("take_profit"),
+            "status": "open",
         })
 
-    return {
-        "positions": positions,
-        "total_unrealized_pnl": sum(p["unrealized_pnl"] for p in positions),
-        "positions_count": len(positions),
-    }
+    # Return array directly (frontend expects PaperPosition[])
+    return positions
 
 
 @app.get("/api/v1/paper/positions/{trade_id}")
@@ -414,26 +416,50 @@ async def paper_history(
     pair: Optional[str] = Query(default=None),
 ):
     """Get paper trade history."""
-    trades = paper_state.closed_trades
+    all_trades = paper_state.closed_trades
     if pair:
-        trades = [t for t in trades if t["pair"].upper() == pair.upper()]
+        all_trades = [t for t in all_trades if t["pair"].upper() == pair.upper()]
 
     # Sort by closed_at descending
-    trades = sorted(trades, key=lambda t: t.get("closed_at", ""), reverse=True)
+    all_trades = sorted(all_trades, key=lambda t: t.get("closed_at", ""), reverse=True)
 
     # Apply pagination
-    paginated = trades[offset:offset + limit]
+    paginated = all_trades[offset:offset + limit]
 
-    total_pnl = sum(t.get("pnl", 0) for t in trades)
-    wins = len([t for t in trades if t.get("pnl", 0) > 0])
-    losses = len([t for t in trades if t.get("pnl", 0) < 0])
+    # Transform trades for frontend compatibility
+    formatted_trades = []
+    for t in paginated:
+        direction = "long" if t["direction"] in ["buy", "long"] else "short"
+        result = "win" if t.get("pnl", 0) > 0 else ("loss" if t.get("pnl", 0) < 0 else "breakeven")
+        formatted_trades.append({
+            "id": t["id"],
+            "signal_id": t.get("signal_id", ""),
+            "pair": t["pair"],
+            "direction": direction,
+            "entry_price": t["entry_price"],
+            "exit_price": t.get("exit_price"),
+            "size": t["quantity"],
+            "pnl": t.get("pnl", 0),
+            "pnl_pct": t.get("pnl_pct", 0),
+            "stop_loss": t.get("stop_loss", 0),
+            "take_profit": t.get("take_profit", 0),
+            "opened_at": t["opened_at"],
+            "closed_at": t.get("closed_at"),
+            "status": "closed",
+            "result": result,
+        })
+
+    wins = len([t for t in all_trades if t.get("pnl", 0) > 0])
+    losses = len([t for t in all_trades if t.get("pnl", 0) < 0])
+    total = len(all_trades)
+    win_rate = (wins / total * 100) if total > 0 else 0
 
     return {
-        "trades": paginated,
-        "total_trades": len(trades),
-        "total_pnl": round(total_pnl, 2),
-        "winning_trades": wins,
-        "losing_trades": losses,
+        "trades": formatted_trades,
+        "total_count": total,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(win_rate, 2),
     }
 
 
@@ -533,15 +559,20 @@ async def execute_signal_paper(
             detail=f"Insufficient balance: need ${position_value:.2f}, have ${paper_state.balance:.2f}",
         )
 
-    # Create trade
+    # Create trade (internal format)
     trade_id = f"pt_{uuid.uuid4().hex[:12]}"
     now = datetime.utcnow().isoformat()
 
-    trade = {
+    # Map direction for internal storage (keep original)
+    internal_direction = signal["direction"]
+    # Map for frontend response
+    frontend_direction = "long" if internal_direction in ["buy", "long"] else "short"
+
+    internal_trade = {
         "id": trade_id,
         "signal_id": signal_id,
         "pair": signal["pair"],
-        "direction": signal["direction"],
+        "direction": internal_direction,
         "entry_price": signal["entry_price"],
         "quantity": qty,
         "stop_loss": signal.get("stop_loss"),
@@ -552,15 +583,31 @@ async def execute_signal_paper(
     }
 
     paper_state.balance -= position_value
-    paper_state.open_trades.append(trade)
+    paper_state.open_trades.append(internal_trade)
     paper_state.last_updated = now
+
+    # Return frontend-compatible trade format
+    frontend_trade = {
+        "id": trade_id,
+        "signal_id": signal_id,
+        "pair": signal["pair"],
+        "direction": frontend_direction,
+        "entry_price": signal["entry_price"],
+        "size": qty,
+        "pnl": 0,
+        "pnl_pct": 0,
+        "stop_loss": signal.get("stop_loss", 0),
+        "take_profit": signal.get("take_profit", 0),
+        "opened_at": now,
+        "status": "open",
+    }
 
     return {
         "success": True,
         "message": f"Trade executed from signal {signal_id}",
         "signal_id": signal_id,
         "trade_id": trade_id,
-        "trade": trade,
+        "trade": frontend_trade,
         "new_balance": paper_state.balance,
     }
 
