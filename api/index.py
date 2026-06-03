@@ -3,7 +3,7 @@ Lightning Bot API - Vercel Serverless Function
 
 Lightweight API for Vercel's serverless environment with paper trading support.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import random
 import uuid
@@ -197,6 +197,30 @@ async def wallet():
         "live_balance": 0.0,
         "total_pnl": paper_state.balance - paper_state.initial_balance,
     }
+
+
+@app.get("/api/v1/wallet/balance-history")
+async def wallet_balance_history(days: int = Query(default=30, ge=1, le=365)):
+    """Get balance history for chart display."""
+    # Generate mock balance history data
+    history = []
+    base_balance = paper_state.initial_balance
+    for i in range(days):
+        # Simulate daily balance fluctuations
+        day_offset = days - i
+        timestamp = datetime.utcnow() - timedelta(days=day_offset)
+        # Add some randomness to simulate P&L
+        daily_change = random.uniform(-50, 100)
+        base_balance += daily_change
+        base_balance = max(base_balance, paper_state.initial_balance * 0.9)  # Floor at 90%
+        history.append({
+            "timestamp": timestamp.isoformat(),
+            "balance": round(base_balance, 2),
+        })
+    # Make sure the last entry matches current balance
+    if history:
+        history[-1]["balance"] = paper_state.balance
+    return history
 
 
 # =============================================================================
