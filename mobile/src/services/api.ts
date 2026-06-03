@@ -175,6 +175,107 @@ export interface PredictionAccuracy {
   }>;
 }
 
+// Paper Trading Types
+export interface PaperBalance {
+  balance: number;
+  equity: number;
+  available_margin: number;
+  used_margin: number;
+  unrealized_pnl: number;
+  realized_pnl: number;
+  total_pnl: number;
+  initial_balance: number;
+  pnl_percentage: number;
+}
+
+export interface PaperPosition {
+  id: string;
+  signal_id: string;
+  pair: string;
+  direction: 'long' | 'short';
+  entry_price: number;
+  current_price: number;
+  size: number;
+  pnl: number;
+  pnl_pct: number;
+  stop_loss: number;
+  take_profit: number;
+  opened_at: string;
+  status: 'open' | 'closed';
+}
+
+export interface PaperTrade {
+  id: string;
+  signal_id: string;
+  pair: string;
+  direction: 'long' | 'short';
+  entry_price: number;
+  exit_price?: number;
+  size: number;
+  pnl: number;
+  pnl_pct: number;
+  stop_loss: number;
+  take_profit: number;
+  opened_at: string;
+  closed_at?: string;
+  status: 'open' | 'closed';
+  result?: 'win' | 'loss' | 'breakeven';
+}
+
+export interface PaperHistoryResponse {
+  trades: PaperTrade[];
+  total_count: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+}
+
+export interface ExecutePaperTradeResponse {
+  success: boolean;
+  position_id?: string;
+  message: string;
+  position?: PaperPosition;
+}
+
+// Learning Types
+export interface LearningAccuracy {
+  overall_accuracy: number;
+  total_signals: number;
+  correct_predictions: number;
+  by_pair: Record<string, {
+    accuracy: number;
+    total: number;
+    correct: number;
+  }>;
+  by_direction: {
+    long: { accuracy: number; total: number; correct: number };
+    short: { accuracy: number; total: number; correct: number };
+  };
+  by_timeframe: Record<string, {
+    accuracy: number;
+    total: number;
+    correct: number;
+  }>;
+}
+
+export interface LearningInsight {
+  id: string;
+  type: 'pattern' | 'correlation' | 'anomaly' | 'suggestion';
+  title: string;
+  description: string;
+  confidence: number;
+  pairs: string[];
+  created_at: string;
+  actionable: boolean;
+  action_suggestion?: string;
+}
+
+export interface LearningInsightsResponse {
+  insights: LearningInsight[];
+  total: number;
+  updated_at: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -336,6 +437,42 @@ class ApiClient {
 
   async getPatterns(): Promise<{ patterns: any[]; total: number }> {
     return this.fetch('/api/v1/intelligence/patterns');
+  }
+
+  // Paper Trading
+  async getPaperBalance(): Promise<PaperBalance> {
+    return this.fetch('/api/v1/paper/balance');
+  }
+
+  async getPaperPositions(): Promise<PaperPosition[]> {
+    return this.fetch('/api/v1/paper/positions');
+  }
+
+  async getPaperHistory(
+    page: number = 1,
+    pageSize: number = 20
+  ): Promise<PaperHistoryResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    return this.fetch(`/api/v1/paper/history?${params}`);
+  }
+
+  async executePaperTrade(signalId: string): Promise<ExecutePaperTradeResponse> {
+    return this.fetch(`/api/v1/paper/execute`, {
+      method: 'POST',
+      body: JSON.stringify({ signal_id: signalId }),
+    });
+  }
+
+  // Learning
+  async getLearningAccuracy(): Promise<LearningAccuracy> {
+    return this.fetch('/api/v1/learning/accuracy');
+  }
+
+  async getLearningInsights(): Promise<LearningInsightsResponse> {
+    return this.fetch('/api/v1/learning/insights');
   }
 }
 

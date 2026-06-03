@@ -18,8 +18,15 @@ import {
   BalanceSparkline,
   MetricCard,
 } from '../components';
-import { useWallet, useWalletBalanceHistory } from '../hooks/useApi';
-import { Transaction } from '../services/api';
+import {
+  useWallet,
+  useWalletBalanceHistory,
+  usePaperBalance,
+  usePaperPositions,
+  usePaperHistory,
+  useLearningAccuracy,
+} from '../hooks/useApi';
+import { Transaction, PaperPosition, PaperTrade } from '../services/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -79,6 +86,58 @@ const TrendingUpIcon = ({ color, size }: { color: string; size: number }) => (
     />
     <Path
       d="M17 6h6v6"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const BookOpenIcon = ({ color, size }: { color: string; size: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2V3zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7V3z"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const TargetIcon = ({ color, size }: { color: string; size: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={2} />
+    <Circle cx="12" cy="12" r="6" stroke={color} strokeWidth={2} />
+    <Circle cx="12" cy="12" r="2" stroke={color} strokeWidth={2} />
+  </Svg>
+);
+
+const CheckCircleIcon = ({ color, size }: { color: string; size: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M22 11.08V12a10 10 0 11-5.93-9.14"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M22 4L12 14.01l-3-3"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const XCircleIcon = ({ color, size }: { color: string; size: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={2} />
+    <Path
+      d="M15 9l-6 6M9 9l6 6"
       stroke={color}
       strokeWidth={2}
       strokeLinecap="round"
@@ -168,14 +227,133 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction }) => {
   );
 };
 
+// Paper Position Item
+interface PaperPositionItemProps {
+  position: PaperPosition;
+}
+
+const PaperPositionItem: React.FC<PaperPositionItemProps> = ({ position }) => {
+  const isLong = position.direction === 'long';
+  const directionColor = isLong ? colors.lpGreen : colors.lpRed;
+  const pnlColor = position.pnl >= 0 ? colors.lpGreen : colors.lpRed;
+  const pnlPrefix = position.pnl >= 0 ? '+' : '';
+
+  return (
+    <View style={styles.positionItem}>
+      <View style={styles.positionHeader}>
+        <View style={styles.positionPairRow}>
+          <Text style={styles.positionPair}>{position.pair}</Text>
+          <View style={[styles.directionBadge, { backgroundColor: `${directionColor}20` }]}>
+            <Text style={[styles.directionText, { color: directionColor }]}>
+              {isLong ? 'LONG' : 'SHORT'}
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.positionPnl, { color: pnlColor }]}>
+          {pnlPrefix}${Math.abs(position.pnl).toFixed(2)}
+        </Text>
+      </View>
+      <View style={styles.positionDetails}>
+        <View style={styles.positionDetail}>
+          <Text style={styles.positionDetailLabel}>Entry</Text>
+          <Text style={styles.positionDetailValue}>{position.entry_price.toFixed(5)}</Text>
+        </View>
+        <View style={styles.positionDetail}>
+          <Text style={styles.positionDetailLabel}>Current</Text>
+          <Text style={styles.positionDetailValue}>{position.current_price.toFixed(5)}</Text>
+        </View>
+        <View style={styles.positionDetail}>
+          <Text style={styles.positionDetailLabel}>P/L %</Text>
+          <Text style={[styles.positionDetailValue, { color: pnlColor }]}>
+            {pnlPrefix}{position.pnl_pct.toFixed(2)}%
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// Paper Trade History Item
+interface PaperTradeItemProps {
+  trade: PaperTrade;
+}
+
+const PaperTradeItem: React.FC<PaperTradeItemProps> = ({ trade }) => {
+  const isWin = trade.result === 'win';
+  const isLoss = trade.result === 'loss';
+  const resultColor = isWin ? colors.lpGreen : isLoss ? colors.lpRed : colors.textMuted;
+  const pnlColor = trade.pnl >= 0 ? colors.lpGreen : colors.lpRed;
+  const pnlPrefix = trade.pnl >= 0 ? '+' : '';
+
+  return (
+    <View style={styles.tradeHistoryItem}>
+      <View style={[styles.tradeResultIcon, { backgroundColor: `${resultColor}20` }]}>
+        {isWin ? (
+          <CheckCircleIcon color={resultColor} size={20} />
+        ) : isLoss ? (
+          <XCircleIcon color={resultColor} size={20} />
+        ) : (
+          <TrendingUpIcon color={resultColor} size={20} />
+        )}
+      </View>
+      <View style={styles.tradeInfo}>
+        <View style={styles.tradeHeader}>
+          <Text style={styles.tradePair}>{trade.pair}</Text>
+          <Text style={[styles.tradeDirection, { color: trade.direction === 'long' ? colors.lpGreen : colors.lpRed }]}>
+            {trade.direction.toUpperCase()}
+          </Text>
+        </View>
+        <Text style={styles.tradeDate}>{formatDate(trade.closed_at || trade.opened_at)}</Text>
+      </View>
+      <Text style={[styles.tradePnl, { color: pnlColor }]}>
+        {pnlPrefix}${Math.abs(trade.pnl).toFixed(2)}
+      </Text>
+    </View>
+  );
+};
+
+// Learning Accuracy Card
+interface AccuracyCardProps {
+  pair: string;
+  accuracy: number;
+  total: number;
+}
+
+const AccuracyCard: React.FC<AccuracyCardProps> = ({ pair, accuracy, total }) => {
+  const accuracyColor = accuracy >= 70 ? colors.lpGreen : accuracy >= 50 ? colors.lpAmber : colors.lpRed;
+
+  return (
+    <View style={styles.accuracyCard}>
+      <View style={styles.accuracyHeader}>
+        <Text style={styles.accuracyPair}>{pair}</Text>
+        <Text style={[styles.accuracyValue, { color: accuracyColor }]}>
+          {accuracy.toFixed(0)}%
+        </Text>
+      </View>
+      <View style={styles.accuracyBarBg}>
+        <View style={[styles.accuracyBarFill, { width: `${Math.min(accuracy, 100)}%`, backgroundColor: accuracyColor }]} />
+      </View>
+      <Text style={styles.accuracyTotal}>{total} signals</Text>
+    </View>
+  );
+};
+
 export const WalletScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { data: wallet, loading, refetch } = useWallet();
   const { data: balanceHistory } = useWalletBalanceHistory(30);
+  const { data: paperBalance, refetch: refetchPaperBalance } = usePaperBalance();
+  const { data: paperPositions, refetch: refetchPaperPositions } = usePaperPositions();
+  const { data: paperHistory, refetch: refetchPaperHistory } = usePaperHistory();
+  const { data: learningAccuracy, refetch: refetchLearningAccuracy } = useLearningAccuracy();
 
   const onRefresh = useCallback(() => {
     refetch();
-  }, [refetch]);
+    refetchPaperBalance();
+    refetchPaperPositions();
+    refetchPaperHistory();
+    refetchLearningAccuracy();
+  }, [refetch, refetchPaperBalance, refetchPaperPositions, refetchPaperHistory, refetchLearningAccuracy]);
 
   const handleDeposit = () => {
     navigation.navigate('Deposit');
@@ -280,6 +458,122 @@ export const WalletScreen: React.FC = () => {
             style={styles.metricCardHalf}
           />
         </View>
+
+        {/* Paper Trading Mode Badge */}
+        {isPaperMode && (
+          <View style={styles.paperModeSection}>
+            <View style={styles.paperModeHeader}>
+              <BookOpenIcon color={colors.lpAmber} size={24} />
+              <View style={styles.paperModeInfo}>
+                <Text style={styles.paperModeTitle}>Paper Trading Mode</Text>
+                <Text style={styles.paperModeDesc}>
+                  Practice trading with virtual funds - no real money at risk
+                </Text>
+              </View>
+            </View>
+
+            {/* Paper Trading Stats */}
+            {paperBalance && (
+              <View style={styles.paperStats}>
+                <View style={styles.paperStatItem}>
+                  <Text style={styles.paperStatLabel}>Equity</Text>
+                  <Text style={styles.paperStatValue}>
+                    ${paperBalance.equity.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.paperStatItem}>
+                  <Text style={styles.paperStatLabel}>Unrealized P/L</Text>
+                  <Text style={[
+                    styles.paperStatValue,
+                    { color: paperBalance.unrealized_pnl >= 0 ? colors.lpGreen : colors.lpRed }
+                  ]}>
+                    {paperBalance.unrealized_pnl >= 0 ? '+' : ''}${paperBalance.unrealized_pnl.toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.paperStatItem}>
+                  <Text style={styles.paperStatLabel}>Total Return</Text>
+                  <Text style={[
+                    styles.paperStatValue,
+                    { color: paperBalance.pnl_percentage >= 0 ? colors.lpGreen : colors.lpRed }
+                  ]}>
+                    {paperBalance.pnl_percentage >= 0 ? '+' : ''}{paperBalance.pnl_percentage.toFixed(2)}%
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Open Positions */}
+        {isPaperMode && paperPositions && paperPositions.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>OPEN POSITIONS</Text>
+              <Text style={styles.sectionCount}>{paperPositions.length}</Text>
+            </View>
+            <View style={styles.positionsList}>
+              {paperPositions.map((position) => (
+                <PaperPositionItem key={position.id} position={position} />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Trade History */}
+        {isPaperMode && paperHistory && paperHistory.trades.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>RECENT TRADES</Text>
+              <View style={styles.winLossRow}>
+                <Text style={[styles.winLossText, { color: colors.lpGreen }]}>
+                  {paperHistory.wins}W
+                </Text>
+                <Text style={styles.winLossDivider}>/</Text>
+                <Text style={[styles.winLossText, { color: colors.lpRed }]}>
+                  {paperHistory.losses}L
+                </Text>
+                <Text style={styles.winRateText}>
+                  ({paperHistory.win_rate.toFixed(0)}%)
+                </Text>
+              </View>
+            </View>
+            <View style={styles.tradeHistoryList}>
+              {paperHistory.trades.slice(0, 5).map((trade) => (
+                <PaperTradeItem key={trade.id} trade={trade} />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Learning Accuracy */}
+        {isPaperMode && learningAccuracy && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <TargetIcon color={colors.lpCyan} size={18} />
+                <Text style={[styles.sectionTitle, { marginLeft: spacing.sm }]}>LEARNING ACCURACY</Text>
+              </View>
+              <Text style={[styles.overallAccuracy, { color: learningAccuracy.overall_accuracy >= 70 ? colors.lpGreen : colors.lpAmber }]}>
+                {learningAccuracy.overall_accuracy.toFixed(0)}%
+              </Text>
+            </View>
+            <View style={styles.accuracyGrid}>
+              {Object.entries(learningAccuracy.by_pair).slice(0, 4).map(([pair, data]) => (
+                <AccuracyCard
+                  key={pair}
+                  pair={pair}
+                  accuracy={data.accuracy}
+                  total={data.total}
+                />
+              ))}
+            </View>
+            <View style={styles.learningInsight}>
+              <Text style={styles.learningInsightText}>
+                Based on {learningAccuracy.total_signals} signals, {learningAccuracy.correct_predictions} correct predictions
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
@@ -579,6 +873,240 @@ const styles = StyleSheet.create({
   summaryValue: {
     ...typography.bodyMD,
     color: colors.textPrimary,
+  },
+  // Paper Trading Mode Section
+  paperModeSection: {
+    backgroundColor: `${colors.lpAmber}10`,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: `${colors.lpAmber}30`,
+  },
+  paperModeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
+  paperModeInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  paperModeTitle: {
+    ...typography.h4,
+    color: colors.lpAmber,
+    marginBottom: spacing.xs,
+  },
+  paperModeDesc: {
+    ...typography.bodySM,
+    color: colors.textSecondary,
+  },
+  paperStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: `${colors.lpAmber}20`,
+  },
+  paperStatItem: {
+    alignItems: 'center',
+  },
+  paperStatLabel: {
+    ...typography.labelSM,
+    color: colors.textMuted,
+    marginBottom: spacing.xs,
+  },
+  paperStatValue: {
+    ...typography.h4,
+    color: colors.textPrimary,
+  },
+  // Positions Section
+  sectionCount: {
+    ...typography.bodySM,
+    color: colors.lpCyan,
+    backgroundColor: `${colors.lpCyan}20`,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  positionsList: {
+    backgroundColor: colors.lpSurface,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  positionItem: {
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  positionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  positionPairRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  positionPair: {
+    ...typography.h4,
+    color: colors.textPrimary,
+  },
+  directionBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  directionText: {
+    ...typography.labelSM,
+    fontSize: 10,
+  },
+  positionPnl: {
+    ...typography.h4,
+    fontWeight: '700',
+  },
+  positionDetails: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+  },
+  positionDetail: {},
+  positionDetailLabel: {
+    ...typography.labelSM,
+    color: colors.textMuted,
+    marginBottom: 2,
+  },
+  positionDetailValue: {
+    ...typography.bodySM,
+    color: colors.textSecondary,
+  },
+  // Trade History Section
+  winLossRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  winLossText: {
+    ...typography.labelMD,
+    fontWeight: '700',
+  },
+  winLossDivider: {
+    ...typography.labelMD,
+    color: colors.textMuted,
+    marginHorizontal: 2,
+  },
+  winRateText: {
+    ...typography.bodySM,
+    color: colors.textMuted,
+    marginLeft: spacing.sm,
+  },
+  tradeHistoryList: {
+    backgroundColor: colors.lpSurface,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  tradeHistoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  tradeResultIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  tradeInfo: {
+    flex: 1,
+  },
+  tradeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 2,
+  },
+  tradePair: {
+    ...typography.bodyMD,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  tradeDirection: {
+    ...typography.labelSM,
+    fontSize: 10,
+  },
+  tradeDate: {
+    ...typography.bodySM,
+    color: colors.textMuted,
+  },
+  tradePnl: {
+    ...typography.h4,
+    fontWeight: '700',
+  },
+  // Learning Accuracy Section
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  overallAccuracy: {
+    ...typography.h3,
+    fontWeight: '700',
+  },
+  accuracyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  accuracyCard: {
+    backgroundColor: colors.lpSurface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    width: (SCREEN_WIDTH - spacing.xl * 2 - spacing.sm) / 2 - 1,
+  },
+  accuracyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  accuracyPair: {
+    ...typography.bodyMD,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  accuracyValue: {
+    ...typography.h4,
+    fontWeight: '700',
+  },
+  accuracyBarBg: {
+    height: 4,
+    backgroundColor: colors.borderDark,
+    borderRadius: 2,
+    marginBottom: spacing.xs,
+    overflow: 'hidden',
+  },
+  accuracyBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  accuracyTotal: {
+    ...typography.labelSM,
+    color: colors.textMuted,
+  },
+  learningInsight: {
+    backgroundColor: colors.lpSurface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  learningInsightText: {
+    ...typography.bodySM,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });
 

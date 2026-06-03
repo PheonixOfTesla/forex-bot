@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -7,19 +7,48 @@ import {
   RefreshControl,
   Pressable,
   Platform,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import {
   SignalConfidenceBar,
   TradeDirectionPill,
   StatusBadge,
 } from '../components';
-import { useSignals } from '../hooks/useApi';
+import { useSignals, useWallet, useExecutePaperTrade } from '../hooks/useApi';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Signal } from '../services/api';
+
+// Icons
+const PlayIcon = ({ color, size }: { color: string; size: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M5 3l14 9-14 9V3z"
+      fill={color}
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const CheckIcon = ({ color, size }: { color: string; size: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M20 6L9 17l-5-5"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
 
 type SignalsStackParamList = {
   SignalsList: undefined;
@@ -29,13 +58,32 @@ type SignalsStackParamList = {
 export const SignalsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<SignalsStackParamList>>();
   const { data, loading, refetch } = useSignals();
+  const { data: wallet } = useWallet();
+  const { execute: executePaperTrade, loading: executing } = useExecutePaperTrade();
+  const [executedSignals, setExecutedSignals] = useState<Set<string>>(new Set());
+  const [executingSignalId, setExecutingSignalId] = useState<string | null>(null);
   const { isConnected } = useWebSocket({
     onSignal: () => refetch(),
   });
 
+  const isPaperMode = wallet?.mode === 'paper';
+
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleExecutePaperTrade = useCallback(async (signalId: string, event: any) => {
+    event.stopPropagation();
+    if (executedSignals.has(signalId) || executing) return;
+
+    setExecutingSignalId(signalId);
+    const result = await executePaperTrade(signalId);
+    setExecutingSignalId(null);
+
+    if (result?.success) {
+      setExecutedSignals(prev => new Set([...prev, signalId]));
+    }
+  }, [executedSignals, executing, executePaperTrade]);
 
   // Transform API signals to UI format
   const signals = (data ?? []).map((s: any, i: number) => {
@@ -154,6 +202,33 @@ export const SignalsScreen: React.FC = () => {
                     <Text style={styles.detailValue}>{signal.session}</Text>
                   </View>
                 </View>
+
+                {/* Paper Trade Execution Button */}
+                {isPaperMode && (
+                  <View style={styles.paperTradeSection}>
+                    {executedSignals.has(signal.id) ? (
+                      <View style={styles.executedBadge}>
+                        <CheckIcon color={colors.lpGreen} size={16} />
+                        <Text style={styles.executedText}>Executed</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.executeButton}
+                        onPress={(e) => handleExecutePaperTrade(signal.id, e)}
+                        disabled={executing && executingSignalId === signal.id}
+                      >
+                        {executing && executingSignalId === signal.id ? (
+                          <ActivityIndicator size="small" color={colors.lpBlack} />
+                        ) : (
+                          <>
+                            <PlayIcon color={colors.lpBlack} size={14} />
+                            <Text style={styles.executeButtonText}>Execute Paper Trade</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
 
                 <View style={styles.tapHint}>
                   <Text style={styles.tapHintText}>Tap to view details</Text>
@@ -288,5 +363,42 @@ const styles = StyleSheet.create({
     ...typography.bodyMD,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  // Paper Trade Execution Styles
+  paperTradeSection: {
+    paddingTop: spacing.md,
+    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderDark,
+  },
+  executeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.lpCyan,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  executeButtonText: {
+    ...typography.labelMD,
+    color: colors.lpBlack,
+    fontWeight: '600',
+  },
+  executedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${colors.lpGreen}20`,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  executedText: {
+    ...typography.labelMD,
+    color: colors.lpGreen,
+    fontWeight: '600',
   },
 });

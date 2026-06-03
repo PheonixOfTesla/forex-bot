@@ -3,16 +3,17 @@ from __future__ import annotations
 """
 Signals API Routes
 
-Provides endpoints for ML trading signals - listing, details, execution, and skipping.
+Provides endpoints for real ML trading signals using OANDA market data.
+Features confluence-based signal generation with technical indicator analysis.
 """
 
 import logging
-import random
+import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query, BackgroundTasks
 
 from ..schemas import (
     ExecutionRequest,
@@ -24,219 +25,123 @@ from ..schemas import (
     SignalStatus,
     SkipResponse,
 )
+from ...services.signal_generator import (
+    SignalGenerator,
+    TradingSignal,
+    get_signal_generator,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 # =============================================================================
-# Dynamic Data Generation Utilities
+# Fallback Mode Detection
 # =============================================================================
 
-
-def _add_variance(base: float, variance_pct: float = 5.0) -> float:
-    """Add percentage-based variance to a value."""
-    variance = base * (variance_pct / 100) * random.uniform(-1, 1)
-    return round(base + variance, 4)
-
-
-def _add_confidence_variance(base: float) -> float:
-    """Add slight variance to confidence scores (±3%)."""
-    variance = random.uniform(-3, 3)
-    return round(max(50.0, min(99.0, base + variance)), 1)
-
-
-def _add_win_rate_variance(base: float) -> float:
-    """Add variance to historical win rate (±5%, clamped 55-85%)."""
-    variance = random.uniform(-5, 5)
-    return round(max(55.0, min(85.0, base + variance)), 1)
-
-
-def _add_feature_variance(features: dict) -> dict:
-    """Add small variance to ML features to simulate live updates."""
-    varied = {}
-    for key, value in features.items():
-        if isinstance(value, (int, float)):
-            # Different variance for different feature types
-            if key in ("rsi", "trend_strength"):
-                # Oscillators: ±3 points
-                variance = random.uniform(-3, 3)
-                varied[key] = round(max(0, min(100, value + variance)), 1)
-            elif key in ("bb_position",):
-                # Bounded 0-1: ±0.05
-                variance = random.uniform(-0.05, 0.05)
-                varied[key] = round(max(0, min(1, value + variance)), 2)
-            elif key in ("volume_ratio",):
-                # Ratio: ±10%
-                varied[key] = round(value * random.uniform(0.9, 1.1), 2)
-            elif key in ("support_level", "resistance_level"):
-                # Price levels: ±0.1%
-                varied[key] = round(value * random.uniform(0.999, 1.001), 5)
-            else:
-                # Default: ±5%
-                varied[key] = _add_variance(value, 5.0)
-        else:
-            varied[key] = value
-    return varied
+def _is_oanda_configured() -> bool:
+    """Check if OANDA credentials are configured."""
+    api_key = os.getenv("OANDA_API_KEY") or os.getenv("OANDA_ACCESS_TOKEN")
+    account_id = os.getenv("OANDA_ACCOUNT_ID")
+    return bool(api_key and account_id)
 
 
 # =============================================================================
-# Mock Data Store (Replace with actual database)
+# Mock Data Fallback (when OANDA not configured)
 # =============================================================================
 
+import random
 
-# Base signal data (static reference values)
-_BASE_SIGNALS = [
-    {
-        "id": "sig_001",
-        "pair": "EUR/USD",
-        "direction": SignalDirection.BUY,
-        "base_confidence": 87.5,
-        "entry_price": 1.0845,
-        "stop_loss": 1.0815,
-        "take_profit": 1.0905,
-        "risk_reward_ratio": 2.0,
-        "status": SignalStatus.ACTIVE,
-        "strategy": "momentum_breakout",
-        "minutes_ago": 15,
-        "expires_in_minutes": 45,
-        "base_features": {
-            "rsi": 65.3,
-            "macd": 0.0025,
-            "macd_signal": 0.0018,
-            "bb_position": 0.75,
-            "atr": 0.0045,
-            "volume_ratio": 1.35,
-            "trend_strength": 72.5,
-            "support_level": 1.0800,
-            "resistance_level": 1.0920,
-        },
-        "model_version": "v2.3.1",
-        "feature_importance": {
-            "rsi": 0.18,
-            "macd": 0.22,
-            "trend_strength": 0.25,
-            "volume_ratio": 0.15,
-            "bb_position": 0.12,
-            "atr": 0.08,
-        },
-        "similar_historical_trades": 45,
-        "base_historical_win_rate": 71.2,
-    },
-    {
-        "id": "sig_002",
-        "pair": "GBP/USD",
-        "direction": SignalDirection.SELL,
-        "base_confidence": 76.2,
-        "entry_price": 1.2650,
-        "stop_loss": 1.2695,
-        "take_profit": 1.2560,
-        "risk_reward_ratio": 2.0,
-        "status": SignalStatus.ACTIVE,
-        "strategy": "mean_reversion",
-        "minutes_ago": 8,
-        "expires_in_minutes": 52,
-        "base_features": {
-            "rsi": 78.5,
-            "macd": -0.0015,
-            "macd_signal": 0.0005,
-            "bb_position": 0.92,
-            "atr": 0.0062,
-            "volume_ratio": 0.85,
-            "trend_strength": 45.2,
-            "support_level": 1.2540,
-            "resistance_level": 1.2680,
-        },
-        "model_version": "v2.3.1",
-        "feature_importance": {
-            "rsi": 0.28,
-            "bb_position": 0.25,
-            "macd": 0.18,
-            "trend_strength": 0.12,
-            "volume_ratio": 0.10,
-            "atr": 0.07,
-        },
-        "similar_historical_trades": 32,
-        "base_historical_win_rate": 65.8,
-    },
-    {
-        "id": "sig_003",
-        "pair": "USD/JPY",
-        "direction": SignalDirection.BUY,
-        "base_confidence": 82.1,
-        "entry_price": 149.25,
-        "stop_loss": 148.85,
-        "take_profit": 150.05,
-        "risk_reward_ratio": 2.0,
-        "status": SignalStatus.ACTIVE,
-        "strategy": "trend_following",
-        "minutes_ago": 3,
-        "expires_in_minutes": 57,
-        "base_features": {
-            "rsi": 58.2,
-            "macd": 0.15,
-            "macd_signal": 0.08,
-            "bb_position": 0.55,
-            "atr": 0.42,
-            "volume_ratio": 1.15,
-            "trend_strength": 78.3,
-            "support_level": 148.50,
-            "resistance_level": 150.25,
-        },
-        "model_version": "v2.3.1",
-        "feature_importance": {
-            "trend_strength": 0.30,
-            "macd": 0.22,
-            "rsi": 0.18,
-            "volume_ratio": 0.12,
-            "bb_position": 0.10,
-            "atr": 0.08,
-        },
-        "similar_historical_trades": 58,
-        "base_historical_win_rate": 73.5,
-    },
-]
+_MOCK_SIGNALS_CACHE: List[dict] = []
+_MOCK_CACHE_TIME: datetime = datetime.min
 
 
-# In-memory signal store for tracking status changes
-_signals_status_store: dict = {}
+def _generate_mock_signals() -> List[dict]:
+    """Generate mock signals when OANDA is not available."""
+    global _MOCK_SIGNALS_CACHE, _MOCK_CACHE_TIME
 
-
-def _get_dynamic_signal(base_signal: dict) -> dict:
-    """Generate a dynamic signal from base data with live variance."""
     now = datetime.utcnow()
 
-    # Check if we have a stored status for this signal
-    stored_status = _signals_status_store.get(base_signal["id"], {})
-    status = stored_status.get("status", base_signal["status"])
+    # Refresh cache every 5 minutes
+    if (now - _MOCK_CACHE_TIME).total_seconds() > 300:
+        _MOCK_CACHE_TIME = now
 
-    return {
-        "id": base_signal["id"],
-        "pair": base_signal["pair"],
-        "direction": base_signal["direction"],
-        "confidence": _add_confidence_variance(base_signal["base_confidence"]),
-        "entry_price": base_signal["entry_price"],
-        "stop_loss": base_signal["stop_loss"],
-        "take_profit": base_signal["take_profit"],
-        "risk_reward_ratio": base_signal["risk_reward_ratio"],
-        "status": status,
-        "strategy": base_signal["strategy"],
-        "created_at": now - timedelta(minutes=base_signal["minutes_ago"]),
-        "expires_at": now + timedelta(minutes=base_signal["expires_in_minutes"]),
-        "features": _add_feature_variance(base_signal["base_features"]),
-        "model_version": base_signal["model_version"],
-        "feature_importance": base_signal["feature_importance"],
-        "similar_historical_trades": base_signal["similar_historical_trades"] + random.randint(-3, 3),
-        "historical_win_rate": _add_win_rate_variance(base_signal["base_historical_win_rate"]),
-    }
+        pairs = ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "EUR/GBP"]
+        strategies = ["trend_following", "mean_reversion", "momentum_breakout", "multi_indicator_confluence"]
+
+        _MOCK_SIGNALS_CACHE = []
+
+        for i, pair in enumerate(pairs[:3]):  # Generate 3 signals
+            direction = random.choice(["buy", "sell"])
+            confidence = round(random.uniform(60, 92), 1)
+
+            # Generate realistic prices
+            if pair == "EUR/USD":
+                entry = round(1.0800 + random.uniform(-0.01, 0.01), 5)
+            elif pair == "GBP/USD":
+                entry = round(1.2650 + random.uniform(-0.015, 0.015), 5)
+            elif pair == "USD/JPY":
+                entry = round(149.50 + random.uniform(-1, 1), 3)
+            elif pair == "AUD/USD":
+                entry = round(0.6550 + random.uniform(-0.008, 0.008), 5)
+            else:
+                entry = round(0.8550 + random.uniform(-0.005, 0.005), 5)
+
+            # Calculate SL/TP
+            atr = entry * 0.003 if "JPY" not in pair else entry * 0.004
+            if direction == "buy":
+                sl = round(entry - atr * 1.5, 5 if "JPY" not in pair else 3)
+                tp = round(entry + atr * 3, 5 if "JPY" not in pair else 3)
+            else:
+                sl = round(entry + atr * 1.5, 5 if "JPY" not in pair else 3)
+                tp = round(entry - atr * 3, 5 if "JPY" not in pair else 3)
+
+            rsi = round(random.uniform(25, 75), 1)
+            macd = round(random.uniform(-0.003, 0.003), 6)
+
+            signal = {
+                "id": f"sig_{int(now.timestamp())}_{pair.replace('/', '')}_{i:03d}",
+                "pair": pair,
+                "direction": SignalDirection.BUY if direction == "buy" else SignalDirection.SELL,
+                "confidence": confidence,
+                "entry_price": entry,
+                "stop_loss": sl,
+                "take_profit": tp,
+                "risk_reward_ratio": 2.0,
+                "status": SignalStatus.ACTIVE,
+                "strategy": random.choice(strategies),
+                "created_at": now - timedelta(minutes=random.randint(5, 30)),
+                "expires_at": now + timedelta(minutes=random.randint(30, 60)),
+                "features": {
+                    "rsi": rsi,
+                    "macd": macd,
+                    "macd_signal": round(macd * 0.7, 6),
+                    "bb_position": round(random.uniform(0.1, 0.9), 2),
+                    "atr": round(atr, 6),
+                    "volume_ratio": round(random.uniform(0.8, 1.5), 2),
+                    "trend_strength": round(random.uniform(40, 80), 1),
+                    "support_level": sl,
+                    "resistance_level": tp,
+                },
+                "model_version": "v3.0.0-mock",
+                "feature_importance": {
+                    "rsi": 0.20,
+                    "macd": 0.25,
+                    "bollinger": 0.15,
+                    "moving_averages": 0.25,
+                    "momentum": 0.10,
+                    "volume": 0.05,
+                },
+                "similar_historical_trades": random.randint(20, 60),
+                "historical_win_rate": round(random.uniform(60, 75), 1),
+            }
+            _MOCK_SIGNALS_CACHE.append(signal)
+
+    return _MOCK_SIGNALS_CACHE
 
 
-def _get_signals_store() -> dict:
-    """Get current signals with dynamic data."""
-    signals = {}
-    for base_signal in _BASE_SIGNALS:
-        signals[base_signal["id"]] = _get_dynamic_signal(base_signal)
-    return signals
+# Track signal status changes (used by both mock and real modes)
+_signals_status_store: dict = {}
 
 
 # =============================================================================
@@ -246,17 +151,25 @@ def _get_signals_store() -> dict:
 
 def _signal_to_response(signal: dict) -> SignalResponse:
     """Convert signal dict to SignalResponse."""
+    direction = signal["direction"]
+    if isinstance(direction, str):
+        direction = SignalDirection.BUY if direction.lower() == "buy" else SignalDirection.SELL
+
+    status = signal.get("status", SignalStatus.ACTIVE)
+    if isinstance(status, str):
+        status = SignalStatus(status)
+
     return SignalResponse(
         id=signal["id"],
         pair=signal["pair"],
-        direction=signal["direction"],
+        direction=direction,
         confidence=signal["confidence"],
         entry_price=signal["entry_price"],
         stop_loss=signal["stop_loss"],
         take_profit=signal["take_profit"],
-        risk_reward_ratio=signal["risk_reward_ratio"],
-        status=signal["status"],
-        strategy=signal["strategy"],
+        risk_reward_ratio=signal.get("risk_reward_ratio", 2.0),
+        status=status,
+        strategy=signal.get("strategy", "multi_indicator_confluence"),
         created_at=signal["created_at"],
         expires_at=signal.get("expires_at"),
     )
@@ -264,26 +177,107 @@ def _signal_to_response(signal: dict) -> SignalResponse:
 
 def _signal_to_detail_response(signal: dict) -> SignalDetailResponse:
     """Convert signal dict to SignalDetailResponse."""
+    direction = signal["direction"]
+    if isinstance(direction, str):
+        direction = SignalDirection.BUY if direction.lower() == "buy" else SignalDirection.SELL
+
+    status = signal.get("status", SignalStatus.ACTIVE)
+    if isinstance(status, str):
+        status = SignalStatus(status)
+
+    features = signal.get("features", {})
+    if not isinstance(features, SignalFeatures):
+        features = SignalFeatures(**features)
+
     return SignalDetailResponse(
         id=signal["id"],
         pair=signal["pair"],
-        direction=signal["direction"],
+        direction=direction,
         confidence=signal["confidence"],
         entry_price=signal["entry_price"],
         stop_loss=signal["stop_loss"],
         take_profit=signal["take_profit"],
-        risk_reward_ratio=signal["risk_reward_ratio"],
-        status=signal["status"],
-        strategy=signal["strategy"],
+        risk_reward_ratio=signal.get("risk_reward_ratio", 2.0),
+        status=status,
+        strategy=signal.get("strategy", "multi_indicator_confluence"),
         created_at=signal["created_at"],
         expires_at=signal.get("expires_at"),
-        features=SignalFeatures(**signal["features"]),
-        model_version=signal["model_version"],
-        feature_importance=signal["feature_importance"],
-        similar_historical_trades=signal["similar_historical_trades"],
+        features=features,
+        model_version=signal.get("model_version", "v3.0.0"),
+        feature_importance=signal.get("feature_importance", {}),
+        similar_historical_trades=signal.get("similar_historical_trades", 0),
         historical_win_rate=signal.get("historical_win_rate"),
         notes=signal.get("notes"),
     )
+
+
+def _trading_signal_to_dict(signal: TradingSignal) -> dict:
+    """Convert TradingSignal to dict format."""
+    direction = SignalDirection.BUY if signal.direction == "buy" else SignalDirection.SELL
+    status = SignalStatus(signal.status)
+
+    return {
+        "id": signal.id,
+        "pair": signal.pair,
+        "direction": direction,
+        "confidence": signal.confidence,
+        "entry_price": signal.entry_price,
+        "stop_loss": signal.stop_loss,
+        "take_profit": signal.take_profit,
+        "risk_reward_ratio": signal.risk_reward_ratio,
+        "status": status,
+        "strategy": signal.strategy,
+        "created_at": signal.created_at,
+        "expires_at": signal.expires_at,
+        "features": signal.indicators,
+        "model_version": signal.model_version,
+        "feature_importance": signal.feature_importance,
+        "similar_historical_trades": signal.similar_historical_trades,
+        "historical_win_rate": signal.historical_win_rate,
+    }
+
+
+async def _get_signals_from_generator() -> List[dict]:
+    """Get signals from the real signal generator."""
+    try:
+        generator = get_signal_generator()
+        signals = await generator.generate_signals()
+
+        # Also include cached signals that are still valid
+        cached = generator.get_all_signals()
+        signal_ids = {s.id for s in signals}
+
+        # Add cached signals not already in the fresh batch
+        for cached_signal in cached:
+            if cached_signal.id not in signal_ids:
+                signals.append(cached_signal)
+
+        return [_trading_signal_to_dict(s) for s in signals]
+
+    except Exception as e:
+        logger.error(f"Error fetching signals from generator: {e}")
+        raise
+
+
+async def _get_all_signals() -> List[dict]:
+    """Get all signals, using real generator or mock fallback."""
+    if _is_oanda_configured():
+        try:
+            return await _get_signals_from_generator()
+        except Exception as e:
+            logger.warning(f"Falling back to mock signals due to error: {e}")
+            return _generate_mock_signals()
+    else:
+        logger.debug("OANDA not configured, using mock signals")
+        return _generate_mock_signals()
+
+
+def _get_signal_by_id(signals: List[dict], signal_id: str) -> Optional[dict]:
+    """Find a signal by ID in the signals list."""
+    for signal in signals:
+        if signal["id"] == signal_id:
+            return signal
+    return None
 
 
 # =============================================================================
@@ -315,7 +309,10 @@ async def get_active_signals(
     ),
 ) -> List[SignalResponse]:
     """
-    Get list of trading signals with dynamic data.
+    Get list of trading signals with real market data.
+
+    Uses OANDA API to fetch live price data and generate signals based on
+    technical indicator confluence (RSI, MACD, Bollinger Bands, Moving Averages).
 
     Args:
         status: Filter by signal status (active, executed, skipped, expired)
@@ -331,25 +328,39 @@ async def get_active_signals(
         f"min_confidence={min_confidence}, limit={limit}"
     )
 
-    # Get fresh dynamic signals
-    signals = list(_get_signals_store().values())
+    try:
+        signals = await _get_all_signals()
 
-    if status:
-        signals = [s for s in signals if s["status"] == status]
+        # Apply status from store
+        for signal in signals:
+            stored_status = _signals_status_store.get(signal["id"])
+            if stored_status:
+                signal["status"] = SignalStatus(stored_status)
 
-    if pair:
-        signals = [s for s in signals if s["pair"].upper() == pair.upper()]
+        # Filter by status
+        if status:
+            signals = [s for s in signals if s["status"] == status]
 
-    if min_confidence is not None:
-        signals = [s for s in signals if s["confidence"] >= min_confidence]
+        # Filter by pair
+        if pair:
+            pair_normalized = pair.upper().replace("_", "/")
+            signals = [s for s in signals if s["pair"].upper() == pair_normalized]
 
-    # Sort by created_at descending (newest first)
-    signals.sort(key=lambda s: s["created_at"], reverse=True)
+        # Filter by confidence
+        if min_confidence is not None:
+            signals = [s for s in signals if s["confidence"] >= min_confidence]
 
-    # Apply limit
-    signals = signals[:limit]
+        # Sort by created_at descending (newest first)
+        signals.sort(key=lambda s: s["created_at"], reverse=True)
 
-    return [_signal_to_response(s) for s in signals]
+        # Apply limit
+        signals = signals[:limit]
+
+        return [_signal_to_response(s) for s in signals]
+
+    except Exception as e:
+        logger.error(f"Error fetching signals: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching signals: {str(e)}")
 
 
 @router.get("/signals/{signal_id}", response_model=SignalDetailResponse)
@@ -357,7 +368,7 @@ async def get_signal_detail(
     signal_id: str = Path(..., description="Signal ID"),
 ) -> SignalDetailResponse:
     """
-    Get detailed information about a specific signal with dynamic data.
+    Get detailed information about a specific signal.
 
     Args:
         signal_id: The unique signal identifier
@@ -370,15 +381,28 @@ async def get_signal_detail(
     """
     logger.info(f"Fetching signal detail: {signal_id}")
 
-    signals = _get_signals_store()
-    signal = signals.get(signal_id)
-    if not signal:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Signal not found: {signal_id}",
-        )
+    try:
+        signals = await _get_all_signals()
+        signal = _get_signal_by_id(signals, signal_id)
 
-    return _signal_to_detail_response(signal)
+        if not signal:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Signal not found: {signal_id}",
+            )
+
+        # Apply stored status
+        stored_status = _signals_status_store.get(signal_id)
+        if stored_status:
+            signal["status"] = SignalStatus(stored_status)
+
+        return _signal_to_detail_response(signal)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching signal detail: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching signal: {str(e)}")
 
 
 @router.post("/signals/{signal_id}/execute", response_model=ExecutionResponse)
@@ -405,63 +429,87 @@ async def execute_signal(
     """
     logger.info(f"Executing signal: {signal_id}")
 
-    signals = _get_signals_store()
-    signal = signals.get(signal_id)
-    if not signal:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Signal not found: {signal_id}",
+    try:
+        signals = await _get_all_signals()
+        signal = _get_signal_by_id(signals, signal_id)
+
+        if not signal:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Signal not found: {signal_id}",
+            )
+
+        # Check stored status
+        stored_status = _signals_status_store.get(signal_id, "active")
+        if isinstance(stored_status, SignalStatus):
+            stored_status = stored_status.value
+
+        # Check if signal can be executed
+        if stored_status != "active":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Signal cannot be executed: status is {stored_status}",
+            )
+
+        # Check if signal is expired
+        if signal.get("expires_at") and signal["expires_at"] < datetime.utcnow():
+            _signals_status_store[signal_id] = "expired"
+            raise HTTPException(
+                status_code=400,
+                detail="Signal has expired",
+            )
+
+        # TODO: Actually execute the trade via broker
+        # For now, simulate execution
+
+        executed_price = signal["entry_price"]
+
+        # Simulate realistic slippage (0.5-2 pips)
+        direction = signal["direction"]
+        if isinstance(direction, SignalDirection):
+            is_buy = direction == SignalDirection.BUY
+        else:
+            is_buy = direction.lower() == "buy"
+
+        slippage_pips = random.uniform(0.5, 2.0)
+        slippage = slippage_pips * 0.0001 if is_buy else -slippage_pips * 0.0001
+
+        if "JPY" in signal["pair"]:
+            slippage = slippage_pips * 0.01 if is_buy else -slippage_pips * 0.01
+
+        executed_price += slippage
+
+        # Generate trade ID
+        trade_id = f"trd_{uuid4().hex[:8]}"
+
+        # Update signal status
+        _signals_status_store[signal_id] = "executed"
+
+        # Also update in signal generator if using real mode
+        if _is_oanda_configured():
+            try:
+                generator = get_signal_generator()
+                generator.update_signal_status(signal_id, "executed")
+            except Exception:
+                pass
+
+        logger.info(f"Signal {signal_id} executed: trade_id={trade_id}")
+
+        return ExecutionResponse(
+            success=True,
+            signal_id=signal_id,
+            trade_id=trade_id,
+            executed_price=round(executed_price, 5),
+            slippage=round(slippage, 5),
+            message=f"Trade executed successfully at {executed_price:.5f}",
+            executed_at=datetime.utcnow(),
         )
 
-    # Check stored status
-    stored_status = _signals_status_store.get(signal_id, {}).get("status", SignalStatus.ACTIVE)
-
-    # Check if signal can be executed
-    if stored_status != SignalStatus.ACTIVE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Signal cannot be executed: status is {stored_status.value}",
-        )
-
-    # Check if signal is expired
-    if signal.get("expires_at") and signal["expires_at"] < datetime.utcnow():
-        _signals_status_store[signal_id] = {"status": SignalStatus.EXPIRED}
-        raise HTTPException(
-            status_code=400,
-            detail="Signal has expired",
-        )
-
-    # TODO: Actually execute the trade via broker
-    # For now, simulate execution
-
-    # Apply overrides from request
-    executed_price = signal["entry_price"]
-    if request:
-        # In real implementation, these would be used for order placement
-        pass
-
-    # Simulate realistic slippage (±0.5-2 pips)
-    slippage_pips = random.uniform(0.5, 2.0)
-    slippage = slippage_pips * 0.0001 if signal["direction"] == SignalDirection.BUY else -slippage_pips * 0.0001
-    executed_price += slippage
-
-    # Generate trade ID
-    trade_id = f"trd_{uuid4().hex[:8]}"
-
-    # Update signal status in persistent store
-    _signals_status_store[signal_id] = {"status": SignalStatus.EXECUTED}
-
-    logger.info(f"Signal {signal_id} executed: trade_id={trade_id}")
-
-    return ExecutionResponse(
-        success=True,
-        signal_id=signal_id,
-        trade_id=trade_id,
-        executed_price=round(executed_price, 5),
-        slippage=round(slippage, 5),
-        message=f"Trade executed successfully at {executed_price:.5f}",
-        executed_at=datetime.utcnow(),
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing signal: {e}")
+        raise HTTPException(status_code=500, detail=f"Error executing signal: {str(e)}")
 
 
 @router.post("/signals/{signal_id}/skip", response_model=SkipResponse)
@@ -485,66 +533,132 @@ async def skip_signal(
     """
     logger.info(f"Skipping signal: {signal_id}")
 
-    signals = _get_signals_store()
-    signal = signals.get(signal_id)
-    if not signal:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Signal not found: {signal_id}",
+    try:
+        signals = await _get_all_signals()
+        signal = _get_signal_by_id(signals, signal_id)
+
+        if not signal:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Signal not found: {signal_id}",
+            )
+
+        # Check stored status
+        stored_status = _signals_status_store.get(signal_id, "active")
+        if isinstance(stored_status, SignalStatus):
+            stored_status = stored_status.value
+
+        # Check if signal can be skipped
+        if stored_status == "executed":
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot skip an executed signal",
+            )
+
+        # Update signal status
+        _signals_status_store[signal_id] = "skipped"
+
+        # Also update in signal generator if using real mode
+        if _is_oanda_configured():
+            try:
+                generator = get_signal_generator()
+                generator.update_signal_status(signal_id, "skipped")
+            except Exception:
+                pass
+
+        logger.info(f"Signal {signal_id} skipped")
+
+        return SkipResponse(
+            success=True,
+            signal_id=signal_id,
+            message="Signal skipped successfully",
         )
 
-    # Check stored status
-    stored_status = _signals_status_store.get(signal_id, {}).get("status", SignalStatus.ACTIVE)
-
-    # Check if signal can be skipped
-    if stored_status == SignalStatus.EXECUTED:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot skip an executed signal",
-        )
-
-    # Update signal status in persistent store
-    _signals_status_store[signal_id] = {"status": SignalStatus.SKIPPED}
-
-    logger.info(f"Signal {signal_id} skipped")
-
-    return SkipResponse(
-        success=True,
-        signal_id=signal_id,
-        message="Signal skipped successfully",
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error skipping signal: {e}")
+        raise HTTPException(status_code=500, detail=f"Error skipping signal: {str(e)}")
 
 
 @router.get("/signals/stats/summary")
 async def get_signals_summary():
     """
-    Get summary statistics for signals with dynamic data.
+    Get summary statistics for signals.
     """
-    signals = list(_get_signals_store().values())
+    try:
+        signals = await _get_all_signals()
 
-    active = len([s for s in signals if s["status"] == SignalStatus.ACTIVE])
-    executed = len([s for s in signals if s["status"] == SignalStatus.EXECUTED])
-    skipped = len([s for s in signals if s["status"] == SignalStatus.SKIPPED])
-    expired = len([s for s in signals if s["status"] == SignalStatus.EXPIRED])
+        # Apply stored statuses
+        for signal in signals:
+            stored_status = _signals_status_store.get(signal["id"])
+            if stored_status:
+                signal["status"] = SignalStatus(stored_status)
 
-    avg_confidence = (
-        sum(s["confidence"] for s in signals) / len(signals)
-        if signals
-        else 0
-    )
+        active = len([s for s in signals if s["status"] == SignalStatus.ACTIVE])
+        executed = len([s for s in signals if s["status"] == SignalStatus.EXECUTED])
+        skipped = len([s for s in signals if s["status"] == SignalStatus.SKIPPED])
+        expired = len([s for s in signals if s["status"] == SignalStatus.EXPIRED])
 
-    # Add some variance to execution rate for realism
-    base_execution_rate = executed / len(signals) * 100 if signals else 0
-    execution_rate_variance = random.uniform(-2, 2)
-    execution_rate = max(0, min(100, base_execution_rate + execution_rate_variance))
+        avg_confidence = (
+            sum(s["confidence"] for s in signals) / len(signals)
+            if signals
+            else 0
+        )
 
-    return {
-        "total": len(signals),
-        "active": active,
-        "executed": executed,
-        "skipped": skipped,
-        "expired": expired,
-        "average_confidence": round(avg_confidence, 2),
-        "execution_rate": round(execution_rate, 2),
-        "timestamp": datetime.utcnow().isoformat(),
-    }
+        execution_rate = (executed / len(signals) * 100) if signals else 0
+
+        # Calculate average risk/reward
+        avg_rr = (
+            sum(s.get("risk_reward_ratio", 2.0) for s in signals) / len(signals)
+            if signals
+            else 2.0
+        )
+
+        return {
+            "total": len(signals),
+            "active": active,
+            "executed": executed,
+            "skipped": skipped,
+            "expired": expired,
+            "average_confidence": round(avg_confidence, 2),
+            "average_risk_reward": round(avg_rr, 2),
+            "execution_rate": round(execution_rate, 2),
+            "data_source": "live" if _is_oanda_configured() else "mock",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting signals summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting summary: {str(e)}")
+
+
+@router.post("/signals/refresh")
+async def refresh_signals(background_tasks: BackgroundTasks):
+    """
+    Force refresh signals from market data.
+
+    Triggers a new analysis cycle to generate fresh signals.
+    """
+    if not _is_oanda_configured():
+        return {
+            "success": True,
+            "message": "Mock mode - signals refreshed",
+            "data_source": "mock",
+        }
+
+    try:
+        generator = get_signal_generator()
+        signals = await generator.generate_signals()
+
+        return {
+            "success": True,
+            "message": f"Generated {len(signals)} new signals",
+            "signals_count": len(signals),
+            "data_source": "live",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error refreshing signals: {e}")
+        raise HTTPException(status_code=500, detail=f"Error refreshing signals: {str(e)}")

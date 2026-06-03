@@ -15,6 +15,12 @@ import {
   BalanceHistoryPoint,
   PredictionsResponse,
   PredictionAccuracy,
+  PaperBalance,
+  PaperPosition,
+  PaperHistoryResponse,
+  ExecutePaperTradeResponse,
+  LearningAccuracy,
+  LearningInsightsResponse,
 } from '../services/api';
 
 interface UseApiState<T> {
@@ -334,4 +340,53 @@ export function usePatterns(): UseApiState<{ patterns: any[]; total: number }> {
 
 export function useDetectedPatterns(): UseApiState<any> {
   return useApiCall(() => api.getPatterns(), []);
+}
+
+// Paper Trading
+export function usePaperBalance(): UseApiState<PaperBalance> {
+  return useApiCall(() => api.getPaperBalance(), []);
+}
+
+export function usePaperPositions(): UseApiState<PaperPosition[]> {
+  return useApiCall(() => api.getPaperPositions(), []);
+}
+
+export function usePaperHistory(
+  page: number = 1,
+  pageSize: number = 20
+): UseApiState<PaperHistoryResponse> {
+  return useApiCall(() => api.getPaperHistory(page, pageSize), [page, pageSize]);
+}
+
+export function useExecutePaperTrade() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const execute = useCallback(
+    async (signalId: string): Promise<ExecutePaperTradeResponse | null> => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await api.executePaperTrade(signalId);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return { execute, loading, error };
+}
+
+// Learning
+export function useLearningAccuracy(): UseApiState<LearningAccuracy> {
+  return useApiCall(() => api.getLearningAccuracy(), []);
+}
+
+export function useLearningInsights(): UseApiState<LearningInsightsResponse> {
+  return useApiCall(() => api.getLearningInsights(), []);
 }
