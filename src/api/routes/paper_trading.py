@@ -527,11 +527,15 @@ async def execute_signal_paper(
     logger.info(f"Executing signal in paper mode: {signal_id}")
 
     # Import here to avoid circular imports
-    from .signals import _get_signals_store
+    from .signals import _get_all_signals
 
-    # Get the signal
-    signals = _get_signals_store()
-    signal = signals.get(signal_id)
+    # Get all signals and find the one we need
+    all_signals = await _get_all_signals()
+    signal = None
+    for s in all_signals:
+        if s["id"] == signal_id:
+            signal = s
+            break
 
     if not signal:
         raise HTTPException(

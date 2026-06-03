@@ -363,6 +363,59 @@ async def get_active_signals(
         raise HTTPException(status_code=500, detail=f"Error fetching signals: {str(e)}")
 
 
+@router.get("/signals/summary")
+async def get_signals_summary_shortcut():
+    """
+    Get summary statistics for signals (shortcut route).
+
+    This is a convenience alias for /signals/stats/summary.
+    """
+    try:
+        signals = await _get_all_signals()
+
+        # Apply stored statuses
+        for signal in signals:
+            stored_status = _signals_status_store.get(signal["id"])
+            if stored_status:
+                signal["status"] = SignalStatus(stored_status)
+
+        active = len([s for s in signals if s["status"] == SignalStatus.ACTIVE])
+        executed = len([s for s in signals if s["status"] == SignalStatus.EXECUTED])
+        skipped = len([s for s in signals if s["status"] == SignalStatus.SKIPPED])
+        expired = len([s for s in signals if s["status"] == SignalStatus.EXPIRED])
+
+        avg_confidence = (
+            sum(s["confidence"] for s in signals) / len(signals)
+            if signals
+            else 0
+        )
+
+        execution_rate = (executed / len(signals) * 100) if signals else 0
+
+        avg_rr = (
+            sum(s.get("risk_reward_ratio", 2.0) for s in signals) / len(signals)
+            if signals
+            else 2.0
+        )
+
+        return {
+            "total": len(signals),
+            "active": active,
+            "executed": executed,
+            "skipped": skipped,
+            "expired": expired,
+            "average_confidence": round(avg_confidence, 2),
+            "average_risk_reward": round(avg_rr, 2),
+            "execution_rate": round(execution_rate, 2),
+            "data_source": "live" if _is_oanda_configured() else "mock",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting signals summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting summary: {str(e)}")
+
+
 @router.get("/signals/{signal_id}", response_model=SignalDetailResponse)
 async def get_signal_detail(
     signal_id: str = Path(..., description="Signal ID"),

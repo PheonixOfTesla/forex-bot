@@ -232,9 +232,11 @@ export interface PaperHistoryResponse {
 
 export interface ExecutePaperTradeResponse {
   success: boolean;
-  position_id?: string;
+  trade_id?: string;
+  signal_id?: string;
   message: string;
-  position?: PaperPosition;
+  trade?: PaperTrade;
+  new_balance?: number;
 }
 
 // Learning Types
@@ -460,9 +462,8 @@ class ApiClient {
   }
 
   async executePaperTrade(signalId: string): Promise<ExecutePaperTradeResponse> {
-    return this.fetch(`/api/v1/paper/execute`, {
+    return this.fetch(`/api/v1/paper/execute-signal/${signalId}`, {
       method: 'POST',
-      body: JSON.stringify({ signal_id: signalId }),
     });
   }
 
