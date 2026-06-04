@@ -229,15 +229,55 @@ async def wallet_balance_history(days: int = Query(default=30, ge=1, le=365)):
 
 @app.get("/api/v1/predictions")
 async def predictions():
-    pairs = ["EUR/USD", "GBP/USD", "USD/JPY", "BTC/USD", "ETH/USD"]
+    # Base prices for each pair
+    base_prices = {
+        "EUR/USD": 1.0845,
+        "GBP/USD": 1.2650,
+        "USD/JPY": 148.55,
+        "BTC/USD": 67500.00,
+        "ETH/USD": 3450.00,
+    }
+
+    key_factors_pool = [
+        "Strong momentum indicators",
+        "RSI showing oversold conditions",
+        "MACD bullish crossover",
+        "Support level holding",
+        "Resistance level approaching",
+        "Volume increasing",
+        "Moving average convergence",
+        "Fibonacci retracement at 61.8%",
+        "Bollinger bands squeeze",
+        "ADX trending strength",
+    ]
+
     preds = []
-    for pair in pairs:
+    now = datetime.utcnow()
+
+    for pair in base_prices.keys():
+        current_price = base_prices[pair]
+        direction = random.choice(["UP", "DOWN"])
+        confidence = round(random.uniform(65, 92), 1)
+
+        # Calculate predicted range based on direction
+        if direction == "UP":
+            predicted_low = current_price * 0.998
+            predicted_high = current_price * 1.008
+        else:
+            predicted_low = current_price * 0.992
+            predicted_high = current_price * 1.002
+
         preds.append({
             "pair": pair,
             "timeframe": "1h",
-            "direction": random.choice(["UP", "DOWN"]),
-            "confidence": round(random.uniform(65, 92), 1),
-            "generated_at": datetime.utcnow().isoformat(),
+            "direction": direction,
+            "confidence": confidence,
+            "current_price": current_price,
+            "predicted_low": round(predicted_low, 5 if "JPY" not in pair and "BTC" not in pair and "ETH" not in pair else 2),
+            "predicted_high": round(predicted_high, 5 if "JPY" not in pair and "BTC" not in pair and "ETH" not in pair else 2),
+            "key_factors": random.sample(key_factors_pool, 3),
+            "generated_at": now.isoformat(),
+            "valid_until": (now + timedelta(hours=1)).isoformat(),
         })
     return {"predictions": preds, "total": len(preds)}
 
@@ -260,22 +300,121 @@ async def sentiment():
         "fear_greed_index": 58.5,
         "fear_greed_label": "Greed",
         "market_mood": "bullish",
+        "pair_sentiments": {
+            "EUR/USD": {"bullish": 55, "bearish": 30, "neutral": 15, "overall": "bullish"},
+            "GBP/USD": {"bullish": 40, "bearish": 45, "neutral": 15, "overall": "bearish"},
+            "USD/JPY": {"bullish": 60, "bearish": 25, "neutral": 15, "overall": "bullish"},
+            "BTC/USD": {"bullish": 70, "bearish": 20, "neutral": 10, "overall": "bullish"},
+            "ETH/USD": {"bullish": 45, "bearish": 40, "neutral": 15, "overall": "neutral"},
+        },
     }
 
 
 @app.get("/api/v1/intelligence/indicators")
 async def indicators():
-    return {"indicators": [], "updated_at": datetime.utcnow().isoformat()}
+    pairs = ["EUR/USD", "GBP/USD", "USD/JPY", "BTC/USD", "ETH/USD"]
+    indicators_data = []
+
+    for pair in pairs:
+        rsi_value = round(random.uniform(25, 75), 1)
+        rsi_signal = "oversold" if rsi_value < 30 else ("overbought" if rsi_value > 70 else "neutral")
+
+        adx_value = round(random.uniform(15, 45), 1)
+        adx_strength = "strong" if adx_value > 25 else "weak"
+
+        macd_trend = random.choice(["bullish", "bearish"])
+        ma_trend = random.choice(["bullish", "bearish"])
+
+        overall = "bullish" if (macd_trend == "bullish" and ma_trend == "bullish") else (
+            "bearish" if (macd_trend == "bearish" and ma_trend == "bearish") else "neutral"
+        )
+
+        indicators_data.append({
+            "pair": pair,
+            "rsi": {"value": rsi_value, "signal": rsi_signal},
+            "macd": {"value": round(random.uniform(-0.5, 0.5), 4), "histogram": round(random.uniform(-0.2, 0.2), 4), "trend": macd_trend},
+            "moving_averages": {"trend": ma_trend},
+            "bollinger_bands": {"position": round(random.uniform(0, 100), 1), "squeeze": random.choice([True, False])},
+            "adx": {"value": adx_value, "trend_strength": adx_strength},
+            "overall_bias": overall,
+        })
+
+    return {"indicators": indicators_data, "updated_at": datetime.utcnow().isoformat()}
 
 
 @app.get("/api/v1/intelligence/insights")
 async def insights():
-    return {"insights": [], "total": 0}
+    now = datetime.utcnow()
+    insights_data = [
+        {
+            "id": "ins_001",
+            "title": "USD Strengthening Trend",
+            "content": "The US Dollar is showing signs of strength against major pairs. Economic data releases support continued bullish momentum for USD. Consider reducing exposure to short USD positions.",
+            "category": "market_analysis",
+            "priority": "high",
+            "pairs_affected": ["EUR/USD", "GBP/USD"],
+            "generated_at": now.isoformat(),
+        },
+        {
+            "id": "ins_002",
+            "title": "BTC Volatility Alert",
+            "content": "Bitcoin volatility is expected to increase ahead of upcoming economic announcements. Consider tightening stop-losses on crypto positions.",
+            "category": "risk_alert",
+            "priority": "medium",
+            "pairs_affected": ["BTC/USD", "ETH/USD"],
+            "generated_at": now.isoformat(),
+        },
+        {
+            "id": "ins_003",
+            "title": "JPY Support Level Test",
+            "content": "USD/JPY is approaching a key support level at 147.50. Historical data suggests strong buyer interest at this level. Watch for potential reversal signals.",
+            "category": "technical",
+            "priority": "medium",
+            "pairs_affected": ["USD/JPY"],
+            "generated_at": now.isoformat(),
+        },
+    ]
+    return {"insights": insights_data, "total": len(insights_data)}
 
 
 @app.get("/api/v1/intelligence/patterns")
 async def patterns():
-    return {"patterns": [], "total": 0}
+    patterns_data = [
+        {
+            "id": "pat_001",
+            "pair": "EUR/USD",
+            "pattern_name": "Double Bottom",
+            "pattern_type": "reversal",
+            "direction": "bullish",
+            "timeframe": "4h",
+            "completion_percentage": 85,
+            "reliability_score": 72,
+            "notes": "Neckline resistance at 1.0880. Break above could trigger bullish momentum.",
+        },
+        {
+            "id": "pat_002",
+            "pair": "GBP/USD",
+            "pattern_name": "Descending Triangle",
+            "pattern_type": "continuation",
+            "direction": "bearish",
+            "timeframe": "1h",
+            "completion_percentage": 92,
+            "reliability_score": 68,
+            "notes": "Support at 1.2600 under pressure. Watch for breakdown confirmation.",
+        },
+        {
+            "id": "pat_003",
+            "pair": "BTC/USD",
+            "pattern_name": "Bull Flag",
+            "pattern_type": "continuation",
+            "direction": "bullish",
+            "timeframe": "4h",
+            "completion_percentage": 78,
+            "reliability_score": 75,
+            "notes": "Consolidating after recent rally. Target projection at $72,000.",
+        },
+    ]
+    return {"patterns": patterns_data, "total": len(patterns_data)}
 
 
 # =============================================================================

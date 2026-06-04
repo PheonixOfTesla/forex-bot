@@ -39,6 +39,14 @@ type DashboardStackParamList = {
   History: undefined;
 };
 
+type PredictStackParamList = {
+  PredictMain: undefined;
+};
+
+type IntelStackParamList = {
+  IntelMain: undefined;
+};
+
 type RootTabParamList = {
   Home: undefined;
   Signals: undefined;
@@ -72,7 +80,12 @@ const linking: LinkingOptions<RootTabParamList> = {
           SignalDetail: 'detail/:signalId',
         },
       },
-      Predict: 'predict',
+      Predict: {
+        path: 'predict',
+        screens: {
+          PredictMain: '',
+        },
+      },
       Wallet: {
         path: 'wallet',
         screens: {
@@ -81,7 +94,12 @@ const linking: LinkingOptions<RootTabParamList> = {
           Withdraw: 'withdraw',
         },
       },
-      Intel: 'intel',
+      Intel: {
+        path: 'intel',
+        screens: {
+          IntelMain: '',
+        },
+      },
       Settings: {
         path: 'settings',
         screens: {

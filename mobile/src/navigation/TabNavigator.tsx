@@ -178,6 +178,30 @@ const DashboardStack = () => (
   </Stack.Navigator>
 );
 
+// Predict Stack Navigator
+const PredictStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: colors.lpBlack },
+    }}
+  >
+    <Stack.Screen name="PredictMain" component={PredictionsScreen} />
+  </Stack.Navigator>
+);
+
+// Intel Stack Navigator
+const IntelStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: colors.lpBlack },
+    }}
+  >
+    <Stack.Screen name="IntelMain" component={IntelligenceScreen} />
+  </Stack.Navigator>
+);
+
 // Trading Mode Banner Wrapper
 const TradingModeBannerWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { mode, setMode, isLoading } = useTradingMode();
@@ -238,7 +262,7 @@ export const TabNavigator: React.FC = () => {
         />
         <Tab.Screen
           name="Predict"
-          component={PredictionsScreen}
+          component={PredictStack}
           options={{
             tabBarIcon: ({ color, focused }) => (
               <View style={styles.iconContainer}>
@@ -262,7 +286,7 @@ export const TabNavigator: React.FC = () => {
         />
         <Tab.Screen
           name="Intel"
-          component={IntelligenceScreen}
+          component={IntelStack}
           options={{
             tabBarIcon: ({ color, focused }) => (
               <View style={styles.iconContainer}>
