@@ -19,12 +19,14 @@ __version__ = "0.1.0"
 __author__ = "ModernDavinci"
 __email__ = "dev@moderndavinci.com"
 
-from config.settings import get_settings, settings
+# Lazy imports to avoid import errors when running src.api.main directly
+def get_settings():
+    from config.settings import get_settings as _get_settings
+    return _get_settings()
 
 __all__ = [
     "__version__",
     "__author__",
     "__email__",
-    "settings",
     "get_settings",
 ]
