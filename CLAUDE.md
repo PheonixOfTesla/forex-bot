@@ -10,49 +10,91 @@ cd /Users/moderndavinci/hermes/forex-bot
 - **Backend**: https://web-production-7d1c.up.railway.app (Railway)
 - **GitHub**: https://github.com/PheonixOfTesla/forex-bot
 
-## What This Is
-AI-powered forex trading PWA with real-time signals, AI predictions, market intelligence, paper trading, and **live OANDA trading**. Built with Python/FastAPI backend (Railway) and React Native/Expo frontend (Vercel PWA).
+## System Architecture
 
-## Architecture
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         USER                                     │
+│                           │                                      │
+│                           ▼                                      │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              FRONTEND (Vercel)                           │    │
+│  │         mobile-liart-psi.vercel.app                     │    │
+│  │                                                          │    │
+│  │  React Native/Expo PWA                                  │    │
+│  │  - Settings UI saves OANDA credentials                  │    │
+│  │  - Paper/Live trading toggle                            │    │
+│  │  - Dashboard, Signals, Predict, Intel, Wallet tabs      │    │
+│  └─────────────────────┬───────────────────────────────────┘    │
+│                        │ API calls                               │
+│                        ▼                                         │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              BACKEND (Railway)                           │    │
+│  │       web-production-7d1c.up.railway.app                │    │
+│  │                                                          │    │
+│  │  FastAPI + Python                                       │    │
+│  │  - src/api/main.py (entry point)                        │    │
+│  │  - src/api/routes/ (all endpoints)                      │    │
+│  │  - src/api/broker.py (OANDA client)                     │    │
+│  │  - src/api/database.py (MongoDB connection)             │    │
+│  └─────────────┬──────────────────────┬────────────────────┘    │
+│                │                      │                          │
+│                ▼                      ▼                          │
+│  ┌─────────────────────┐    ┌─────────────────────────────┐     │
+│  │    MongoDB Atlas    │    │         OANDA API           │     │
+│  │                     │    │                             │     │
+│  │  Collections:       │    │  Practice/Live Trading      │     │
+│  │  - settings         │    │  - Account balance          │     │
+│  │  - trades           │    │  - Place orders             │     │
+│  │  - positions        │    │  - Get positions            │     │
+│  │  - accounts         │    │  - Real-time prices         │     │
+│  └─────────────────────┘    └─────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### Backend (Python/FastAPI) - Railway
-- **Location**: `src/api/`
-- **Entry**: `src/api/main.py`
-- **Key Modules**:
-  - `src/api/broker.py` - OANDA REST API client
-  - `src/api/database.py` - MongoDB connection (Motor async)
-  - `src/api/repository.py` - Data access layer
-- **Routes**: `src/api/routes/` - API endpoints
+## Data Flow
 
-### Frontend (React Native/Expo PWA) - Vercel
-- **Location**: `/mobile`
-- **Key Files**:
-  - `src/services/api.ts` - API client (points to Railway)
-  - `src/hooks/useApi.ts` - React hooks for data fetching
-  - `src/screens/` - Tab screens
-  - `app/(tabs)/` - Expo Router navigation
+### OANDA Credentials
+1. User enters credentials in Settings UI (frontend)
+2. Frontend POSTs to `/api/v1/settings/oanda`
+3. Backend saves to MongoDB `settings` collection
+4. Credentials persist across Railway restarts
+5. Live trading endpoints read from MongoDB
 
-## The 5 Tabs
-1. **Dashboard** - Overview, balance, recent activity
-2. **Signals** - Real-time trading signals with confidence scores
-3. **Predict** - AI predictions for currency pairs with timeframes
-4. **Intel** - Market sentiment, technical indicators, AI insights, chart patterns
-5. **Wallet** - Portfolio management, paper/live mode toggle
+### Trade Execution (Live)
+1. User clicks Execute on a signal
+2. Frontend POSTs to `/api/v1/live/execute`
+3. Backend loads OANDA credentials from MongoDB
+4. Backend calls OANDA REST API to place order
+5. Trade result returned to frontend
+
+## Environment Variables
+
+### Railway (Backend)
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `MONGODB_URI` | `mongodb+srv://Admin:...@cluster0.0gnxplz.mongodb.net/lightning_trading` | Database connection |
+
+OANDA credentials are stored in MongoDB, not env vars (for UI-based configuration).
+
+### Vercel (Frontend)
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `EXPO_PUBLIC_API_URL` | `https://web-production-7d1c.up.railway.app` | Backend API URL |
 
 ## API Endpoints
 
-### Core
+### Health & Status
 ```
-GET  /health                         - Health check
-GET  /api/v1/dashboard               - Dashboard data
-GET  /api/v1/signals                 - Trading signals
-GET  /api/v1/predictions             - AI predictions
+GET  /health                         - Backend health check
+GET  /api/v1/dashboard               - Dashboard data with positions
 ```
 
-### Settings & OANDA
+### Settings & OANDA Configuration
 ```
-GET  /api/v1/settings                - Get all settings
-POST /api/v1/settings/oanda          - Save OANDA credentials
+GET  /api/v1/settings                - All settings
+GET  /api/v1/settings/oanda          - OANDA config (masked)
+POST /api/v1/settings/oanda          - Save OANDA credentials → MongoDB
 POST /api/v1/settings/oanda/test     - Test OANDA connection
 ```
 
@@ -67,60 +109,99 @@ POST /api/v1/paper/positions/{id}/close - Close paper position
 ### Live Trading (OANDA)
 ```
 GET  /api/v1/live/balance            - Live OANDA balance
-GET  /api/v1/live/positions          - Live positions
-POST /api/v1/live/execute            - Execute live trade
+GET  /api/v1/live/positions          - Live positions from OANDA
+POST /api/v1/live/execute            - Execute live trade on OANDA
 POST /api/v1/live/close/{trade_id}   - Close live trade
 GET  /api/v1/live/price/{instrument} - Get live price
 ```
 
-## Environment Variables
+## MongoDB Collections
 
-### Railway Backend
-- `MONGODB_URI` - MongoDB Atlas connection string
-- `OANDA_ACCOUNT_ID` - OANDA account ID (or use Settings UI)
-- `OANDA_ACCESS_TOKEN` - OANDA API token (or use Settings UI)
-- `OANDA_ENVIRONMENT` - "practice" or "live"
+### `settings` Collection
+```json
+{
+  "_id": "oanda_credentials",
+  "account_id": "101-001-39423274-001",
+  "access_token": "f9560a7c...",
+  "environment": "practice",
+  "updated_at": "2026-06-04T..."
+}
+```
 
-### Vercel Frontend
-- `EXPO_PUBLIC_API_URL=https://web-production-7d1c.up.railway.app`
+### `trades` Collection
+```json
+{
+  "_id": "tr_abc123",
+  "user_id": "default",
+  "pair": "EUR/USD",
+  "direction": "long",
+  "entry_price": 1.0845,
+  "quantity": 1000,
+  "status": "open",
+  "broker": "paper|oanda"
+}
+```
+
+## OANDA Integration
+
+| Property | Value |
+|----------|-------|
+| Practice Account | `101-001-39423274-001` |
+| Environment | `practice` (demo $100k) |
+| API Endpoint | `api-fxpractice.oanda.com` |
+
+Credentials are saved to MongoDB when user clicks "SAVE API KEYS" in Settings UI.
 
 ## Deploy Commands
-```bash
-# Push to Git (auto-deploys Railway, manually deploy frontend)
-git add . && git commit -m "message" && git push origin main
 
-# Frontend deploy (Vercel)
-cd mobile && npx expo export --platform web
-cd dist && vercel --prod --project mobile
+```bash
+# Push code (auto-deploys to Railway)
+git add . && git commit -m "message" && git push origin main
 
 # Check Railway backend
 curl -s https://web-production-7d1c.up.railway.app/health
 
-# Check Vercel frontend
-curl -sI https://mobile-liart-psi.vercel.app | head -3
+# Test OANDA connection
+curl -X POST https://web-production-7d1c.up.railway.app/api/v1/settings/oanda/test
+
+# Frontend deploy (manual, Vercel)
+cd mobile && npx expo export --platform web
+# Then deploy via Vercel dashboard or CLI
 ```
 
-## Database
-- **MongoDB Atlas**: `lightning_trading` database
-- **Collections**: settings, trades, positions, accounts
-- **Connection**: Set `MONGODB_URI` in Railway
+## File Structure
 
-## OANDA Integration
-- **Practice Account**: 101-001-39423274-001
-- **Environment**: practice (demo $100k)
-- **Credentials**: Saved via Settings UI or env vars
-- Live trading ready when switched to "live" mode
+```
+forex-bot/
+├── src/api/                    # Railway Backend
+│   ├── main.py                 # FastAPI app entry
+│   ├── broker.py               # OANDA REST client
+│   ├── database.py             # MongoDB connection
+│   ├── repository.py           # Data access layer
+│   └── routes/
+│       ├── settings.py         # Settings + OANDA save
+│       ├── live_trading.py     # Live OANDA trading
+│       ├── paper_trading.py    # Paper trading
+│       └── ...
+├── mobile/                     # Vercel Frontend
+│   ├── src/services/api.ts     # API client → Railway
+│   └── src/screens/            # UI screens
+└── api/                        # (Vercel serverless - legacy)
+```
 
-## Recent Work Done
-- Added MongoDB persistence (Motor async driver)
-- Added OANDA broker client (httpx)
-- Settings saved to DB via frontend UI
-- Live trading endpoints for OANDA
-- Paper trading with position tracking
-- Separated Railway (backend) and Vercel (frontend)
+## Troubleshooting
 
-## Common Tasks
-- **Update frontend API URL**: `mobile/src/services/api.ts`
-- **Add API endpoint**: Add to `src/api/routes/`, register in `main.py`
-- **Debug backend**: Check Railway logs
-- **Test OANDA**: POST /api/v1/settings/oanda/test
+### OANDA not connecting
+1. Check credentials saved: `GET /api/v1/settings/oanda`
+2. Test connection: `POST /api/v1/settings/oanda/test`
+3. Check Railway logs for errors
+
+### Data not persisting
+1. Verify `MONGODB_URI` in Railway variables
+2. Check MongoDB Atlas IP whitelist (0.0.0.0/0)
+3. Check MongoDB Atlas cluster status
+
+### Frontend not loading
+1. Check API URL in `mobile/src/services/api.ts`
+2. Verify Railway backend is running
+3. Check browser console for CORS errors

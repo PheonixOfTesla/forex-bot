@@ -37,8 +37,24 @@ class ExecuteTradeRequest(BaseModel):
 # =============================================================================
 
 
-def get_oanda_credentials():
-    """Get OANDA credentials from settings store."""
+async def get_oanda_credentials():
+    """Get OANDA credentials from MongoDB or memory."""
+    # Try MongoDB first
+    try:
+        from ..database import get_db
+        db = await get_db()
+        if db:
+            settings = await db.settings.find_one({"_id": "oanda_credentials"})
+            if settings and settings.get("account_id") and settings.get("access_token"):
+                return (
+                    settings.get("account_id"),
+                    settings.get("access_token"),
+                    settings.get("environment", "practice"),
+                )
+    except Exception as e:
+        logger.warning(f"Could not load OANDA from DB: {e}")
+
+    # Fall back to in-memory settings store
     from .settings import _settings_store
     return (
         _settings_store.oanda_account_id,
@@ -51,7 +67,7 @@ async def get_oanda_client():
     """Get configured OANDA client."""
     from ..broker import OandaClient
 
-    account_id, access_token, environment = get_oanda_credentials()
+    account_id, access_token, environment = await get_oanda_credentials()
 
     if not account_id or not access_token:
         raise HTTPException(

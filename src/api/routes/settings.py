@@ -524,52 +524,109 @@ async def export_settings():
 # =============================================================================
 
 
+async def get_oanda_from_db():
+    """Get OANDA credentials from MongoDB."""
+    try:
+        from ..database import get_db
+        db = await get_db()
+        if db is None:
+            return None, None, "practice"
+
+        settings = await db.settings.find_one({"_id": "oanda_credentials"})
+        if settings:
+            return (
+                settings.get("account_id"),
+                settings.get("access_token"),
+                settings.get("environment", "practice"),
+            )
+    except Exception as e:
+        logger.warning(f"Could not load OANDA from DB: {e}")
+
+    return None, None, "practice"
+
+
+async def save_oanda_to_db(account_id: str, access_token: str, environment: str):
+    """Save OANDA credentials to MongoDB."""
+    try:
+        from ..database import get_db
+        db = await get_db()
+        if db is None:
+            return False
+
+        await db.settings.update_one(
+            {"_id": "oanda_credentials"},
+            {"$set": {
+                "account_id": account_id,
+                "access_token": access_token,
+                "environment": environment,
+                "updated_at": datetime.utcnow(),
+            }},
+            upsert=True,
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Could not save OANDA to DB: {e}")
+        return False
+
+
 @router.get("/settings/oanda")
 async def get_oanda_settings():
     """Get OANDA configuration status (credentials masked)."""
-    configured = bool(_settings_store.oanda_account_id and _settings_store.oanda_access_token)
+    # Try DB first, then fall back to memory/env
+    db_account, db_token, db_env = await get_oanda_from_db()
+
+    account_id = db_account or _settings_store.oanda_account_id
+    access_token = db_token or _settings_store.oanda_access_token
+    environment = db_env or _settings_store.oanda_environment
+
+    configured = bool(account_id and access_token)
 
     # Mask account ID for security
     masked_id = None
-    if _settings_store.oanda_account_id:
-        aid = _settings_store.oanda_account_id
-        masked_id = f"{aid[:8]}...{aid[-4:]}" if len(aid) > 12 else aid
+    if account_id:
+        masked_id = f"{account_id[:8]}...{account_id[-4:]}" if len(account_id) > 12 else account_id
 
     return {
         "oanda_configured": configured,
         "oanda_account_id": masked_id,
-        "oanda_environment": _settings_store.oanda_environment,
+        "oanda_environment": environment,
+        "persisted": bool(db_account),
     }
 
 
 @router.post("/settings/oanda")
 async def save_oanda_settings(request: OandaSettingsRequest):
     """
-    Save OANDA API credentials.
-
-    These are stored in memory and used for live trading.
-    For production, credentials should be in environment variables.
+    Save OANDA API credentials to MongoDB for persistence.
     """
-    if request.oanda_account_id is not None:
+    account_id = request.oanda_account_id or _settings_store.oanda_account_id
+    access_token = request.oanda_access_token or _settings_store.oanda_access_token
+    environment = request.oanda_environment or _settings_store.oanda_environment or "practice"
+
+    # Update in-memory store
+    if request.oanda_account_id:
         _settings_store.oanda_account_id = request.oanda_account_id
-
-    if request.oanda_access_token is not None:
+    if request.oanda_access_token:
         _settings_store.oanda_access_token = request.oanda_access_token
-
-    if request.oanda_environment is not None:
+    if request.oanda_environment:
         _settings_store.oanda_environment = request.oanda_environment
 
     _settings_store.last_updated = datetime.utcnow()
 
+    # Save to MongoDB for persistence
+    persisted = False
+    if account_id and access_token:
+        persisted = await save_oanda_to_db(account_id, access_token, environment)
+
     # Test connection
     oanda_status = None
-    if _settings_store.oanda_account_id and _settings_store.oanda_access_token:
+    if account_id and access_token:
         try:
             from ..broker import OandaClient
             client = OandaClient(
-                account_id=_settings_store.oanda_account_id,
-                access_token=_settings_store.oanda_access_token,
-                environment=_settings_store.oanda_environment,
+                account_id=account_id,
+                access_token=access_token,
+                environment=environment,
             )
             account = await client.get_account()
             oanda_status = {
@@ -584,11 +641,12 @@ async def save_oanda_settings(request: OandaSettingsRequest):
                 "error": str(e),
             }
 
-    logger.info(f"OANDA settings saved. Status: {oanda_status}")
+    logger.info(f"OANDA settings saved. Persisted: {persisted}, Status: {oanda_status}")
 
     return {
         "success": True,
-        "message": "OANDA settings saved",
+        "message": "OANDA settings saved" + (" to database" if persisted else " (in memory only)"),
+        "persisted": persisted,
         "oanda_status": oanda_status,
     }
 
@@ -596,7 +654,14 @@ async def save_oanda_settings(request: OandaSettingsRequest):
 @router.post("/settings/oanda/test")
 async def test_oanda_connection():
     """Test OANDA connection with current credentials."""
-    if not _settings_store.oanda_account_id or not _settings_store.oanda_access_token:
+    # Try DB first, then memory/env
+    db_account, db_token, db_env = await get_oanda_from_db()
+
+    account_id = db_account or _settings_store.oanda_account_id
+    access_token = db_token or _settings_store.oanda_access_token
+    environment = db_env or _settings_store.oanda_environment
+
+    if not account_id or not access_token:
         return {
             "success": False,
             "error": "OANDA credentials not configured",
@@ -605,9 +670,9 @@ async def test_oanda_connection():
     try:
         from ..broker import OandaClient
         client = OandaClient(
-            account_id=_settings_store.oanda_account_id,
-            access_token=_settings_store.oanda_access_token,
-            environment=_settings_store.oanda_environment,
+            account_id=account_id,
+            access_token=access_token,
+            environment=environment,
         )
 
         account = await client.get_account()
