@@ -1,4 +1,4 @@
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://forex-bot-ten.vercel.app';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'https://web-production-7d1c.up.railway.app';
 
 export interface Signal {
   id: string;

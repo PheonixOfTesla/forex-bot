@@ -7,10 +7,12 @@ Provides endpoints for managing trading bot settings.
 """
 
 import logging
+import os
 from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Path, Query
+from pydantic import BaseModel
 
 from ..schemas import (
     AssetSetting,
@@ -21,6 +23,25 @@ from ..schemas import (
     SettingsUpdate,
     TradingSettings,
 )
+
+
+# =============================================================================
+# OANDA Settings Models
+# =============================================================================
+
+
+class OandaSettingsRequest(BaseModel):
+    """Request to save OANDA API credentials."""
+    oanda_account_id: Optional[str] = None
+    oanda_access_token: Optional[str] = None
+    oanda_environment: Optional[str] = None  # "practice" or "live"
+
+
+class OandaSettingsResponse(BaseModel):
+    """Response for OANDA settings."""
+    oanda_configured: bool
+    oanda_account_id: Optional[str] = None  # Masked
+    oanda_environment: str = "practice"
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -63,6 +84,11 @@ class SettingsStore:
         )
 
         self.last_updated = datetime.utcnow()
+
+        # OANDA settings - load from env or store in memory
+        self.oanda_account_id = os.environ.get("OANDA_ACCOUNT_ID")
+        self.oanda_access_token = os.environ.get("OANDA_ACCESS_TOKEN")
+        self.oanda_environment = os.environ.get("OANDA_ENVIRONMENT", "practice")
 
         # Asset settings
         self.assets = {
@@ -491,3 +517,116 @@ async def export_settings():
         "trading": _settings_store.trading.model_dump(),
         "assets": {k: v.model_dump() for k, v in _settings_store.assets.items()},
     }
+
+
+# =============================================================================
+# OANDA Configuration Endpoints
+# =============================================================================
+
+
+@router.get("/settings/oanda")
+async def get_oanda_settings():
+    """Get OANDA configuration status (credentials masked)."""
+    configured = bool(_settings_store.oanda_account_id and _settings_store.oanda_access_token)
+
+    # Mask account ID for security
+    masked_id = None
+    if _settings_store.oanda_account_id:
+        aid = _settings_store.oanda_account_id
+        masked_id = f"{aid[:8]}...{aid[-4:]}" if len(aid) > 12 else aid
+
+    return {
+        "oanda_configured": configured,
+        "oanda_account_id": masked_id,
+        "oanda_environment": _settings_store.oanda_environment,
+    }
+
+
+@router.post("/settings/oanda")
+async def save_oanda_settings(request: OandaSettingsRequest):
+    """
+    Save OANDA API credentials.
+
+    These are stored in memory and used for live trading.
+    For production, credentials should be in environment variables.
+    """
+    if request.oanda_account_id is not None:
+        _settings_store.oanda_account_id = request.oanda_account_id
+
+    if request.oanda_access_token is not None:
+        _settings_store.oanda_access_token = request.oanda_access_token
+
+    if request.oanda_environment is not None:
+        _settings_store.oanda_environment = request.oanda_environment
+
+    _settings_store.last_updated = datetime.utcnow()
+
+    # Test connection
+    oanda_status = None
+    if _settings_store.oanda_account_id and _settings_store.oanda_access_token:
+        try:
+            from ..broker import OandaClient
+            client = OandaClient(
+                account_id=_settings_store.oanda_account_id,
+                access_token=_settings_store.oanda_access_token,
+                environment=_settings_store.oanda_environment,
+            )
+            account = await client.get_account()
+            oanda_status = {
+                "connected": True,
+                "balance": float(account.get("balance", 0)),
+                "currency": account.get("currency", "USD"),
+            }
+            await client.close()
+        except Exception as e:
+            oanda_status = {
+                "connected": False,
+                "error": str(e),
+            }
+
+    logger.info(f"OANDA settings saved. Status: {oanda_status}")
+
+    return {
+        "success": True,
+        "message": "OANDA settings saved",
+        "oanda_status": oanda_status,
+    }
+
+
+@router.post("/settings/oanda/test")
+async def test_oanda_connection():
+    """Test OANDA connection with current credentials."""
+    if not _settings_store.oanda_account_id or not _settings_store.oanda_access_token:
+        return {
+            "success": False,
+            "error": "OANDA credentials not configured",
+        }
+
+    try:
+        from ..broker import OandaClient
+        client = OandaClient(
+            account_id=_settings_store.oanda_account_id,
+            access_token=_settings_store.oanda_access_token,
+            environment=_settings_store.oanda_environment,
+        )
+
+        account = await client.get_account()
+        await client.close()
+
+        return {
+            "success": True,
+            "account": {
+                "id": account.get("id"),
+                "balance": float(account.get("balance", 0)),
+                "currency": account.get("currency", "USD"),
+                "nav": float(account.get("NAV", 0)),
+                "unrealized_pnl": float(account.get("unrealizedPL", 0)),
+                "open_trades": int(account.get("openTradeCount", 0)),
+            }
+        }
+    except Exception as e:
+        logger.error(f"OANDA connection test failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }

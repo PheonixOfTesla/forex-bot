@@ -6,28 +6,28 @@ cd /Users/moderndavinci/hermes/forex-bot
 ```
 
 ## Live URLs
-- **Frontend**: https://mobile-liart-psi.vercel.app
-- **Backend**: https://forex-bot-ten.vercel.app
+- **Frontend**: https://mobile-liart-psi.vercel.app (Vercel)
+- **Backend**: https://web-production-7d1c.up.railway.app (Railway)
 - **GitHub**: https://github.com/PheonixOfTesla/forex-bot
 
 ## What This Is
-AI-powered forex trading PWA with real-time signals, AI predictions, market intelligence, and portfolio management. Built with Python/FastAPI backend and React Native/Expo frontend deployed as a Progressive Web App.
+AI-powered forex trading PWA with real-time signals, AI predictions, market intelligence, paper trading, and **live OANDA trading**. Built with Python/FastAPI backend (Railway) and React Native/Expo frontend (Vercel PWA).
 
 ## Architecture
 
-### Backend (Python/FastAPI)
-- **Location**: `/` (root directory)
-- **Entry**: `main.py`
-- **Services**:
-  - `services/oanda_client.py` - OANDA broker integration
-  - `services/ai_engine.py` - AI prediction engine
-  - `services/signal_generator.py` - Trading signal generation
-- **Routes**: `routes/` - API endpoints
+### Backend (Python/FastAPI) - Railway
+- **Location**: `src/api/`
+- **Entry**: `src/api/main.py`
+- **Key Modules**:
+  - `src/api/broker.py` - OANDA REST API client
+  - `src/api/database.py` - MongoDB connection (Motor async)
+  - `src/api/repository.py` - Data access layer
+- **Routes**: `src/api/routes/` - API endpoints
 
-### Frontend (React Native/Expo PWA)
+### Frontend (React Native/Expo PWA) - Vercel
 - **Location**: `/mobile`
 - **Key Files**:
-  - `src/services/api.ts` - API client
+  - `src/services/api.ts` - API client (points to Railway)
   - `src/hooks/useApi.ts` - React hooks for data fetching
   - `src/screens/` - Tab screens
   - `app/(tabs)/` - Expo Router navigation
@@ -37,64 +37,90 @@ AI-powered forex trading PWA with real-time signals, AI predictions, market inte
 2. **Signals** - Real-time trading signals with confidence scores
 3. **Predict** - AI predictions for currency pairs with timeframes
 4. **Intel** - Market sentiment, technical indicators, AI insights, chart patterns
-5. **Wallet** - Portfolio management, transactions, demo/live mode toggle
+5. **Wallet** - Portfolio management, paper/live mode toggle
 
 ## API Endpoints
+
+### Core
 ```
-GET  /api/v1/signals              - Trading signals
-GET  /api/v1/predictions          - AI predictions
-GET  /api/v1/predictions/accuracy - Prediction accuracy stats
-GET  /api/v1/intelligence/sentiment  - Fear/greed index
-GET  /api/v1/intelligence/indicators - Technical indicators
-GET  /api/v1/intelligence/insights   - AI market insights
-GET  /api/v1/intelligence/patterns   - Detected chart patterns
-GET  /api/v1/wallet/balance       - Current balance
-POST /api/v1/wallet/mode          - Toggle demo/live
-GET  /health                      - Health check
+GET  /health                         - Health check
+GET  /api/v1/dashboard               - Dashboard data
+GET  /api/v1/signals                 - Trading signals
+GET  /api/v1/predictions             - AI predictions
 ```
 
-## Deploy Commands
-```bash
-# Push to Git (auto-deploys both frontend and backend)
-git add . && git commit -m "message" && git push origin main
+### Settings & OANDA
+```
+GET  /api/v1/settings                - Get all settings
+POST /api/v1/settings/oanda          - Save OANDA credentials
+POST /api/v1/settings/oanda/test     - Test OANDA connection
+```
 
-# Manual frontend deploy
-cd mobile && EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK=1 npx expo export --platform web
-cd dist && vercel --prod --project mobile
+### Paper Trading
+```
+GET  /api/v1/paper/balance           - Paper account balance
+GET  /api/v1/paper/positions         - Open paper positions
+POST /api/v1/paper/execute           - Execute paper trade
+POST /api/v1/paper/positions/{id}/close - Close paper position
+```
 
-# Manual backend deploy
-vercel --prod --project forex-bot
-
-# Check status
-curl -s https://forex-bot-ten.vercel.app/health
+### Live Trading (OANDA)
+```
+GET  /api/v1/live/balance            - Live OANDA balance
+GET  /api/v1/live/positions          - Live positions
+POST /api/v1/live/execute            - Execute live trade
+POST /api/v1/live/close/{trade_id}   - Close live trade
+GET  /api/v1/live/price/{instrument} - Get live price
 ```
 
 ## Environment Variables
-### Backend (set in Vercel dashboard)
-- `OANDA_ACCOUNT_ID` - Your OANDA account ID
-- `OANDA_ACCESS_TOKEN` - Your OANDA API token
+
+### Railway Backend
+- `MONGODB_URI` - MongoDB Atlas connection string
+- `OANDA_ACCOUNT_ID` - OANDA account ID (or use Settings UI)
+- `OANDA_ACCESS_TOKEN` - OANDA API token (or use Settings UI)
 - `OANDA_ENVIRONMENT` - "practice" or "live"
 
-### Frontend (mobile/.env)
-- `EXPO_PUBLIC_API_URL=https://forex-bot-ten.vercel.app`
+### Vercel Frontend
+- `EXPO_PUBLIC_API_URL=https://web-production-7d1c.up.railway.app`
+
+## Deploy Commands
+```bash
+# Push to Git (auto-deploys Railway, manually deploy frontend)
+git add . && git commit -m "message" && git push origin main
+
+# Frontend deploy (Vercel)
+cd mobile && npx expo export --platform web
+cd dist && vercel --prod --project mobile
+
+# Check Railway backend
+curl -s https://web-production-7d1c.up.railway.app/health
+
+# Check Vercel frontend
+curl -sI https://mobile-liart-psi.vercel.app | head -3
+```
+
+## Database
+- **MongoDB Atlas**: `lightning_trading` database
+- **Collections**: settings, trades, positions, accounts
+- **Connection**: Set `MONGODB_URI` in Railway
+
+## OANDA Integration
+- **Practice Account**: 101-001-39423274-001
+- **Environment**: practice (demo $100k)
+- **Credentials**: Saved via Settings UI or env vars
+- Live trading ready when switched to "live" mode
 
 ## Recent Work Done
-- Fixed Predict tab (added usePredictions, usePredictionAccuracy hooks)
-- Fixed Intel tab (added useMarketSentiment, useTechnicalIndicators, useAIInsights, useDetectedPatterns hooks)
-- Changed API fallback URL from Railway to Vercel
-- Connected both Vercel projects to Git for auto-deploy
-- Deleted redundant "dist" project
-- Created /lightning-trading slash command for session pickup
+- Added MongoDB persistence (Motor async driver)
+- Added OANDA broker client (httpx)
+- Settings saved to DB via frontend UI
+- Live trading endpoints for OANDA
+- Paper trading with position tracking
+- Separated Railway (backend) and Vercel (frontend)
 
 ## Common Tasks
-- **Fix a tab**: Check `mobile/src/screens/[Tab]Screen.tsx` and `mobile/src/hooks/useApi.ts`
-- **Add API endpoint**: Add to `routes/` in backend, then add method in `mobile/src/services/api.ts` and hook in `mobile/src/hooks/useApi.ts`
-- **Debug**: Check browser console, run `curl` against backend endpoints
-- **Deploy**: Just push to git, both auto-deploy
-
-## Status Check Commands
-```bash
-curl -s https://forex-bot-ten.vercel.app/health
-curl -sI https://mobile-liart-psi.vercel.app | head -3
-git status
-```
+- **Update frontend API URL**: `mobile/src/services/api.ts`
+- **Add API endpoint**: Add to `src/api/routes/`, register in `main.py`
+- **Debug backend**: Check Railway logs
+- **Test OANDA**: POST /api/v1/settings/oanda/test

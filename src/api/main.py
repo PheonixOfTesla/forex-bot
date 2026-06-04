@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .routes import dashboard, engine, history, intelligence, learning, paper_trading, predictions, settings, signals, wallet
+from .routes import dashboard, engine, history, intelligence, learning, live_trading, paper_trading, predictions, settings, signals, wallet
 from .websocket import router as websocket_router
 
 # Configure logging
@@ -260,6 +260,13 @@ app.include_router(
     paper_trading.router,
     prefix="/api/v1",
     tags=["Paper Trading"],
+)
+
+# Live Trading routes (OANDA)
+app.include_router(
+    live_trading.router,
+    prefix="/api/v1",
+    tags=["Live Trading"],
 )
 
 # Learning routes
