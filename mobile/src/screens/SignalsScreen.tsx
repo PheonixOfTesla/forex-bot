@@ -19,6 +19,7 @@ import {
   SignalConfidenceBar,
   TradeDirectionPill,
   StatusBadge,
+  TradeExecutionModal,
 } from '../components';
 import { useSignals, useWallet, useExecutePaperTrade } from '../hooks/useApi';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -62,28 +63,38 @@ export const SignalsScreen: React.FC = () => {
   const { execute: executePaperTrade, loading: executing } = useExecutePaperTrade();
   const [executedSignals, setExecutedSignals] = useState<Set<string>>(new Set());
   const [executingSignalId, setExecutingSignalId] = useState<string | null>(null);
+  const [selectedSignal, setSelectedSignal] = useState<any>(null);
+  const [showTradeModal, setShowTradeModal] = useState(false);
   const { isConnected } = useWebSocket({
     onSignal: () => refetch(),
   });
 
   const isPaperMode = wallet?.mode === 'paper';
+  const balance = wallet?.balance ?? wallet?.paper_balance ?? 10000;
 
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
 
-  const handleExecutePaperTrade = useCallback(async (signalId: string, event: any) => {
+  const handleOpenTradeModal = useCallback((signal: any, event: any) => {
     event.stopPropagation();
-    if (executedSignals.has(signalId) || executing) return;
+    if (executedSignals.has(signal.id) || executing) return;
+    setSelectedSignal(signal);
+    setShowTradeModal(true);
+  }, [executedSignals, executing]);
 
+  const handleExecuteWithLotSize = useCallback(async (signalId: string, lotSize: number) => {
     setExecutingSignalId(signalId);
+    // For now, we pass the lot size to the API - you can extend the API to use it
     const result = await executePaperTrade(signalId);
     setExecutingSignalId(null);
 
     if (result?.success) {
       setExecutedSignals(prev => new Set([...prev, signalId]));
+      setShowTradeModal(false);
+      setSelectedSignal(null);
     }
-  }, [executedSignals, executing, executePaperTrade]);
+  }, [executePaperTrade]);
 
   // Transform API signals to UI format
   const signals = (data ?? []).map((s: any, i: number) => {
@@ -122,8 +133,32 @@ export const SignalsScreen: React.FC = () => {
     navigation.navigate('SignalDetail', { signalId });
   };
 
+  // Transform selected signal for modal
+  const modalSignal = selectedSignal ? {
+    id: selectedSignal.id,
+    pair: selectedSignal.asset,
+    direction: selectedSignal.direction,
+    confidence: selectedSignal.confidence,
+    entry: selectedSignal.entry,
+    stopLoss: selectedSignal.stopLoss,
+    takeProfit: selectedSignal.takeProfit,
+  } : null;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Trade Execution Modal */}
+      <TradeExecutionModal
+        visible={showTradeModal}
+        signal={modalSignal}
+        balance={balance}
+        onClose={() => {
+          setShowTradeModal(false);
+          setSelectedSignal(null);
+        }}
+        onExecute={handleExecuteWithLotSize}
+        loading={executing}
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -214,7 +249,7 @@ export const SignalsScreen: React.FC = () => {
                     ) : (
                       <TouchableOpacity
                         style={styles.executeButton}
-                        onPress={(e) => handleExecutePaperTrade(signal.id, e)}
+                        onPress={(e) => handleOpenTradeModal(signal, e)}
                         disabled={executing && executingSignalId === signal.id}
                       >
                         {executing && executingSignalId === signal.id ? (

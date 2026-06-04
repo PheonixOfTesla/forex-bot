@@ -10,3 +10,4 @@ export * from './LightningIcon';
 export * from './TradingModeToggle';
 export * from './TradingModeIndicator';
 export * from './TradingModeBanner';
+export * from './TradeExecutionModal';
