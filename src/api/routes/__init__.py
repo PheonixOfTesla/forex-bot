@@ -6,7 +6,7 @@ API Routes Package
 Contains all route modules for the Lightning Bot API.
 """
 
-from . import dashboard, engine, history, intelligence, learning, paper_trading, predictions, settings, signals, wallet
+from . import dashboard, engine, history, intelligence, learning, live_trading, paper_trading, predictions, settings, signals, wallet
 
 __all__ = [
     "dashboard",
@@ -14,6 +14,7 @@ __all__ = [
     "history",
     "intelligence",
     "learning",
+    "live_trading",
     "paper_trading",
     "predictions",
     "settings",
