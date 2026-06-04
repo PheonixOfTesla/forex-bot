@@ -11,3 +11,4 @@ export * from './TradingModeToggle';
 export * from './TradingModeIndicator';
 export * from './TradingModeBanner';
 export * from './TradeExecutionModal';
+export * from './OpenPositionCard';

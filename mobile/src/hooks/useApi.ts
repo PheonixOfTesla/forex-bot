@@ -390,3 +390,28 @@ export function useLearningAccuracy(): UseApiState<LearningAccuracy> {
 export function useLearningInsights(): UseApiState<LearningInsightsResponse> {
   return useApiCall(() => api.getLearningInsights(), []);
 }
+
+// Close Paper Position
+export function useClosePaperPosition() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const close = useCallback(
+    async (tradeId: string, exitPrice: number): Promise<{ success: boolean; trade?: any; new_balance?: number } | null> => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await api.closePaperPosition(tradeId, exitPrice);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return { close, loading, error };
+}

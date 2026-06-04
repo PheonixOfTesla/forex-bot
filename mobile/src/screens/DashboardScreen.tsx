@@ -6,10 +6,9 @@ import {
   ScrollView,
   RefreshControl,
   Dimensions,
-  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import {
   StatusBadge,
@@ -18,14 +17,16 @@ import {
   TradeDirectionPill,
   BalanceSparkline,
   LightningIcon,
+  OpenPositionCard,
 } from '../components';
-import { useDashboard } from '../hooks/useApi';
+import { useDashboard, useClosePaperPosition } from '../hooks/useApi';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const DashboardScreen: React.FC = () => {
   const { data, loading, refetch } = useDashboard();
+  const { close: closePosition, loading: closingPosition } = useClosePaperPosition();
   const { isConnected } = useWebSocket({
     onBalanceUpdate: () => refetch(),
     onSignal: () => refetch(),
@@ -34,6 +35,16 @@ export const DashboardScreen: React.FC = () => {
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleClosePosition = useCallback(async (positionId: string, exitPrice: number) => {
+    const result = await closePosition(positionId, exitPrice);
+    if (result?.success) {
+      Alert.alert('Position Closed', `P&L: $${result.trade?.pnl?.toFixed(2) || '0.00'}`);
+      refetch();
+    } else {
+      Alert.alert('Error', 'Failed to close position');
+    }
+  }, [closePosition, refetch]);
 
   // Transform API data to UI format
   const dashboard = {
@@ -158,39 +169,33 @@ export const DashboardScreen: React.FC = () => {
         {/* Open Positions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>OPEN POSITIONS</Text>
-          <View style={styles.positionsList}>
-            {dashboard.recentTrades
-              .filter((t) => t.status === 'OPEN')
-              .map((trade) => {
-                const isProfit = trade.pnl >= 0;
-                return (
-                  <View
-                    key={trade.id}
-                    style={[
-                      styles.positionCard,
-                      {
-                        borderLeftColor: isProfit
-                          ? colors.lpGreen
-                          : colors.lpRed,
-                      },
-                    ]}
-                  >
-                    <View style={styles.positionLeft}>
-                      <Text style={styles.positionAsset}>{trade.asset}</Text>
-                      <TradeDirectionPill direction={trade.direction} size="sm" />
-                    </View>
-                    <Text
-                      style={[
-                        styles.positionPnl,
-                        { color: isProfit ? colors.lpGreen : colors.lpRed },
-                      ]}
-                    >
-                      {isProfit ? '+' : ''}${trade.pnl.toFixed(2)}
-                    </Text>
-                  </View>
-                );
-              })}
-          </View>
+          {(data?.open_positions ?? []).length > 0 ? (
+            <View style={styles.positionsList}>
+              {(data?.open_positions ?? []).map((position: any) => (
+                <OpenPositionCard
+                  key={position.id}
+                  position={{
+                    id: position.id,
+                    pair: position.pair,
+                    direction: position.direction,
+                    entry_price: position.entry_price,
+                    current_price: position.current_price,
+                    size: position.size,
+                    pnl: position.pnl ?? position.unrealized_pnl ?? 0,
+                    stop_loss: position.stop_loss,
+                    take_profit: position.take_profit,
+                    opened_at: position.opened_at,
+                  }}
+                  onClose={handleClosePosition}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyPositions}>
+              <Text style={styles.emptyText}>No open positions</Text>
+              <Text style={styles.emptySubtext}>Execute a signal to open a position</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -307,27 +312,19 @@ const styles = StyleSheet.create({
   positionsList: {
     gap: spacing.sm,
   },
-  positionCard: {
+  emptyPositions: {
     backgroundColor: colors.lpSurface,
-    borderRadius: borderRadius.md,
-    borderLeftWidth: 3,
-    padding: spacing.md,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
     alignItems: 'center',
   },
-  positionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  positionAsset: {
+  emptyText: {
     ...typography.bodyLG,
-    color: colors.textPrimary,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
   },
-  positionPnl: {
-    ...typography.h4,
-    fontWeight: '700',
+  emptySubtext: {
+    ...typography.bodySM,
+    color: colors.textMuted,
   },
 });

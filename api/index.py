@@ -125,16 +125,38 @@ async def ping():
 
 @app.get("/api/v1/dashboard")
 async def dashboard():
+    # Calculate positions with PnL
+    positions_with_pnl = []
+    total_unrealized = 0.0
+    for trade in paper_state.open_trades:
+        current_price = trade["entry_price"] * 1.001  # Simulate slight movement
+        pnl = (current_price - trade["entry_price"]) * trade["quantity"]
+        if trade["direction"] in ["sell", "short"]:
+            pnl = -pnl
+        total_unrealized += pnl
+        positions_with_pnl.append({
+            "id": trade["id"],
+            "pair": trade["pair"],
+            "direction": "long" if trade["direction"] in ["buy", "long"] else "short",
+            "entry_price": trade["entry_price"],
+            "current_price": current_price,
+            "size": trade["quantity"],
+            "pnl": round(pnl, 2),
+            "unrealized_pnl": round(pnl, 2),
+            "opened_at": trade["opened_at"],
+            "status": "open",
+        })
+
     return {
         "balance": paper_state.balance,
-        "equity": paper_state.balance,
-        "today_pnl": 48.41,
-        "today_pnl_pct": 0.46,
+        "equity": paper_state.balance + total_unrealized,
+        "today_pnl": round(total_unrealized, 2) if paper_state.open_trades else 48.41,
+        "today_pnl_pct": round((total_unrealized / paper_state.initial_balance) * 100, 2) if paper_state.open_trades else 0.46,
         "win_rate": 74.9,
         "total_trades": len(paper_state.closed_trades),
         "open_positions_count": len(paper_state.open_trades),
         "ml_signals": MOCK_SIGNALS[:2],
-        "open_positions": paper_state.open_trades,
+        "open_positions": positions_with_pnl,
         "last_updated": datetime.utcnow().isoformat(),
     }
 

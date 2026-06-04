@@ -467,6 +467,13 @@ class ApiClient {
     });
   }
 
+  async closePaperPosition(tradeId: string, exitPrice: number): Promise<{ success: boolean; trade?: any; new_balance?: number }> {
+    return this.fetch(`/api/v1/paper/positions/${tradeId}/close`, {
+      method: 'POST',
+      body: JSON.stringify({ exit_price: exitPrice }),
+    });
+  }
+
   // Learning
   async getLearningAccuracy(): Promise<LearningAccuracy> {
     return this.fetch('/api/v1/learning/accuracy');
