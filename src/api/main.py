@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .routes import dashboard, engine, history, intelligence, learning, live_trading, paper_trading, predictions, settings, signals, wallet
+from .routes import autopilot, dashboard, engine, history, intelligence, learning, live_trading, paper_trading, predictions, settings, signals, wallet
 from .websocket import router as websocket_router
 
 # Configure logging
@@ -65,9 +65,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     app_state.started_at = datetime.utcnow()
     app_state.engine_status = "running"
 
-    # TODO: Initialize database connections
-    # TODO: Initialize broker connections
-    # TODO: Start background tasks
+    # Start the autopilot self-testing loop (disable with AUTOPILOT_ENABLED=false)
+    from ..services.autopilot import get_autopilot
+
+    autopilot_engine = get_autopilot()
+    if autopilot_engine.enabled:
+        autopilot_engine.start()
 
     logger.info("Lightning Bot API ready")
 
@@ -75,6 +78,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
     # Shutdown
     logger.info("Lightning Bot API shutting down...")
+
+    await autopilot_engine.stop()
 
     # Close all WebSocket connections
     for ws in app_state.connected_websockets:
@@ -274,6 +279,13 @@ app.include_router(
     learning.router,
     prefix="/api/v1",
     tags=["Learning"],
+)
+
+# Autopilot routes (autonomous self-testing)
+app.include_router(
+    autopilot.router,
+    prefix="/api/v1",
+    tags=["Autopilot"],
 )
 
 # WebSocket routes

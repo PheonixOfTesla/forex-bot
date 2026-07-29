@@ -320,7 +320,7 @@ class SignalGenerator:
         latest = df.iloc[-1]
         prev = df.iloc[-2] if len(df) > 1 else df.iloc[-1]
 
-        # Weights for each indicator
+        # Base weights for each indicator
         weights = {
             "rsi": 0.20,
             "macd": 0.25,
@@ -329,6 +329,19 @@ class SignalGenerator:
             "momentum": 0.10,
             "volume": 0.05,
         }
+
+        # Blend in learned per-indicator multipliers (0.5-1.5) from recorded
+        # trade outcomes, so indicators that historically win get more say.
+        try:
+            from .learning_engine import get_learning_engine
+
+            learning = get_learning_engine()
+            weights = {
+                name: base * learning.get_indicator_weight(name)
+                for name, base in weights.items()
+            }
+        except Exception as e:
+            logger.debug(f"Learned weights unavailable, using base weights: {e}")
 
         signals = {}
         signal_weights = {}
@@ -511,6 +524,40 @@ class SignalGenerator:
                 logger.warning(f"Insufficient data for {pair}: {len(df)} candles")
                 return None
 
+            # Get current price for entry
+            price_update = await client.get_current_price(pair)
+
+            return self.analyze_dataframe(pair, df, entry_price=price_update.mid)
+
+        except Exception as e:
+            logger.error(f"Error analyzing {pair}: {e}")
+            return None
+
+    def analyze_dataframe(
+        self,
+        pair: str,
+        df: pd.DataFrame,
+        entry_price: Optional[float] = None,
+    ) -> Optional[TradingSignal]:
+        """
+        Analyze a candle DataFrame and generate a signal if conditions are met.
+
+        This is the pure analysis path shared by live OANDA data and the
+        autopilot's simulated self-testing data.
+
+        Args:
+            pair: Currency pair (e.g., "EUR_USD")
+            df: OHLCV DataFrame (columns: open, high, low, close, volume)
+            entry_price: Current market price (defaults to last close)
+
+        Returns:
+            TradingSignal if conditions are met, None otherwise
+        """
+        try:
+            if df.empty or len(df) < 50:
+                logger.warning(f"Insufficient data for {pair}: {len(df)} candles")
+                return None
+
             # Calculate all technical indicators
             df = self.indicator_engine.calculate_all(df)
 
@@ -540,14 +587,37 @@ class SignalGenerator:
                 indicators, df
             )
 
+            # Adjust confidence using learned historical performance for this
+            # setup (pair + indicators + timeframe), and pull real history stats.
+            similar_trades = 0
+            historical_win_rate = 0.0
+            indicators_used = [k for k, v in feature_importance.items() if v > 0]
+            if direction != "neutral":
+                try:
+                    from .learning_engine import get_learning_engine
+
+                    learning = get_learning_engine()
+                    display_pair = pair.replace("_", "/")
+                    confidence, explanation = learning.adjust_signal_confidence(
+                        confidence, display_pair, indicators_used, "1H"
+                    )
+                    logger.debug(f"{pair}: {explanation}")
+
+                    pair_stats = learning.get_pair_stats(display_pair)
+                    if pair_stats:
+                        similar_trades = pair_stats.total_trades
+                        historical_win_rate = round(pair_stats.win_rate, 1)
+                except Exception as e:
+                    logger.debug(f"Learning adjustment unavailable: {e}")
+
             # Skip if confidence too low or neutral
             if direction == "neutral" or confidence < self.MIN_CONFIDENCE_THRESHOLD:
                 logger.debug(f"{pair}: No signal (direction={direction}, confidence={confidence})")
                 return None
 
-            # Get current price for entry
-            price_update = await client.get_current_price(pair)
-            entry_price = price_update.mid
+            # Default entry to the last close (simulation / offline analysis)
+            if entry_price is None:
+                entry_price = float(df.iloc[-1]["close"])
 
             # Round entry price appropriately
             if "JPY" in pair:
@@ -596,8 +666,8 @@ class SignalGenerator:
                 expires_at=now + timedelta(minutes=self.SIGNAL_EXPIRY_MINUTES),
                 indicators=indicators,
                 feature_importance=feature_importance,
-                similar_historical_trades=int(confidence / 2),  # Estimated
-                historical_win_rate=round(50 + confidence / 4, 1),  # Estimated
+                similar_historical_trades=similar_trades,
+                historical_win_rate=historical_win_rate,
             )
 
             # Cache the signal

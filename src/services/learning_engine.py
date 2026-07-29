@@ -1045,6 +1045,76 @@ class LearningEngine:
             },
         )
 
+    def get_indicator_weight(self, indicator_name: str, min_signals: int = 5) -> float:
+        """
+        Get the learned weight multiplier for an indicator (0.5-1.5).
+
+        Returns 1.0 (neutral) until the indicator has enough recorded signals.
+        """
+        weight = self._indicator_weights.get(indicator_name)
+        if weight is None or weight.total_signals < min_signals:
+            return 1.0
+        return weight.weight
+
+    def get_pair_stats(self, pair: str) -> Optional[PairPerformance]:
+        """Get learned performance stats for a pair (accepts EUR/USD or EUR_USD)."""
+        normalized = pair.upper().replace("_", "/")
+        return self._pair_performance.get(normalized)
+
+    def get_learned_config(self, min_trades: int = 5) -> Dict:
+        """
+        Get the current self-configured trading parameters derived from outcomes.
+
+        This is the "highest effect" configuration the system has learned:
+        indicator weights, best/worst pairs, direction bias, and top setups.
+        """
+        indicator_weights = {
+            name: round(w.weight, 3)
+            for name, w in self._indicator_weights.items()
+            if w.total_signals >= min_trades
+        }
+
+        ranked_pairs = sorted(
+            (p for p in self._pair_performance.values() if p.total_trades >= min_trades),
+            key=lambda p: p.win_rate,
+            reverse=True,
+        )
+        best_pairs = [
+            {"pair": p.pair, "win_rate": round(p.win_rate, 1), "trades": p.total_trades}
+            for p in ranked_pairs[:3]
+        ]
+        worst_pairs = [
+            {"pair": p.pair, "win_rate": round(p.win_rate, 1), "trades": p.total_trades}
+            for p in ranked_pairs[-3:][::-1]
+        ] if len(ranked_pairs) > 3 else []
+
+        combos = sorted(
+            (c for c in self._indicator_combinations.values() if c.total_trades >= 3),
+            key=lambda c: c.win_rate,
+            reverse=True,
+        )
+        best_setups = [
+            {
+                "indicators": c.indicators,
+                "win_rate": round(c.win_rate, 1),
+                "trades": c.total_trades,
+                "avg_profit_pips": round(c.avg_profit_pips, 1),
+            }
+            for c in combos[:3]
+        ]
+
+        accuracy = self.get_accuracy_stats()
+
+        return {
+            "total_outcomes": len(self._outcomes),
+            "overall_win_rate": accuracy.overall_accuracy,
+            "indicator_weights": indicator_weights,
+            "best_pairs": best_pairs,
+            "worst_pairs": worst_pairs,
+            "best_setups": best_setups,
+            "by_direction": accuracy.by_direction if self._outcomes else {},
+        }
+
     def clear_history(self) -> None:
         """Clear all learning history (use with caution)."""
         self._outcomes = []
