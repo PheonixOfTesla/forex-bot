@@ -148,6 +148,7 @@ const WalletStack = () => (
     <Stack.Screen name="WalletMain" component={WalletScreen} />
     <Stack.Screen name="Deposit" component={DepositScreen} />
     <Stack.Screen name="Withdraw" component={WithdrawScreen} />
+    <Stack.Screen name="History" component={HistoryScreen} />
   </Stack.Navigator>
 );
 

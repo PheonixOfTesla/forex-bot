@@ -618,7 +618,7 @@ export const WalletScreen: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>RECENT TRANSACTIONS</Text>
-            <TouchableOpacity onPress={() => router.push('/transactions' as any)}>
+            <TouchableOpacity onPress={() => navigation.navigate('History')}>
               <Text style={styles.seeAllLink}>See All</Text>
             </TouchableOpacity>
           </View>

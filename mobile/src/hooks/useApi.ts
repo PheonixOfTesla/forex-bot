@@ -21,6 +21,8 @@ import {
   ExecutePaperTradeResponse,
   LearningAccuracy,
   LearningInsightsResponse,
+  AutopilotStatus,
+  StrategyLeaderboardResponse,
 } from '../services/api';
 
 interface UseApiState<T> {
@@ -61,6 +63,15 @@ function useApiCall<T>(
 // Dashboard
 export function useDashboard(): UseApiState<DashboardData> {
   return useApiCall(() => api.getDashboard(), []);
+}
+
+// Autopilot & Strategy Lab
+export function useAutopilotStatus(): UseApiState<AutopilotStatus> {
+  return useApiCall(() => api.getAutopilotStatus(), []);
+}
+
+export function useStrategyLeaderboard(): UseApiState<StrategyLeaderboardResponse> {
+  return useApiCall(() => api.getStrategyLeaderboard(), []);
 }
 
 // Signals

@@ -278,6 +278,81 @@ export interface LearningInsightsResponse {
   updated_at: string;
 }
 
+export interface StrategyPerformance {
+  strategy: string;
+  total_trades: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  avg_profit_pips: number;
+  total_profit_pips: number;
+}
+
+export interface StrategyCall {
+  signal_id: string;
+  pair: string;
+  direction: string;
+  strategy: string;
+  confidence: number;
+  outcome: 'win' | 'loss' | 'breakeven';
+  profit_pips: number;
+  closed_at: string;
+}
+
+export interface StrategyLeaderboardResponse {
+  leaderboard: StrategyPerformance[];
+  top_strategy: StrategyPerformance | null;
+  recent_calls: StrategyCall[];
+  total_tracked_calls: number;
+}
+
+export interface LabChampion {
+  id: string;
+  win_rate: number;
+  trades: number;
+  avg_pips: number;
+  min_confidence: number;
+  sl_atr: number;
+  tp_atr: number;
+  weights: Record<string, number>;
+}
+
+export interface AutopilotStatus {
+  running: boolean;
+  enabled: boolean;
+  mode: 'live' | 'simulation';
+  cycle_count: number;
+  trades_opened: number;
+  trades_closed: number;
+  skipped_by_learning: number;
+  paper_account: {
+    balance: number;
+    equity: number;
+    open_positions: number;
+    closed_trades: number;
+    total_pnl: number;
+    win_rate: number;
+  };
+  learned_config: {
+    total_outcomes: number;
+    overall_win_rate: number;
+    indicator_weights: Record<string, number>;
+    best_pairs: { pair: string; win_rate: number; trades: number }[];
+    strategies: StrategyPerformance[];
+    by_direction: Record<string, { accuracy: number; total: number; wins: number }>;
+  };
+  strategy_lab: {
+    enabled: boolean;
+    batch_size: number;
+    interval_minutes: number;
+    total_variants_tested: number;
+    total_batches: number;
+    last_batch_seconds: number | null;
+    champion: LabChampion | null;
+    champion_applied: boolean;
+  };
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -481,6 +556,23 @@ class ApiClient {
 
   async getLearningInsights(): Promise<LearningInsightsResponse> {
     return this.fetch('/api/v1/learning/insights');
+  }
+
+  async getStrategyLeaderboard(): Promise<StrategyLeaderboardResponse> {
+    return this.fetch('/api/v1/learning/strategies');
+  }
+
+  // Autopilot & Strategy Lab
+  async getAutopilotStatus(): Promise<AutopilotStatus> {
+    return this.fetch('/api/v1/autopilot/status');
+  }
+
+  async startAutopilot(): Promise<{ success: boolean; running: boolean }> {
+    return this.fetch('/api/v1/autopilot/start', { method: 'POST' });
+  }
+
+  async stopAutopilot(): Promise<{ success: boolean; running: boolean }> {
+    return this.fetch('/api/v1/autopilot/stop', { method: 'POST' });
   }
 }
 
