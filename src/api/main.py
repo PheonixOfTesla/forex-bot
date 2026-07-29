@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .routes import autopilot, dashboard, engine, history, intelligence, learning, live_trading, paper_trading, predictions, settings, signals, wallet
+from .routes import autopilot, dashboard, engine, history, intelligence, lab, learning, live_trading, paper_trading, predictions, settings, signals, wallet
 from .websocket import router as websocket_router
 
 # Configure logging
@@ -286,6 +286,13 @@ app.include_router(
     autopilot.router,
     prefix="/api/v1",
     tags=["Autopilot"],
+)
+
+# Strategy Lab routes (mass strategy testing)
+app.include_router(
+    lab.router,
+    prefix="/api/v1",
+    tags=["Strategy Lab"],
 )
 
 # WebSocket routes

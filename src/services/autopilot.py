@@ -70,8 +70,9 @@ class PriceSimulator:
     VOLATILITY = 0.0012  # per-candle relative volatility
     HISTORY_LEN = 120
 
-    def __init__(self, pairs: List[str]):
+    def __init__(self, pairs: List[str], history_len: int = HISTORY_LEN):
         self.pairs = pairs
+        self.history_len = history_len
         self._history: Dict[str, List[dict]] = {}
         self._drift: Dict[str, float] = {}
 
@@ -80,7 +81,7 @@ class PriceSimulator:
             self._history[pair] = []
             price = self.BASE_PRICES.get(pair, 1.0)
             # Pre-fill history so indicators have enough lookback
-            for _ in range(self.HISTORY_LEN):
+            for _ in range(self.history_len):
                 candle, price = self._next_candle(pair, price)
                 self._history[pair].append(candle)
 
@@ -113,7 +114,7 @@ class PriceSimulator:
             prev_close = self._history[pair][-1]["close"]
             candle, _ = self._next_candle(pair, prev_close)
             self._history[pair].append(candle)
-            self._history[pair] = self._history[pair][-self.HISTORY_LEN:]
+            self._history[pair] = self._history[pair][-self.history_len:]
 
     def dataframe(self, pair: str) -> pd.DataFrame:
         """Get candle history as a DataFrame for indicator calculation."""
@@ -155,6 +156,18 @@ class AutopilotEngine:
         self.pair_filter_win_rate_cutoff = 40.0
         self.strategy_filter_min_trades = 10
         self.strategy_filter_win_rate_cutoff = 40.0
+
+        # Strategy lab: mass-test candidate strategies on a schedule
+        self.lab_enabled = os.getenv("STRATEGY_LAB_ENABLED", "true").lower() in (
+            "1", "true", "yes", "on",
+        )
+        self.lab_batch_size = int(os.getenv("STRATEGY_LAB_BATCH_SIZE", "1000"))
+        self.lab_interval_minutes = float(os.getenv("STRATEGY_LAB_INTERVAL_MINUTES", "10"))
+        self.lab_auto_apply_champion = os.getenv(
+            "STRATEGY_LAB_AUTO_APPLY", "true"
+        ).lower() in ("1", "true", "yes", "on")
+        self._lab_last_run: Optional[datetime] = None
+        self._lab_running = False
 
         self.mode = "live" if _is_oanda_configured() else "simulation"
 
@@ -235,6 +248,63 @@ class AutopilotEngine:
 
         if (self._cycle_count - 1) % self.scan_every_cycles == 0:
             await self._scan_and_execute()
+
+        if self.lab_enabled and not self._lab_running:
+            due = (
+                self._lab_last_run is None
+                or (datetime.utcnow() - self._lab_last_run)
+                >= timedelta(minutes=self.lab_interval_minutes)
+            )
+            if due:
+                await self._run_lab_batch()
+
+    async def _run_lab_batch(self) -> Optional[dict]:
+        """Run one strategy-lab batch off the event loop and apply the champion."""
+        from .strategy_lab import get_strategy_lab
+
+        self._lab_running = True
+        self._lab_last_run = datetime.utcnow()
+        try:
+            candle_data = await self._lab_candle_data()
+            lab = get_strategy_lab()
+            summary = await asyncio.to_thread(
+                lab.run_batch, candle_data, self.lab_batch_size
+            )
+            if self.lab_auto_apply_champion and lab.champion and not lab.champion_applied:
+                lab.apply_champion()
+            return summary
+        except Exception as e:
+            self._last_error = f"strategy_lab: {e}"
+            logger.error(f"Strategy lab batch failed: {e}", exc_info=True)
+            return None
+        finally:
+            self._lab_running = False
+
+    async def _lab_candle_data(self) -> Dict[str, pd.DataFrame]:
+        """Get candle history per pair for lab backtesting."""
+        generator = get_signal_generator()
+
+        if self.mode == "live":
+            data = {}
+            client = await generator._get_client()
+            for pair in generator.pairs:
+                try:
+                    df = await client.get_candles(
+                        instrument=pair,
+                        granularity=generator.ANALYSIS_TIMEFRAME,
+                        count=500,
+                    )
+                    if not df.empty:
+                        data[pair] = df
+                except Exception as e:
+                    logger.warning(f"Lab candle fetch failed for {pair}: {e}")
+            if data:
+                return data
+            logger.warning("Lab falling back to simulated candles")
+
+        # Fresh synthetic history each batch keeps testing conditions varied
+        sim = PriceSimulator(generator.pairs, history_len=400)
+        return {pair: sim.dataframe(pair) for pair in generator.pairs}
 
     async def _current_price(self, display_pair: str) -> Optional[float]:
         """Get current price for a pair like 'EUR/USD'."""
@@ -453,8 +523,12 @@ class AutopilotEngine:
 
     def get_status(self) -> dict:
         """Get autopilot status including the learned configuration."""
+        from .strategy_lab import get_strategy_lab
+
         paper = get_paper_trading_engine()
         summary = paper.get_summary()
+        lab = get_strategy_lab()
+        lab_status = lab.get_status()
 
         return {
             "running": self._running,
@@ -479,6 +553,18 @@ class AutopilotEngine:
             },
             "paper_account": summary,
             "learned_config": get_learning_engine().get_learned_config(),
+            "strategy_lab": {
+                "enabled": self.lab_enabled,
+                "batch_size": self.lab_batch_size,
+                "interval_minutes": self.lab_interval_minutes,
+                "auto_apply_champion": self.lab_auto_apply_champion,
+                "last_run_at": self._lab_last_run,
+                "total_variants_tested": lab_status["total_variants_tested"],
+                "total_batches": lab_status["total_batches"],
+                "last_batch_seconds": lab_status["last_batch_seconds"],
+                "champion": lab_status["champion"],
+                "champion_applied": lab_status["champion_applied"],
+            },
         }
 
     def update_config(self, **kwargs) -> dict:
@@ -493,6 +579,10 @@ class AutopilotEngine:
             "pair_filter_win_rate_cutoff": float,
             "strategy_filter_min_trades": int,
             "strategy_filter_win_rate_cutoff": float,
+            "lab_enabled": bool,
+            "lab_batch_size": int,
+            "lab_interval_minutes": float,
+            "lab_auto_apply_champion": bool,
         }
         for key, value in kwargs.items():
             if key in allowed and value is not None:

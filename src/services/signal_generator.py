@@ -121,6 +121,11 @@ class SignalGenerator:
         self.pairs = pairs or self.DEFAULT_PAIRS
         self.indicator_engine = IndicatorEngine(lookback_period=100)
 
+        # Overrides applied by the StrategyLab champion (None = defaults)
+        self.weight_overrides: Optional[Dict[str, float]] = None
+        self.sl_atr_multiplier: float = self.SL_ATR_MULTIPLIER
+        self.tp_atr_multiplier: float = self.TP_ATR_MULTIPLIER
+
         # Cache for recent signals to avoid duplicates
         self._signal_cache: Dict[str, TradingSignal] = {}
         self._cache_expiry: Dict[str, datetime] = {}
@@ -320,15 +325,19 @@ class SignalGenerator:
         latest = df.iloc[-1]
         prev = df.iloc[-2] if len(df) > 1 else df.iloc[-1]
 
-        # Base weights for each indicator
-        weights = {
-            "rsi": 0.20,
-            "macd": 0.25,
-            "bollinger": 0.15,
-            "moving_averages": 0.25,
-            "momentum": 0.10,
-            "volume": 0.05,
-        }
+        # Base weights for each indicator (champion overrides take precedence)
+        if self.weight_overrides:
+            total = sum(self.weight_overrides.values()) or 1.0
+            weights = {k: v / total for k, v in self.weight_overrides.items()}
+        else:
+            weights = {
+                "rsi": 0.20,
+                "macd": 0.25,
+                "bollinger": 0.15,
+                "moving_averages": 0.25,
+                "momentum": 0.10,
+                "volume": 0.05,
+            }
 
         # Blend in learned per-indicator multipliers (0.5-1.5) from recorded
         # trade outcomes, so indicators that historically win get more say.
@@ -442,7 +451,7 @@ class SignalGenerator:
         pair: str
     ) -> float:
         """Calculate stop loss price based on ATR."""
-        sl_distance = atr * self.SL_ATR_MULTIPLIER
+        sl_distance = atr * self.sl_atr_multiplier
 
         if direction == "buy":
             stop_loss = entry_price - sl_distance
@@ -462,7 +471,7 @@ class SignalGenerator:
         pair: str
     ) -> float:
         """Calculate take profit price based on ATR and risk/reward."""
-        tp_distance = atr * self.TP_ATR_MULTIPLIER
+        tp_distance = atr * self.tp_atr_multiplier
 
         if direction == "buy":
             take_profit = entry_price + tp_distance
