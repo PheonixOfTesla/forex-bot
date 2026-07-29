@@ -357,6 +357,7 @@ class LearningEngine:
         pair: str,
         indicators_used: List[str],
         timeframe: str = "1H",
+        strategy: Optional[str] = None,
     ) -> float:
         """
         Get confidence adjustment factor based on learned patterns.
@@ -404,6 +405,13 @@ class LearningEngine:
                 combo_adj = 1.0 + (combo.win_rate - 50) / 100
                 adjustments.append(combo_adj)
 
+        # Strategy adjustment - score this call against the strategy's record
+        if strategy:
+            strategy_stats = self.get_strategy_stats(strategy)
+            if strategy_stats and strategy_stats["total_trades"] >= 5:
+                strat_adj = 1.0 + (strategy_stats["win_rate"] - 50) / 100
+                adjustments.append(strat_adj)
+
         # Calculate final adjustment
         if not adjustments:
             return 1.0
@@ -420,6 +428,7 @@ class LearningEngine:
         pair: str,
         indicators_used: List[str],
         timeframe: str = "1H",
+        strategy: Optional[str] = None,
     ) -> Tuple[float, str]:
         """
         Adjust a signal's confidence based on learning.
@@ -429,11 +438,14 @@ class LearningEngine:
             pair: Trading pair
             indicators_used: Indicators used in the signal
             timeframe: Analysis timeframe
+            strategy: Strategy that produced the signal
 
         Returns:
             Tuple of (adjusted_confidence, explanation)
         """
-        adjustment = self.get_confidence_adjustment(pair, indicators_used, timeframe)
+        adjustment = self.get_confidence_adjustment(
+            pair, indicators_used, timeframe, strategy
+        )
         adjusted = original_confidence * adjustment
 
         # Clamp to 0-100
@@ -1045,6 +1057,97 @@ class LearningEngine:
             },
         )
 
+    def get_strategy_performance(self, min_trades: int = 1) -> List[Dict]:
+        """
+        Get performance stats per strategy, ranked by win rate.
+
+        Computed from recorded outcomes, so it reflects every tracked call
+        (trend_following, mean_reversion, momentum_breakout, etc.).
+        """
+        stats: Dict[str, Dict] = {}
+        for o in self._outcomes:
+            name = o.strategy or "unknown"
+            entry = stats.setdefault(
+                name,
+                {
+                    "strategy": name,
+                    "total_trades": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "breakeven": 0,
+                    "total_profit_pips": 0.0,
+                    "last_trade": None,
+                },
+            )
+            entry["total_trades"] += 1
+            if o.outcome == TradeOutcome.WIN:
+                entry["wins"] += 1
+            elif o.outcome == TradeOutcome.LOSS:
+                entry["losses"] += 1
+            else:
+                entry["breakeven"] += 1
+            entry["total_profit_pips"] += o.profit_pips
+            if entry["last_trade"] is None or o.exit_timestamp > entry["last_trade"]:
+                entry["last_trade"] = o.exit_timestamp
+
+        results = []
+        for entry in stats.values():
+            if entry["total_trades"] < min_trades:
+                continue
+            entry["win_rate"] = round(entry["wins"] / entry["total_trades"] * 100, 1)
+            entry["avg_profit_pips"] = round(
+                entry["total_profit_pips"] / entry["total_trades"], 1
+            )
+            entry["total_profit_pips"] = round(entry["total_profit_pips"], 1)
+            results.append(entry)
+
+        results.sort(key=lambda e: (e["win_rate"], e["total_trades"]), reverse=True)
+        return results
+
+    def get_strategy_stats(self, strategy: str) -> Optional[Dict]:
+        """Get performance stats for a single strategy (None if never traded)."""
+        for entry in self.get_strategy_performance():
+            if entry["strategy"] == strategy:
+                return entry
+        return None
+
+    def get_recent_calls(
+        self,
+        strategy: Optional[str] = None,
+        pair: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict]:
+        """
+        Get recent tracked calls (newest first), optionally filtered by
+        strategy or pair, so callers can follow the calls made against
+        each strategy's record.
+        """
+        outcomes = self._outcomes
+        if strategy:
+            outcomes = [o for o in outcomes if (o.strategy or "unknown") == strategy]
+        if pair:
+            normalized = pair.upper().replace("_", "/")
+            outcomes = [o for o in outcomes if o.pair.upper() == normalized]
+
+        outcomes = sorted(outcomes, key=lambda o: o.exit_timestamp, reverse=True)
+
+        return [
+            {
+                "signal_id": o.signal_id,
+                "pair": o.pair,
+                "direction": o.direction.value,
+                "strategy": o.strategy or "unknown",
+                "confidence": o.confidence,
+                "outcome": o.outcome.value,
+                "profit_pips": o.profit_pips,
+                "profit_percent": round(o.profit_percent, 2),
+                "entry_price": o.entry_price,
+                "exit_price": o.exit_price,
+                "closed_at": o.exit_timestamp,
+            }
+            for o in outcomes[:limit]
+        ]
+
     def get_indicator_weight(self, indicator_name: str, min_signals: int = 5) -> float:
         """
         Get the learned weight multiplier for an indicator (0.5-1.5).
@@ -1112,6 +1215,7 @@ class LearningEngine:
             "best_pairs": best_pairs,
             "worst_pairs": worst_pairs,
             "best_setups": best_setups,
+            "strategies": self.get_strategy_performance(min_trades=min_trades),
             "by_direction": accuracy.by_direction if self._outcomes else {},
         }
 

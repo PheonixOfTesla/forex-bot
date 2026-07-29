@@ -587,8 +587,13 @@ class SignalGenerator:
                 indicators, df
             )
 
+            # Determine strategy for this call (needed to score it against
+            # the strategy's learned record)
+            strategy = self._determine_strategy(indicators, direction)
+
             # Adjust confidence using learned historical performance for this
-            # setup (pair + indicators + timeframe), and pull real history stats.
+            # setup (pair + indicators + timeframe + strategy), and pull real
+            # history stats.
             similar_trades = 0
             historical_win_rate = 0.0
             indicators_used = [k for k, v in feature_importance.items() if v > 0]
@@ -599,7 +604,7 @@ class SignalGenerator:
                     learning = get_learning_engine()
                     display_pair = pair.replace("_", "/")
                     confidence, explanation = learning.adjust_signal_confidence(
-                        confidence, display_pair, indicators_used, "1H"
+                        confidence, display_pair, indicators_used, "1H", strategy
                     )
                     logger.debug(f"{pair}: {explanation}")
 
@@ -634,9 +639,6 @@ class SignalGenerator:
             sl_distance = abs(entry_price - stop_loss)
             tp_distance = abs(take_profit - entry_price)
             risk_reward = round(tp_distance / sl_distance, 2) if sl_distance > 0 else 2.0
-
-            # Determine strategy
-            strategy = self._determine_strategy(indicators, direction)
 
             # Generate signal
             now = datetime.utcnow()

@@ -31,6 +31,52 @@ router = APIRouter()
 # =============================================================================
 
 
+@router.get("/learning/strategies")
+async def get_strategy_leaderboard(
+    strategy: Optional[str] = Query(
+        default=None,
+        description="Filter recent calls to a single strategy",
+    ),
+    pair: Optional[str] = Query(
+        default=None,
+        description="Filter recent calls to a single pair (e.g., EUR/USD)",
+    ),
+    min_trades: int = Query(
+        default=1,
+        ge=1,
+        description="Minimum trades for a strategy to appear in the leaderboard",
+    ),
+    recent_limit: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+        description="Number of recent calls to return",
+    ),
+):
+    """
+    Strategy leaderboard: follow and track calls against the most
+    successful strategies.
+
+    Returns every strategy ranked by measured win rate, plus the most
+    recent tracked calls (optionally filtered by strategy or pair) so
+    each new call can be compared against the strategy's record.
+    """
+    engine = get_learning_engine()
+
+    leaderboard = engine.get_strategy_performance(min_trades=min_trades)
+    recent_calls = engine.get_recent_calls(
+        strategy=strategy, pair=pair, limit=recent_limit
+    )
+
+    return {
+        "leaderboard": leaderboard,
+        "top_strategy": leaderboard[0] if leaderboard else None,
+        "recent_calls": recent_calls,
+        "total_tracked_calls": engine.get_metrics().total_predictions,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
 @router.get("/learning/accuracy", response_model=AccuracyResponse)
 async def get_accuracy_stats(
     pair: Optional[str] = Query(

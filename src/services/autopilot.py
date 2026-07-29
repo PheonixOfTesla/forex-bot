@@ -150,9 +150,11 @@ class AutopilotEngine:
         self.max_open_positions = int(os.getenv("AUTOPILOT_MAX_POSITIONS", "6"))
         self.max_trade_age_hours = float(os.getenv("AUTOPILOT_MAX_TRADE_AGE_HOURS", "24"))
 
-        # Learning-based pair filter: skip pairs proven to lose
+        # Learning-based filters: skip pairs and strategies proven to lose
         self.pair_filter_min_trades = 10
         self.pair_filter_win_rate_cutoff = 40.0
+        self.strategy_filter_min_trades = 10
+        self.strategy_filter_win_rate_cutoff = 40.0
 
         self.mode = "live" if _is_oanda_configured() else "simulation"
 
@@ -343,6 +345,21 @@ class AutopilotEngine:
                 )
                 continue
 
+            # Learning-based filter: skip strategies with a proven losing record
+            strategy_stats = learning.get_strategy_stats(signal.strategy)
+            if (
+                strategy_stats
+                and strategy_stats["total_trades"] >= self.strategy_filter_min_trades
+                and strategy_stats["win_rate"] < self.strategy_filter_win_rate_cutoff
+            ):
+                self._skipped_by_learning += 1
+                logger.info(
+                    f"Autopilot skipping {signal.pair} ({signal.strategy}): "
+                    f"strategy win rate {strategy_stats['win_rate']:.1f}% "
+                    f"over {strategy_stats['total_trades']} trades"
+                )
+                continue
+
             meta = {
                 "confidence": signal.confidence,
                 "indicators_used": [
@@ -372,6 +389,7 @@ class AutopilotEngine:
                 self._trades_opened += 1
                 self._signal_meta[trade.id] = meta
                 open_pairs.add(signal.pair)
+                get_signal_generator().update_signal_status(signal.id, "executed")
                 logger.info(
                     f"Autopilot executed {signal.pair} {signal.direction} "
                     f"@ {signal.entry_price} (confidence {signal.confidence}%)"
@@ -456,6 +474,8 @@ class AutopilotEngine:
                 "max_trade_age_hours": self.max_trade_age_hours,
                 "pair_filter_min_trades": self.pair_filter_min_trades,
                 "pair_filter_win_rate_cutoff": self.pair_filter_win_rate_cutoff,
+                "strategy_filter_min_trades": self.strategy_filter_min_trades,
+                "strategy_filter_win_rate_cutoff": self.strategy_filter_win_rate_cutoff,
             },
             "paper_account": summary,
             "learned_config": get_learning_engine().get_learned_config(),
@@ -471,6 +491,8 @@ class AutopilotEngine:
             "max_trade_age_hours": float,
             "pair_filter_min_trades": int,
             "pair_filter_win_rate_cutoff": float,
+            "strategy_filter_min_trades": int,
+            "strategy_filter_win_rate_cutoff": float,
         }
         for key, value in kwargs.items():
             if key in allowed and value is not None:
