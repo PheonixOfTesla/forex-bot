@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clockwork</title>
+<style>
+  :root {
+    --black: #000000;
+    --surface: #0d0f1a;
+    --border: #1a1a2e;
+    --cyan: #00d4ff;
+    --gold: #f7c524;
+    --purple: #a78bfa;
+    --green: #22c55e;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --text: #ffffff;
+    --text2: #a0a0a0;
+    --muted: #666666;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--black);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { flex-shrink: 0; }
+  .wordmark { font-size: 17px; font-weight: 700; letter-spacing: 5px; line-height: 1; }
+  .tagline { font-size: 9px; letter-spacing: 3px; color: var(--text2); margin-top: 4px; }
+  .badge {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 700;
+    letter-spacing: 1px; color: var(--text2);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  .card { background: var(--surface); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--text2); margin-bottom: 10px; }
+
+  .balance { font-size: 40px; font-weight: 800; color: var(--gold); line-height: 1.1; }
+  .stat-strip { display: flex; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .stat { flex: 1; text-align: center; }
+  .stat + .stat { border-left: 1px solid var(--border); }
+  .stat .v { font-size: 20px; font-weight: 800; }
+  .stat .k { font-size: 10px; letter-spacing: 1px; color: var(--muted); margin-top: 3px; text-transform: uppercase; }
+
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .sys { background: var(--surface); border-radius: 14px; padding: 14px 12px; border-top: 2px solid var(--border); }
+  .sys .head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .sys .head .dot { width: 6px; height: 6px; }
+  .sys .name { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--text2); }
+  .sys .big { font-size: 24px; font-weight: 800; }
+  .sys .sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  .trade-hero { border: 1px solid var(--cyan); }
+  .trade-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .pair-big { font-size: 26px; font-weight: 800; }
+  .pill { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
+  .pill.long { background: rgba(34,197,94,.15); color: var(--green); }
+  .pill.short { background: rgba(239,68,68,.15); color: var(--red); }
+  .conf-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+  .conf-val { color: var(--cyan); font-weight: 800; font-size: 16px; }
+  .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 14px; }
+  .bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--cyan), var(--purple)); }
+  .prices { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .price-box { background: rgba(0,0,0,.35); border-radius: 10px; padding: 10px; text-align: center; }
+  .price-box .k { font-size: 9px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+  .price-box .v { font-size: 15px; font-weight: 700; margin-top: 3px; }
+  .trade-meta { font-size: 11px; color: var(--muted); margin-bottom: 14px; }
+  .btn-row { display: flex; gap: 10px; }
+  button {
+    flex: 1; border: 0; border-radius: 12px; padding: 14px; font-size: 13px;
+    font-weight: 800; letter-spacing: .5px; cursor: pointer; transition: opacity .15s;
+  }
+  button:disabled { opacity: .45; cursor: default; }
+  .btn-paper { background: var(--cyan); color: #00222b; }
+  .btn-live { background: transparent; color: var(--gold); border: 1.5px solid var(--gold); }
+  .btn-close { background: var(--border); color: var(--text2); padding: 8px 14px; flex: 0; font-size: 11px; border-radius: 8px; }
+
+  .champ { border: 1px solid var(--gold); }
+  .champ-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .champ-title { display: flex; gap: 10px; align-items: center; }
+  .champ-wr { font-size: 20px; font-weight: 800; color: var(--gold); }
+  .champ-sub { font-size: 11px; color: var(--muted); }
+  .tag { background: var(--green); color: #04140a; font-size: 10px; font-weight: 800; letter-spacing: 1px; border-radius: 999px; padding: 4px 10px; }
+  .params { display: flex; border-top: 1px solid var(--border); padding-top: 12px; }
+  .params div { flex: 1; text-align: center; }
+  .params .v { font-size: 15px; font-weight: 700; }
+  .params .k { font-size: 9px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+
+  .strat { display: flex; gap: 12px; align-items: center; padding: 10px 0; }
+  .strat + .strat { border-top: 1px solid var(--border); }
+  .rank { width: 24px; height: 24px; border-radius: 50%; background: var(--border); color: var(--cyan);
+    font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .strat-body { flex: 1; }
+  .strat-line { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+  .strat .bar { margin-bottom: 5px; height: 5px; }
+  .strat-meta { font-size: 11px; color: var(--muted); }
+  .bias { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 10px; text-align: center; font-size: 12px; color: var(--text2); }
+
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .chip { background: var(--surface); border-radius: 12px; padding: 12px; text-align: center; }
+  .chip .p { font-size: 11px; color: var(--text2); }
+  .chip .r { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .chip .t { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .pos { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+  .pos + .pos { border-top: 1px solid var(--border); }
+  .pos-body { flex: 1; }
+  .pos-line { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 700; }
+  .pos-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .pnl { font-weight: 800; font-size: 14px; }
+
+  .empty { text-align: center; padding: 22px 12px; color: var(--text2); font-size: 13px; }
+  .empty small { display: block; color: var(--muted); margin-top: 4px; font-size: 11px; }
+
+  .up { color: var(--green); } .down { color: var(--red); }
+  .cyan { color: var(--cyan); } .gold { color: var(--gold); } .pur { color: var(--purple); }
+
+  footer { text-align: center; font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(80px);
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    border-radius: 12px; padding: 12px 18px; font-size: 13px; font-weight: 600;
+    transition: transform .25s; max-width: 90%; z-index: 50;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.ok { border-color: var(--green); }
+  #toast.err { border-color: var(--red); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+        <path d="M17 4 L28 10 L28 24 L17 30 L6 24 L6 10 Z" stroke="#ffffff" stroke-width="1.4" fill="none"/>
+        <path d="M6 10 L17 16 L28 10 M17 16 L17 30" stroke="#ffffff" stroke-width="1.1" fill="none"/>
+        <path d="M11.5 7 L22.5 13 M22.5 7 L11.5 13" stroke="#ffffff" stroke-width="0.7" opacity="0.5" fill="none"/>
+      </svg>
+      <div>
+        <div class="wordmark">CLOCKWORK</div>
+        <div class="tagline">think. bigger.</div>
+      </div>
+    </div>
+    <div class="badge"><span class="dot" id="conn-dot"></span><span id="conn-text">CONNECTING</span></div>
+  </header>
+
+  <!-- Balance + core stats -->
+  <div class="card">
+    <div class="label" id="balance-label">TEST BALANCE</div>
+    <div class="balance" id="balance">$—</div>
+    <div class="stat-strip">
+      <div class="stat"><div class="v" id="pnl">—</div><div class="k">Total P&amp;L</div></div>
+      <div class="stat"><div class="v cyan" id="winrate">—</div><div class="k">Win Rate</div></div>
+      <div class="stat"><div class="v" id="trades">—</div><div class="k">Trades</div></div>
+      <div class="stat"><div class="v" id="open">—</div><div class="k">Open</div></div>
+    </div>
+  </div>
+
+  <!-- Suggested trade -->
+  <div class="label">SUGGESTED TRADE</div>
+  <div class="card trade-hero" id="trade-card">
+    <div class="empty">Scanning markets&hellip;<small>The best active signal appears here.</small></div>
+  </div>
+
+  <!-- Systems -->
+  <div class="label">SYSTEMS</div>
+  <div class="grid3">
+    <div class="sys" style="border-top-color: var(--purple)">
+      <div class="head"><span class="dot" id="ap-dot"></span><span class="name">AUTOPILOT</span></div>
+      <div class="big pur" id="ap-val">—</div>
+      <div class="sub" id="ap-sub">connecting&hellip;</div>
+    </div>
+    <div class="sys" style="border-top-color: var(--cyan)">
+      <div class="head"><span class="dot" id="lab-dot"></span><span class="name">STRAT LAB</span></div>
+      <div class="big cyan" id="lab-val">—</div>
+      <div class="sub" id="lab-sub">connecting&hellip;</div>
+    </div>
+    <div class="sys" style="border-top-color: var(--gold)">
+      <div class="head"><span class="dot" id="learn-dot"></span><span class="name">LEARNING</span></div>
+      <div class="big gold" id="learn-val">—</div>
+      <div class="sub" id="learn-sub">connecting&hellip;</div>
+    </div>
+  </div>
+
+  <!-- Champion -->
+  <div class="label">CHAMPION STRATEGY</div>
+  <div class="card champ" id="champ-card">
+    <div class="empty">Evolving strategies&hellip;<small>The lab is mass-testing candidates.</small></div>
+  </div>
+
+  <!-- Top strategies -->
+  <div class="label">TOP STRATEGIES</div>
+  <div class="card" id="strats-card">
+    <div class="empty">No strategy records yet<small>Built automatically as test trades close.</small></div>
+  </div>
+
+  <!-- Best pairs -->
+  <div class="label">BEST PAIRS</div>
+  <div class="chips" id="pairs" style="margin-bottom:14px">
+    <div class="chip"><div class="p">&mdash;</div><div class="r">&mdash;</div><div class="t">learning</div></div>
+    <div class="chip"><div class="p">&mdash;</div><div class="r">&mdash;</div><div class="t">learning</div></div>
+    <div class="chip"><div class="p">&mdash;</div><div class="r">&mdash;</div><div class="t">learning</div></div>
+  </div>
+
+  <!-- Open positions -->
+  <div class="label">OPEN POSITIONS</div>
+  <div class="card" id="pos-card">
+    <div class="empty">No open positions<small>The autopilot opens test positions when signals qualify.</small></div>
+  </div>
+
+  <footer id="updated">CLOCKWORK &middot; auto-refreshes every 15s</footer>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+
+const fmtMoney = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtCount = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
+const fmtStrat = (s) => String(s || "").split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+async function api(path, opts) {
+  const res = await fetch(path, Object.assign({ headers: { "Content-Type": "application/json" } }, opts));
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch (e) {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+let toastTimer;
+function toast(msg, ok) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.className = "show " + (ok ? "ok" : "err");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ""; }, 4000);
+}
+
+let suggested = null;
+
+function renderSuggested(signal) {
+  suggested = signal;
+  const card = $("trade-card");
+  if (!signal) {
+    card.innerHTML = '<div class="empty">Scanning markets&hellip;<small>The best active signal appears here.</small></div>';
+    return;
+  }
+  const isLong = signal.direction === "buy";
+  card.innerHTML =
+    '<div class="trade-top">' +
+      '<span class="pair-big">' + signal.pair + '</span>' +
+      '<span class="pill ' + (isLong ? "long" : "short") + '">' + (isLong ? "LONG" : "SHORT") + '</span>' +
+    '</div>' +
+    '<div class="conf-row"><span>Confidence</span><span class="conf-val">' + signal.confidence + '%</span></div>' +
+    '<div class="bar"><i style="width:' + Math.min(100, signal.confidence) + '%"></i></div>' +
+    '<div class="prices">' +
+      '<div class="price-box"><div class="k">Entry</div><div class="v">' + signal.entry_price + '</div></div>' +
+      '<div class="price-box"><div class="k">Stop</div><div class="v down">' + signal.stop_loss + '</div></div>' +
+      '<div class="price-box"><div class="k">Target</div><div class="v up">' + signal.take_profit + '</div></div>' +
+    '</div>' +
+    '<div class="trade-meta">' + fmtStrat(signal.strategy) + ' &middot; R:R ' + (signal.risk_reward_ratio || "—") + '</div>' +
+    '<div class="btn-row">' +
+      '<button class="btn-paper" id="btn-paper">PLACE TEST TRADE</button>' +
+      '<button class="btn-live" id="btn-live">PLACE LIVE TRADE</button>' +
+    '</div>';
+  $("btn-paper").onclick = () => placeTrade(false);
+  $("btn-live").onclick = () => placeTrade(true);
+}
+
+async function placeTrade(live) {
+  if (!suggested) return;
+  if (live && !confirm("Place a REAL trade on OANDA: " + suggested.pair + " " + suggested.direction.toUpperCase() + " @ " + suggested.entry_price + "?")) return;
+  const btns = [$("btn-paper"), $("btn-live")].filter(Boolean);
+  btns.forEach(b => b.disabled = true);
+  try {
+    const body = {
+      pair: suggested.pair,
+      direction: suggested.direction,
+      entry_price: suggested.entry_price,
+      stop_loss: suggested.stop_loss,
+      take_profit: suggested.take_profit,
+    };
+    if (live) {
+      const r = await api("/api/v1/live/execute", { method: "POST", body: JSON.stringify(body) });
+      toast("LIVE trade placed: " + suggested.pair + " " + suggested.direction.toUpperCase(), true);
+    } else {
+      body.signal_id = suggested.id;
+      const r = await api("/api/v1/paper/execute", { method: "POST", body: JSON.stringify(body) });
+      toast(r.message || "Test trade placed", !!r.success);
+    }
+    refresh();
+  } catch (e) {
+    toast("Trade failed: " + e.message, false);
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+async function closePosition(id, exitPrice) {
+  try {
+    const r = await api("/api/v1/paper/positions/" + id + "/close", {
+      method: "POST",
+      body: JSON.stringify({ exit_price: exitPrice }),
+    });
+    toast(r.message || "Position closed", true);
+    refresh();
+  } catch (e) {
+    toast("Close failed: " + e.message, false);
+  }
+}
+window._closePos = closePosition;
+
+function renderStatus(st) {
+  const paper = st.paper_account || {};
+  const learned = st.learned_config || {};
+  const lab = st.strategy_lab || {};
+
+  $("balance-label").textContent = st.mode === "live" ? "LIVE BALANCE" : "TEST BALANCE";
+  $("balance").textContent = fmtMoney(paper.balance || 0);
+
+  const pnl = paper.total_pnl || 0;
+  $("pnl").textContent = (pnl >= 0 ? "+" : "-") + fmtMoney(Math.abs(pnl));
+  $("pnl").className = "v " + (pnl >= 0 ? "up" : "down");
+  $("winrate").textContent = (paper.win_rate || 0).toFixed(1) + "%";
+  $("trades").textContent = paper.closed_trades || 0;
+  $("open").textContent = paper.open_positions || 0;
+
+  $("ap-dot").className = "dot" + (st.running ? " on" : "");
+  $("ap-val").textContent = fmtCount(st.trades_closed || 0);
+  $("ap-sub").textContent = "trades tested · " + (st.mode === "live" ? "LIVE" : "SIM");
+
+  $("lab-dot").className = "dot" + (lab.enabled ? " on" : "");
+  $("lab-val").textContent = fmtCount(lab.total_variants_tested || 0);
+  $("lab-sub").textContent = "strategies tested";
+
+  $("learn-dot").className = "dot" + ((learned.total_outcomes || 0) > 0 ? " on" : "");
+  $("learn-val").textContent = (learned.overall_win_rate || 0).toFixed(0) + "%";
+  $("learn-sub").textContent = fmtCount(learned.total_outcomes || 0) + " outcomes";
+
+  // Champion
+  const champ = lab.champion;
+  if (champ) {
+    $("champ-card").innerHTML =
+      '<div class="champ-head">' +
+        '<div class="champ-title"><span style="font-size:22px">&#127942;</span><div>' +
+          '<div class="champ-wr">' + champ.win_rate + '% win rate</div>' +
+          '<div class="champ-sub">' + champ.trades + ' backtested trades &middot; ' + (champ.avg_pips >= 0 ? "+" : "") + champ.avg_pips + ' avg pips</div>' +
+        '</div></div>' +
+        (lab.champion_applied ? '<span class="tag">ACTIVE</span>' : "") +
+      '</div>' +
+      '<div class="params">' +
+        '<div><div class="v">' + champ.min_confidence + '%</div><div class="k">Min Conf</div></div>' +
+        '<div><div class="v">' + champ.sl_atr + 'x</div><div class="k">Stop ATR</div></div>' +
+        '<div><div class="v">' + champ.tp_atr + 'x</div><div class="k">Target ATR</div></div>' +
+        '<div><div class="v">' + fmtCount(lab.total_batches || 0) + '</div><div class="k">Batches</div></div>' +
+      '</div>';
+  }
+
+  // Top strategies
+  const strats = (learned.strategies || []).slice(0, 3);
+  if (strats.length) {
+    let html = strats.map((s, i) =>
+      '<div class="strat"><div class="rank">' + (i + 1) + '</div><div class="strat-body">' +
+        '<div class="strat-line"><span>' + fmtStrat(s.strategy) + '</span>' +
+        '<span class="' + (s.win_rate >= 50 ? "up" : "down") + '">' + s.win_rate + '%</span></div>' +
+        '<div class="bar"><i style="width:' + Math.min(100, s.win_rate) + '%"></i></div>' +
+        '<div class="strat-meta">' + s.total_trades + ' calls &middot; ' + (s.avg_profit_pips >= 0 ? "+" : "") + s.avg_profit_pips + ' avg pips</div>' +
+      '</div></div>'
+    ).join("");
+    const by = learned.by_direction || {};
+    if (by.buy || by.sell) {
+      html += '<div class="bias">Longs ' + (by.buy ? by.buy.accuracy.toFixed(0) + "% (" + by.buy.total + ")" : "—") +
+              ' &nbsp;&middot;&nbsp; Shorts ' + (by.sell ? by.sell.accuracy.toFixed(0) + "% (" + by.sell.total + ")" : "—") + '</div>';
+    }
+    $("strats-card").innerHTML = html;
+  }
+
+  // Best pairs
+  const pairs = (learned.best_pairs || []).slice(0, 3);
+  if (pairs.length) {
+    $("pairs").innerHTML = pairs.map(p =>
+      '<div class="chip"><div class="p">' + p.pair + '</div>' +
+      '<div class="r ' + (p.win_rate >= 50 ? "up" : "down") + '">' + p.win_rate + '%</div>' +
+      '<div class="t">' + p.trades + ' trades</div></div>'
+    ).join("");
+  }
+}
+
+function renderPositions(positions) {
+  const card = $("pos-card");
+  if (!positions.length) {
+    card.innerHTML = '<div class="empty">No open positions<small>The autopilot opens test positions when signals qualify.</small></div>';
+    return;
+  }
+  card.innerHTML = positions.map(p => {
+    const isLong = p.direction === "buy" || p.direction === "long";
+    const pnl = p.unrealized_pnl || 0;
+    return '<div class="pos"><div class="pos-body">' +
+      '<div class="pos-line"><span>' + p.pair + '</span>' +
+      '<span class="pill ' + (isLong ? "long" : "short") + '" style="font-size:10px;padding:2px 8px">' + (isLong ? "LONG" : "SHORT") + '</span></div>' +
+      '<div class="pos-sub">' + p.entry_price + ' &rarr; ' + p.current_price + '</div></div>' +
+      '<span class="pnl ' + (pnl >= 0 ? "up" : "down") + '">' + (pnl >= 0 ? "+" : "") + pnl.toFixed(2) + '</span>' +
+      '<button class="btn-close" onclick="_closePos(\'' + p.trade_id + '\',' + p.current_price + ')">CLOSE</button>' +
+    '</div>';
+  }).join("");
+}
+
+async function refresh() {
+  const results = await Promise.allSettled([
+    api("/api/v1/autopilot/status"),
+    api("/api/v1/signals?status=active&limit=20"),
+    api("/api/v1/paper/positions"),
+  ]);
+
+  const [st, sigs, pos] = results;
+  const connected = st.status === "fulfilled";
+  $("conn-dot").className = "dot" + (connected ? " on" : "");
+  $("conn-text").textContent = connected
+    ? (st.value.mode === "live" ? "LIVE" : "SIMULATION")
+    : "OFFLINE";
+
+  if (connected) renderStatus(st.value);
+
+  if (sigs.status === "fulfilled") {
+    const active = sigs.value
+      .filter(s => s.status === "active")
+      .sort((a, b) => b.confidence - a.confidence);
+    renderSuggested(active[0] || null);
+  }
+
+  if (pos.status === "fulfilled") renderPositions(pos.value.positions || []);
+
+  $("updated").textContent = "CLOCKWORK · updated " + new Date().toLocaleTimeString() + " · auto-refreshes every 15s";
+}
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

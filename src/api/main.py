@@ -11,9 +11,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import AsyncGenerator
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from .routes import autopilot, dashboard, engine, history, intelligence, lab, learning, live_trading, paper_trading, predictions, settings, signals, wallet
 from .websocket import router as websocket_router
@@ -170,11 +172,26 @@ async def global_exception_handler(request, exc):
 # =============================================================================
 
 
-@app.get("/", tags=["Health"])
+HUB_HTML = Path(__file__).parent / "static" / "hub.html"
+
+
+@app.get("/", tags=["Hub"], include_in_schema=False)
 async def root():
-    """Root endpoint - API information."""
+    """Serve the Clockwork trading hub."""
+    return FileResponse(HUB_HTML, media_type="text/html")
+
+
+@app.get("/hub", tags=["Hub"], include_in_schema=False)
+async def hub():
+    """Serve the Clockwork trading hub (alias)."""
+    return FileResponse(HUB_HTML, media_type="text/html")
+
+
+@app.get("/api", tags=["Health"])
+async def api_info():
+    """API information."""
     return {
-        "name": "Lightning Bot API",
+        "name": "Clockwork Trading API",
         "version": "1.0.0",
         "status": "operational",
         "docs": "/docs",
