@@ -161,8 +161,9 @@ class AutopilotEngine:
         self.lab_enabled = os.getenv("STRATEGY_LAB_ENABLED", "true").lower() in (
             "1", "true", "yes", "on",
         )
-        self.lab_batch_size = int(os.getenv("STRATEGY_LAB_BATCH_SIZE", "1000"))
-        self.lab_interval_minutes = float(os.getenv("STRATEGY_LAB_INTERVAL_MINUTES", "10"))
+        # Default schedule: 2,500 variants every 6 hours = 10,000 tested per day
+        self.lab_batch_size = int(os.getenv("STRATEGY_LAB_BATCH_SIZE", "2500"))
+        self.lab_interval_minutes = float(os.getenv("STRATEGY_LAB_INTERVAL_MINUTES", "360"))
         self.lab_auto_apply_champion = os.getenv(
             "STRATEGY_LAB_AUTO_APPLY", "true"
         ).lower() in ("1", "true", "yes", "on")
