@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>funded</title>
+  <!-- Tier badge for the Funded role. A shield reads as "cleared" at
+       emoji size better than a coin, which turns into a dot. -->
+  <defs>
+    <linearGradient id="s" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFE68A"/>
+      <stop offset="100%" stop-color="#C9A227"/>
+    </linearGradient>
+  </defs>
+  <path d="M 64 8 L 112 26 V 66 C 112 94 90 112 64 120
+           C 38 112 16 94 16 66 V 26 Z"
+        fill="url(#s)" stroke="#8C6410" stroke-width="5"
+        stroke-linejoin="round"/>
+  <path d="M 42 64 L 58 82 L 88 42"
+        fill="none" stroke="#1C2430" stroke-width="11"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

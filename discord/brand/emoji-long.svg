@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>long</title>
+  <!-- Bullish candle. Pairs with emoji-short as a matched set: same
+       geometry, mirrored direction, so a fill feed reads at a glance. -->
+  <g stroke="#00A86B" stroke-width="9" stroke-linecap="round">
+    <line x1="64" y1="12" x2="64" y2="40"/>
+    <line x1="64" y1="88" x2="64" y2="116"/>
+  </g>
+  <rect x="38" y="38" width="52" height="52" rx="8" fill="#00C77F"
+        stroke="#00734A" stroke-width="4"/>
+  <path d="M 64 50 L 78 68 L 68 68 L 68 80 L 60 80 L 60 68 L 50 68 Z"
+        fill="#062E22"/>
+</svg>

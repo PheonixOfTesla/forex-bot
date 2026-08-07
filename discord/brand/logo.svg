@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Lightning Trading</title>
+
+  <defs>
+    <!-- Obsidian field, lit from the upper left so the mark has a light source -->
+    <radialGradient id="field" cx="34%" cy="26%" r="88%">
+      <stop offset="0%"   stop-color="#1C2430"/>
+      <stop offset="58%"  stop-color="#111721"/>
+      <stop offset="100%" stop-color="#080B11"/>
+    </radialGradient>
+
+    <!-- Gold, warm at the top and cooling toward the tail -->
+    <linearGradient id="gold" x1="38%" y1="0%" x2="62%" y2="100%">
+      <stop offset="0%"   stop-color="#FFE68A"/>
+      <stop offset="34%"  stop-color="#E8B923"/>
+      <stop offset="100%" stop-color="#B8860B"/>
+    </linearGradient>
+
+    <linearGradient id="emerald" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#00875A"/>
+    </linearGradient>
+
+    <filter id="lift" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="14" stdDeviation="26"
+                    flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="34" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Discord masks icons to a circle in most surfaces, so keep the mark
+       well inside a 1024 square and let the corners be sacrificial. -->
+  <rect width="1024" height="1024" rx="228" fill="url(#field)"/>
+  <rect x="6" y="6" width="1012" height="1012" rx="224"
+        fill="none" stroke="#E8B923" stroke-opacity="0.22" stroke-width="3"/>
+
+  <!-- Candlesticks: the ledger the bolt strikes through. Kept dim so the
+       bolt stays the only thing read at 32px. -->
+  <g opacity="0.5" stroke-linecap="round">
+    <g stroke="url(#emerald)" stroke-width="13">
+      <line x1="214" y1="612" x2="214" y2="742"/>
+      <line x1="318" y1="524" x2="318" y2="690"/>
+      <line x1="706" y1="392" x2="706" y2="566"/>
+      <line x1="810" y1="316" x2="810" y2="500"/>
+    </g>
+    <g fill="url(#emerald)">
+      <rect x="190" y="634" width="48" height="86" rx="9"/>
+      <rect x="294" y="556" width="48" height="104" rx="9"/>
+      <rect x="682" y="418" width="48" height="122" rx="9"/>
+      <rect x="786" y="342" width="48" height="132" rx="9"/>
+    </g>
+  </g>
+
+  <!-- Baseline: reads as a price floor and visually seats the mark -->
+  <line x1="150" y1="792" x2="874" y2="792"
+        stroke="#E8B923" stroke-opacity="0.28" stroke-width="4"
+        stroke-linecap="round"/>
+
+  <!-- The bolt -->
+  <g filter="url(#lift)">
+    <path d="M 566 168
+             L 372 548
+             L 494 548
+             L 436 856
+             L 668 462
+             L 536 462 Z"
+          fill="url(#gold)"
+          stroke="#8C6410" stroke-width="5" stroke-linejoin="round"/>
+    <!-- Specular edge on the leading face -->
+    <path d="M 566 168 L 372 548 L 448 548 Z"
+          fill="#FFFFFF" fill-opacity="0.20"/>
+  </g>
+
+  <!-- Faint halo so the mark separates from dark server backgrounds -->
+  <g opacity="0.18" filter="url(#glow)">
+    <path d="M 566 168 L 372 548 L 494 548 L 436 856 L 668 462 L 536 462 Z"
+          fill="#E8B923"/>
+  </g>
+</svg>
