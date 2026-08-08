@@ -27,11 +27,17 @@ export DISCORD_BOT_TOKEN='...'      # from the Bot tab, shown once
 export DISCORD_GUILD_ID='...'       # right-click server → Copy Server ID
 ```
 
-**3. Invite the bot** with Manage Channels, Manage Roles and Manage Webhooks:
+**3. Invite the bot.** The grant must cover every permission the blueprint
+hands out, not only the ones the bot uses itself — Discord refuses to let a
+bot create a role carrying a permission it does not hold:
 
 ```
-https://discord.com/oauth2/authorize?client_id=1535432465844273293&scope=bot%20applications.commands&permissions=805432336
+https://discord.com/oauth2/authorize?client_id=1535432465844273293&scope=bot%20applications.commands&permissions=312324910202
 ```
+
+`provision.py` recomputes this number from `blueprint.py` and prints a
+correct URL if the grant falls short, so edit the roles freely and let
+preflight tell you when the invite needs widening.
 
 **4. Drag the bot's role to the top** of Server Settings → Roles. Discord
 will not let a bot create or edit any role positioned above its own, so
