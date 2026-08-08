@@ -120,6 +120,70 @@ def build_overwrites(spec, role_ids, everyone_id):
     return out
 
 
+# Permission-bit names, for readable diagnostics. Derived from blueprint so
+# the two never drift apart.
+_BIT_NAMES = {
+    v: n for n, v in vars(bp).items()
+    if isinstance(v, int) and n.isupper()
+    and n not in ("TEXT_CHANNEL", "VOICE_CHANNEL", "CATEGORY",
+                  "FORUM_CHANNEL", "READ_ONLY", "CAN_TALK")
+}
+
+
+def describe_bits(mask):
+    return ", ".join(sorted(n for v, n in _BIT_NAMES.items() if mask & v))
+
+
+def preflight(client):
+    """Fail before touching anything if the bot cannot finish the job.
+
+    Discord forbids privilege escalation: a bot may only grant permissions
+    it holds itself. Creating a role with ADMINISTRATOR from a bot that
+    lacks ADMINISTRATOR is a 403, and it happens per-role -- so without
+    this check the run dies partway and leaves the guild half-built.
+    """
+    print("\nPreflight")
+    bot_id = client.request("GET", "/users/@me")["id"]
+    member = client.request("GET", f"/guilds/{client.guild}/members/{bot_id}")
+    by_id = {r["id"]: r for r in client.roles()}
+
+    held = 0
+    for rid in member["roles"]:
+        held |= int(by_id[rid]["permissions"])
+
+    if held & bp.ADMINISTRATOR:
+        print("  bot has ADMINISTRATOR, every grant permitted")
+        return
+
+    shortfall = 0
+    for spec in bp.ROLES:
+        shortfall |= spec["permissions"] & ~held
+
+    if not shortfall:
+        print("  bot holds every permission the blueprint grants")
+        return
+
+    needed = 0
+    for spec in bp.ROLES:
+        needed |= spec["permissions"]
+    # MANAGE_GUILD is only needed for --icons (PATCH /guilds), but it is
+    # cheaper to include it in the invite than to make the user re-authorize
+    # a second time when they later want the server icon set.
+    needed |= (bp.MANAGE_CHANNELS | bp.MANAGE_ROLES | bp.MANAGE_WEBHOOKS
+               | bp.MANAGE_GUILD)
+
+    app_id = client.request("GET", "/oauth2/applications/@me")["id"]
+    raise SystemExit(
+        "\n  The bot cannot grant permissions it does not hold, and it is\n"
+        f"  missing: {describe_bits(shortfall)}\n\n"
+        "  Nothing has been changed. Re-authorize with a wider grant:\n\n"
+        f"    https://discord.com/oauth2/authorize?client_id={app_id}"
+        f"&scope=bot%20applications.commands&permissions={needed}\n\n"
+        "  Re-authorizing updates the existing bot role in place. It does\n"
+        "  not add the bot twice."
+    )
+
+
 def sync_roles(client):
     """Create or update every blueprint role. Returns {name: id}."""
     print("\nRoles")
@@ -266,6 +330,8 @@ def main():
 
     info = client.guild_info()
     print(f"Guild: {info['name']} ({guild})")
+
+    preflight(client)
 
     role_ids, everyone_id = sync_roles(client)
     created = sync_channels(client, role_ids, everyone_id)

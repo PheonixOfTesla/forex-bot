@@ -24,6 +24,7 @@ enter is what makes the tier above it feel worth reaching.
 
 ADMINISTRATOR            = 1 << 3
 MANAGE_CHANNELS          = 1 << 4
+MANAGE_GUILD             = 1 << 5
 ADD_REACTIONS            = 1 << 6
 KICK_MEMBERS             = 1 << 1
 BAN_MEMBERS              = 1 << 2
