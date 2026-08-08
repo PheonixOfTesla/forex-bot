@@ -60,7 +60,7 @@ nobody can see does not motivate anyone to reach it.
 
 | Category      | @everyone | Member | Funded | Analyst | Head Trader |
 |---------------|-----------|--------|--------|---------|-------------|
-| LIGHTNING     | read      | read   | read   | read    | post        |
+| NEBULA        | read      | read   | read   | read    | post        |
 | SIGNALS       | read      | read   | read   | post    | post        |
 | THE DESK      | —         | —      | read   | post    | post        |
 | EDUCATION     | read      | post   | post   | post    | post        |
@@ -92,9 +92,10 @@ python render_icons.py
 | `server-icon-512.png` | 512² | `provision.py --icons`, or Server Settings by hand. |
 | `emoji-*.png` | 128² | Server Settings → Emoji. Max 256 KB each; the renderer warns if one runs over. |
 
-Palette: obsidian `#111721`, gold `#E8B923`, emerald `#00B86B`, mint
-`#34D399`, slate `#64748B`. Role colors in `blueprint.py` are drawn from
-the same set, so the member sidebar matches the icon.
+Palette: deep space `#150F26`, violet `#7C3AED`, magenta `#DB2777`, gold
+`#E8B923`, emerald `#00B86B`, mint `#34D399`, slate `#64748B`. Role colors
+in `blueprint.py` are drawn from the same set, so the member sidebar
+matches the icon.
 
 Channel names are plain text — Discord allows unicode but not images, so
 the section dividers are `▬` runs rather than embedded graphics.
