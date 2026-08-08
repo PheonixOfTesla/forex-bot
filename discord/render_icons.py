@@ -25,7 +25,7 @@ TARGETS = [
     ("logo.svg", "app-icon-1024.png",   1024),
     ("logo.svg", "server-icon-512.png",  512),
     ("logo.svg", "logo-256.png",         256),
-    ("emoji-bolt.svg",   "emoji-bolt.png",   128),
+    ("emoji-star.svg",   "emoji-star.png",   128),
     ("emoji-long.svg",   "emoji-long.png",   128),
     ("emoji-short.svg",  "emoji-short.png",  128),
     ("emoji-funded.svg", "emoji-funded.png", 128),

@@ -40,7 +40,7 @@ class Client:
         self.session = requests.Session()
         self.session.headers.update({
             "Authorization": f"Bot {token}",
-            "User-Agent": "LightningTrading/1.0 (+https://github.com/PheonixOfTesla/forex-bot)",
+            "User-Agent": "Nebula/1.0 (+https://github.com/PheonixOfTesla/forex-bot)",
         })
 
     def request(self, method, path, **kw):
@@ -275,7 +275,7 @@ def main():
 
     print(f"\nDone. {created} channels created, "
           f"{len(bp.ROLES)} roles in sync.")
-    print("Next: drag Lightning Trading's own role above Member in "
+    print("Next: drag Nebula's own role above Member in "
           "Server Settings so it can manage the tiers below it.")
 
 

@@ -1,4 +1,4 @@
-"""Declarative spec for the Lightning Trading Discord server.
+"""Declarative spec for the Nebula Discord server.
 
 Edit this file, then run `python provision.py` to apply it. Provisioning is
 idempotent: roles and channels are matched by name, created when absent and
@@ -113,7 +113,7 @@ ROLES = [
 
 TREE = [
     {
-        "category": "▬▬▬  LIGHTNING  ▬▬▬",
+        "category": "▬▬▬  NEBULA  ▬▬▬",
         "overwrites": {
             "@everyone": {"allow": READ_ONLY, "deny": SEND_MESSAGES},
         },

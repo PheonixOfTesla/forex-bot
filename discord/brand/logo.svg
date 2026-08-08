@@ -1,33 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <title>Lightning Trading</title>
+  <title>Nebula</title>
 
   <defs>
-    <!-- Obsidian field, lit from the upper left so the mark has a light source -->
-    <radialGradient id="field" cx="34%" cy="26%" r="88%">
-      <stop offset="0%"   stop-color="#1C2430"/>
-      <stop offset="58%"  stop-color="#111721"/>
-      <stop offset="100%" stop-color="#080B11"/>
+    <!-- Deep field. Violet bias so the gold reads warm against it. -->
+    <radialGradient id="space" cx="38%" cy="30%" r="92%">
+      <stop offset="0%"   stop-color="#241B3D"/>
+      <stop offset="46%"  stop-color="#150F26"/>
+      <stop offset="100%" stop-color="#070510"/>
     </radialGradient>
 
-    <!-- Gold, warm at the top and cooling toward the tail -->
-    <linearGradient id="gold" x1="38%" y1="0%" x2="62%" y2="100%">
-      <stop offset="0%"   stop-color="#FFE68A"/>
-      <stop offset="34%"  stop-color="#E8B923"/>
-      <stop offset="100%" stop-color="#B8860B"/>
+    <radialGradient id="cloudA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#A855F7" stop-opacity="0.95"/>
+      <stop offset="55%"  stop-color="#7C3AED" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="cloudB" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#F472B6" stop-opacity="0.85"/>
+      <stop offset="60%"  stop-color="#DB2777" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#DB2777" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="cloudC" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#38BDF8" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="gold" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#B8860B"/>
+      <stop offset="45%"  stop-color="#E8B923"/>
+      <stop offset="100%" stop-color="#FFE68A"/>
     </linearGradient>
 
-    <linearGradient id="emerald" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#34D399"/>
-      <stop offset="100%" stop-color="#00875A"/>
-    </linearGradient>
-
-    <filter id="lift" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="14" stdDeviation="26"
-                    flood-color="#000000" flood-opacity="0.55"/>
+    <filter id="soften" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="46"/>
     </filter>
 
-    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="34" result="b"/>
+    <filter id="trail" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12" result="b"/>
       <feMerge>
         <feMergeNode in="b"/>
         <feMergeNode in="SourceGraphic"/>
@@ -35,52 +45,55 @@
     </filter>
   </defs>
 
-  <!-- Discord masks icons to a circle in most surfaces, so keep the mark
-       well inside a 1024 square and let the corners be sacrificial. -->
-  <rect width="1024" height="1024" rx="228" fill="url(#field)"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#space)"/>
+
+  <!-- Nebula body. Three offset clouds instead of one so the color
+       transitions are uneven the way real gas is; a single symmetric
+       blob reads as a lens flare. Clipped to the tile radius. -->
+  <g clip-path="inset(0 round 228px)">
+    <g filter="url(#soften)">
+      <ellipse cx="410" cy="430" rx="290" ry="230" fill="url(#cloudA)"/>
+      <ellipse cx="650" cy="520" rx="240" ry="200" fill="url(#cloudB)"/>
+      <ellipse cx="520" cy="330" rx="200" ry="150" fill="url(#cloudC)"/>
+    </g>
+  </g>
+
+  <!-- Star field. Sizes vary or it looks like screen dirt. -->
+  <g fill="#FFFFFF">
+    <circle cx="188" cy="212" r="4.5" opacity="0.85"/>
+    <circle cx="286" cy="150" r="2.5" opacity="0.55"/>
+    <circle cx="840" cy="252" r="4"   opacity="0.75"/>
+    <circle cx="760" cy="168" r="2.5" opacity="0.5"/>
+    <circle cx="152" cy="560" r="3"   opacity="0.6"/>
+    <circle cx="896" cy="616" r="3.5" opacity="0.65"/>
+    <circle cx="238" cy="762" r="2.5" opacity="0.5"/>
+    <circle cx="792" cy="828" r="3"   opacity="0.55"/>
+    <circle cx="606" cy="196" r="2"   opacity="0.45"/>
+    <circle cx="404" cy="840" r="2.5" opacity="0.5"/>
+  </g>
+
+  <!-- The constellation: an ascending line whose vertices are stars.
+       This is the whole idea of the mark: a trend line drawn in the
+       sky. It is the only gold element, so it wins at any size. -->
+  <g filter="url(#trail)">
+    <polyline points="212,742 366,660 494,700 632,506 776,398 872,306"
+              fill="none" stroke="url(#gold)" stroke-width="17"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g fill="#FFF6D8" stroke="#E8B923" stroke-width="5">
+    <circle cx="212" cy="742" r="15"/>
+    <circle cx="366" cy="660" r="13"/>
+    <circle cx="494" cy="700" r="13"/>
+    <circle cx="632" cy="506" r="15"/>
+    <circle cx="776" cy="398" r="13"/>
+  </g>
+
+  <!-- Terminal star, oversized: the destination of the trend -->
+  <circle cx="872" cy="306" r="30" fill="#FFE68A" opacity="0.28"/>
+  <circle cx="872" cy="306" r="19" fill="#FFF6D8"
+          stroke="#E8B923" stroke-width="6"/>
+
   <rect x="6" y="6" width="1012" height="1012" rx="224"
         fill="none" stroke="#E8B923" stroke-opacity="0.22" stroke-width="3"/>
-
-  <!-- Candlesticks: the ledger the bolt strikes through. Kept dim so the
-       bolt stays the only thing read at 32px. -->
-  <g opacity="0.5" stroke-linecap="round">
-    <g stroke="url(#emerald)" stroke-width="13">
-      <line x1="214" y1="612" x2="214" y2="742"/>
-      <line x1="318" y1="524" x2="318" y2="690"/>
-      <line x1="706" y1="392" x2="706" y2="566"/>
-      <line x1="810" y1="316" x2="810" y2="500"/>
-    </g>
-    <g fill="url(#emerald)">
-      <rect x="190" y="634" width="48" height="86" rx="9"/>
-      <rect x="294" y="556" width="48" height="104" rx="9"/>
-      <rect x="682" y="418" width="48" height="122" rx="9"/>
-      <rect x="786" y="342" width="48" height="132" rx="9"/>
-    </g>
-  </g>
-
-  <!-- Baseline: reads as a price floor and visually seats the mark -->
-  <line x1="150" y1="792" x2="874" y2="792"
-        stroke="#E8B923" stroke-opacity="0.28" stroke-width="4"
-        stroke-linecap="round"/>
-
-  <!-- The bolt -->
-  <g filter="url(#lift)">
-    <path d="M 566 168
-             L 372 548
-             L 494 548
-             L 436 856
-             L 668 462
-             L 536 462 Z"
-          fill="url(#gold)"
-          stroke="#8C6410" stroke-width="5" stroke-linejoin="round"/>
-    <!-- Specular edge on the leading face -->
-    <path d="M 566 168 L 372 548 L 448 548 Z"
-          fill="#FFFFFF" fill-opacity="0.20"/>
-  </g>
-
-  <!-- Faint halo so the mark separates from dark server backgrounds -->
-  <g opacity="0.18" filter="url(#glow)">
-    <path d="M 566 168 L 372 548 L 494 548 L 436 856 L 668 462 L 536 462 Z"
-          fill="#E8B923"/>
-  </g>
 </svg>

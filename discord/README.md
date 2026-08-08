@@ -1,6 +1,6 @@
 # Discord server provisioning
 
-Builds out the Lightning Trading Discord — roles, categories, channels and
+Builds out the Nebula Discord — roles, categories, channels and
 per-channel permissions — from a single declarative file, plus the brand
 assets to dress it.
 
