@@ -25,6 +25,7 @@ TARGETS = [
     ("logo.svg", "app-icon-1024.png",   1024),
     ("logo.svg", "server-icon-512.png",  512),
     ("logo.svg", "logo-256.png",         256),
+    ("banner.svg", "bot-banner-680x240.png", None),   # non-square
     ("emoji-star.svg",   "emoji-star.png",   128),
     ("emoji-long.svg",   "emoji-long.png",   128),
     ("emoji-short.svg",  "emoji-short.png",  128),
@@ -45,18 +46,19 @@ def main():
             continue
 
         dest = OUT / out_name
-        cairosvg.svg2png(
-            url=str(src),
-            write_to=str(dest),
-            output_width=size,
-            output_height=size,
-        )
+        # `None` means render at the SVG's own dimensions, which is how the
+        # 680x240 banner keeps its aspect ratio instead of being squared.
+        kwargs = {} if size is None else {
+            "output_width": size, "output_height": size
+        }
+        cairosvg.svg2png(url=str(src), write_to=str(dest), **kwargs)
         kb = dest.stat().st_size / 1024
+        label = "native" if size is None else f"{size}px"
         flag = ""
         if out_name.startswith("emoji-") and dest.stat().st_size > EMOJI_MAX_BYTES:
             flag = "  <-- OVER Discord's 256 KB emoji limit"
             over.append(out_name)
-        print(f"  + {out_name:<24} {size:>4}px  {kb:6.1f} KB{flag}")
+        print(f"  + {out_name:<24} {label:>6}  {kb:6.1f} KB{flag}")
 
     print(f"\nWrote {len(TARGETS)} files to {OUT}")
     if over:

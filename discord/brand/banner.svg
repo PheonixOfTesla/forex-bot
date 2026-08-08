@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 240" width="680" height="240">
+  <title>Nebula banner</title>
+
+  <!-- 680x240 is Discord's bot profile banner. The centre band gets
+       covered by the avatar and name in most profile layouts, so the
+       composition keeps its weight in the left and right thirds. -->
+
+  <defs>
+    <linearGradient id="space" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#1E1636"/>
+      <stop offset="50%"  stop-color="#130E22"/>
+      <stop offset="100%" stop-color="#07050F"/>
+    </linearGradient>
+
+    <radialGradient id="cloudA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#A855F7" stop-opacity="0.85"/>
+      <stop offset="60%"  stop-color="#7C3AED" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="cloudB" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#F472B6" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#DB2777" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="cloudC" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#38BDF8" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="gold" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#B8860B"/>
+      <stop offset="50%"  stop-color="#E8B923"/>
+      <stop offset="100%" stop-color="#FFE68A"/>
+    </linearGradient>
+
+    <filter id="soften" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="28"/>
+    </filter>
+
+    <filter id="trail" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="680" height="240" fill="url(#space)"/>
+
+  <g clip-path="inset(0)">
+    <g filter="url(#soften)">
+      <ellipse cx="130" cy="150" rx="185" ry="120" fill="url(#cloudA)"/>
+      <ellipse cx="560" cy="90"  rx="165" ry="110" fill="url(#cloudB)"/>
+      <ellipse cx="330" cy="60"  rx="140" ry="80"  fill="url(#cloudC)"/>
+    </g>
+  </g>
+
+  <g fill="#FFFFFF">
+    <circle cx="52"  cy="46"  r="1.8" opacity="0.8"/>
+    <circle cx="118" cy="196" r="1.4" opacity="0.55"/>
+    <circle cx="212" cy="34"  r="1.2" opacity="0.5"/>
+    <circle cx="392" cy="212" r="1.6" opacity="0.6"/>
+    <circle cx="470" cy="40"  r="1.3" opacity="0.5"/>
+    <circle cx="628" cy="182" r="1.8" opacity="0.7"/>
+    <circle cx="286" cy="150" r="1.2" opacity="0.45"/>
+    <circle cx="596" cy="62"  r="1.4" opacity="0.55"/>
+  </g>
+
+  <!-- Same constellation as the icon, stretched to the banner ratio so
+       the two assets read as one system. -->
+  <g filter="url(#trail)">
+    <polyline points="44,198 148,166 236,182 340,128 452,140 556,78 640,44"
+              fill="none" stroke="url(#gold)" stroke-width="4.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g fill="#FFF6D8" stroke="#E8B923" stroke-width="1.6">
+    <circle cx="44"  cy="198" r="4"/>
+    <circle cx="148" cy="166" r="3.4"/>
+    <circle cx="236" cy="182" r="3.4"/>
+    <circle cx="340" cy="128" r="4"/>
+    <circle cx="452" cy="140" r="3.4"/>
+    <circle cx="556" cy="78"  r="4"/>
+  </g>
+
+  <circle cx="640" cy="44" r="10" fill="#FFE68A" opacity="0.25"/>
+  <circle cx="640" cy="44" r="6"  fill="#FFF6D8"
+          stroke="#E8B923" stroke-width="2"/>
+</svg>

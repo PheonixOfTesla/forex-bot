@@ -90,6 +90,7 @@ python render_icons.py
 |---|---|---|
 | `app-icon-1024.png` | 1024² | Developer portal → General Information. Manual upload; the API has no endpoint for it. |
 | `server-icon-512.png` | 512² | `provision.py --icons`, or Server Settings by hand. |
+| `bot-banner-680x240.png` | 680×240 | Developer portal → Bot → Banner. Manual upload. |
 | `emoji-*.png` | 128² | Server Settings → Emoji. Max 256 KB each; the renderer warns if one runs over. |
 
 Palette: deep space `#150F26`, violet `#7C3AED`, magenta `#DB2777`, gold
