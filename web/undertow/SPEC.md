@@ -95,6 +95,10 @@ Nintendo, not "web game". Concretely:
 - **S9.3** Pasting a room code offers to join, and a five-letter search word
   is not mistaken for one — DONE
 - **S9.4** Each game has its own slug, so names cannot collide — DONE
+- **S9.5** A texted or AirDropped link previews as a card with the game's
+  name, art and player count — DONE
+- **S9.6** The share card is rendered from the real game, so it cannot drift
+  from what players actually see — DONE
 
 ## 8. Shipping
 

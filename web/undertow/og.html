@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Molua — share card</title>
+<!-- Renders the share card from the actual game: same world, same characters,
+     same light. A marketing image drawn separately drifts from the product;
+     this one cannot. Captured headless at 1200x630 and committed as a PNG. -->
+<script src="/undertow/three.min.js"></script>
+<script src="/undertow/avatar.js"></script>
+<style>
+  html,body{margin:0;width:1200px;height:630px;overflow:hidden;background:#8FCBE8}
+  #c{display:block;width:1200px;height:630px}
+  .over{position:absolute;inset:0;pointer-events:none;
+        font-family:ui-rounded,-apple-system,"Segoe UI",system-ui,sans-serif}
+  /* A soft scrim so the words read over sand, grass or sky alike. */
+  .scrim{position:absolute;left:0;top:0;bottom:0;width:56%;
+         background:linear-gradient(90deg,rgba(18,46,68,.62),rgba(18,46,68,.28) 55%,transparent)}
+  .title{
+    position:absolute;left:64px;top:96px;font-size:104px;font-weight:900;color:#fff;
+    letter-spacing:-.02em;line-height:.92;
+    text-shadow:0 6px 0 #B4762A, 0 14px 34px rgba(20,40,60,.45);
+  }
+  .sub{
+    position:absolute;left:70px;top:236px;font-size:29px;font-weight:800;color:#FFF3D6;
+    text-shadow:0 3px 10px rgba(20,40,60,.75);max-width:400px;line-height:1.28;
+  }
+  .pill{
+    position:absolute;left:70px;top:404px;display:flex;gap:11px;
+  }
+  .pill span{
+    background:rgba(255,253,247,.95);color:#2B2438;font-weight:800;font-size:20px;
+    padding:10px 17px;border-radius:999px;box-shadow:0 5px 0 rgba(20,40,60,.25);
+  }
+  .brand{
+    position:absolute;left:70px;bottom:44px;font-size:22px;font-weight:800;color:#EAF6FF;
+    letter-spacing:.16em;text-transform:uppercase;text-shadow:0 2px 8px rgba(20,40,60,.7);
+  }
+</style>
+</head>
+<body>
+<canvas id="c" width="1200" height="630"></canvas>
+<div class="over">
+  <div class="scrim"></div>
+  <div class="title">MOLUA</div>
+  <div class="sub">One of you is the Undertow.<br>Everyone else has until morning.</div>
+  <div class="pill"><span>4–16 players</span><span>~7 min</span><span>No app</span></div>
+  <div class="brand">Clockwork Hub</div>
+</div>
+<script>
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById("c"), antialias:true });
+r.setPixelRatio(2); r.setSize(1200, 630, false); r.setClearColor(0x8FCBE8, 1);
+r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const sc = new THREE.Scene();
+sc.fog = new THREE.Fog(0xC8E2EE, 30, 96);
+const cam = new THREE.PerspectiveCamera(42, 1200/630, 0.1, 300);
+
+sc.add(new THREE.HemisphereLight(0xCFE8F2, 0xC8B482, 0.86));
+const sun = new THREE.DirectionalLight(0xFFF6DA, 1.1);
+sun.position.set(12, 20, 14);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left:-20, right:20, top:20, bottom:-20, near:1, far:70 });
+sc.add(sun); sc.add(sun.target);
+
+function tex(draw, rep){
+  const s = 256, c2 = document.createElement("canvas");
+  c2.width = c2.height = s; draw(c2.getContext("2d"), s);
+  const t = new THREE.CanvasTexture(c2);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.anisotropy = r.capabilities.getMaxAnisotropy();
+  t.repeat.set(rep, rep);
+  return t;
+}
+const speck = (base, spots, n) => (g, S) => {
+  g.fillStyle = base; g.fillRect(0,0,S,S);
+  for (let i=0;i<n;i++){ g.fillStyle = spots[(Math.random()*spots.length)|0];
+    g.fillRect(Math.random()*S, Math.random()*S, 1+Math.random()*4, 1+Math.random()*3); }
+};
+
+const sand = new THREE.Mesh(new THREE.CircleGeometry(60, 48),
+  new THREE.MeshLambertMaterial({ map: tex(speck("#E2CE93",["#EBDBA6","#CFB87C"],3000), 26) }));
+sand.rotation.x = -Math.PI/2; sand.receiveShadow = true; sc.add(sand);
+
+const grass = new THREE.Mesh(new THREE.CircleGeometry(34, 48),
+  new THREE.MeshLambertMaterial({ map: tex(speck("#7FA349",["#8FB255","#6B8C3B"],4000), 20) }));
+grass.rotation.x = -Math.PI/2; grass.position.set(6, 0.02, -14); grass.receiveShadow = true; sc.add(grass);
+
+// palms behind the cast
+const bark = tex((g,S)=>{ g.fillStyle="#6E4E30"; g.fillRect(0,0,S,S);
+  for(let i=0;i<150;i++){ g.fillStyle=["#5B3F26","#7E5B39"][(Math.random()*2)|0];
+    g.fillRect(Math.random()*S,0,2+Math.random()*6,S);} }, 2);
+const leaf = tex(speck("#4F7A33",["#5E8C3E","#42682A"],2600), 3);
+function palm(x,z,h){
+  const g = new THREE.Group();
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.24,h,10), new THREE.MeshLambertMaterial({map:bark}));
+  t.position.y=h/2; t.rotation.z=(Math.random()-0.5)*0.3; t.castShadow=true; g.add(t);
+  for(let i=0;i<7;i++){ const a=(i/7)*Math.PI*2;
+    const f=new THREE.Mesh(new THREE.ConeGeometry(0.44,2.6,4), new THREE.MeshLambertMaterial({map:leaf}));
+    f.position.set(Math.cos(a)*1.05, h-0.2, Math.sin(a)*1.05);
+    f.rotation.z=Math.cos(a)*1.25; f.rotation.x=-Math.sin(a)*1.25; f.castShadow=true; g.add(f); }
+  g.position.set(x,0,z); sc.add(g);
+}
+[[-9,-13,5.4],[10,-15,6.2],[16,-9,4.8],[-15,-8,5.0],[2,-19,5.8]].forEach(p=>palm(p[0],p[1],p[2]));
+
+// the cast, facing camera
+const CAST = [
+  { costume:"crown",     skin:"#FFDCBC", hair:"#D9A441", shirt:"#E05B4B", pants:"#3A4657", shoes:"#F2F0E6", hatColor:"#E8C15A", eyes:"round",  brows:"soft",   mouth:"smile" },
+  { costume:"bear",      skin:"#C68642", hair:"#8B5A2B", shirt:"#6E8E3F", pants:"#7A6A55", shoes:"#5E4028", hatColor:"#8B5A2B", eyes:"happy",  brows:"soft",   mouth:"smile" },
+  { costume:"scientist", skin:"#8D5524", hair:"#E8E4DA", shirt:"#F2F0E6", pants:"#2F3A46", shoes:"#2B2438", hatColor:"#4A4A55", eyes:"wide",   brows:"thick",  mouth:"grin"  },
+  { costume:"explorer",  skin:"#E8B187", hair:"#3B2417", shirt:"#C7643C", pants:"#5A6B7D", shoes:"#7A6A55", hatColor:"#8A6242", eyes:"almond", brows:"flat",   mouth:"smirk" },
+  { costume:"diver",     skin:"#63391F", hair:"#1C1410", shirt:"#3B82C4", pants:"#31445E", shoes:"#E05B4B", hatColor:"#3B5BA5", eyes:"round",  brows:"arched", mouth:"open"  }
+];
+CAST.forEach((cfg, i) => {
+  const a = Avatar.build(Object.assign(Avatar.defaults(), cfg, { hat:true, brand:"CLOCKWORK HUB" }));
+  a.root.position.set(5.9 + i * 1.7, 0, -1.0 - (i % 2) * 1.4);
+  a.root.rotation.y = -0.42 + (i % 2) * 0.16;
+  a.root.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  // a little life in the pose
+  a.armL.rotation.x = -0.12 - (i % 3) * 0.5;
+  a.armR.rotation.x = -0.12 + (i % 2) * 0.3;
+  a.head.rotation.y = 0.2 - (i % 3) * 0.16;
+  sc.add(a.root);
+});
+
+cam.position.set(1.2, 2.5, 8.2);
+cam.lookAt(8.6, 1.5, -2.4);
+sun.target.position.set(6, 0, -2); sun.target.updateMatrixWorld();
+r.render(sc, cam);
+window.__ready = true;
+</script>
+</body>
+</html>
