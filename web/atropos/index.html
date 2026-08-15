@@ -2,1547 +2,852 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<meta name="theme-color" content="#06060B" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#8ED0EE" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="description" content="A party game of fate and suspicion. One of you holds the shears." />
-<title>Atropos</title>
-<!-- Vendored, not a CDN: camp wifi is not a dependency we can take. -->
+<meta name="description" content="A sunlit island party game. One of you holds the shears." />
+<title>Atropos Island</title>
 <script src="/atropos/three.min.js"></script>
+<script src="/atropos/eidolon.js"></script>
+<script src="/atropos/village.js"></script>
 <style>
 /* ===========================================================================
-   ATROPOS
-   A committed single-theme world. The game is played in the dark on purpose,
-   so every colour is painted explicitly and nothing inherits from the host.
+   ATROPOS ISLAND
+   Bright, rounded and friendly. A sunny Greek village, not a haunted one.
    =========================================================================== */
 :root{
-  --void:#06060B;
-  --pitch:#0D0D16;
-  --raise:#151422;
-  --line:#241F33;
-  --parchment:#F0E9D8;
-  --dim:#7A7387;
-  --gold:#D9A441;
-  --gold-deep:#8A6420;
-  --cut:#C4162A;
-  --shade:#7A5CC4;
-
-  --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
-  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-
-  --sp:clamp(14px,3.4vw,20px);
+  --sky:#BFE6F5; --sea:#2C7DA0; --sand:#E9D5A0;
+  --paper:#FFFDF7; --paper-2:#F4EEE0; --line:#E2D7C0;
+  --ink:#2B2438; --ink-soft:#6B6280;
+  --gold:#E8A33D; --gold-deep:#C07E1E;
+  --cut:#E04B3C; --grass:#6F9350; --shade:#8E5FA8;
+  --round:#{}; /* placeholder removed */
+  --font:ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+  --sp:clamp(14px,3.6vw,20px);
   --safe-b:env(safe-area-inset-bottom,0px);
   --safe-t:env(safe-area-inset-top,0px);
+  --shadow:0 6px 0 rgba(43,36,56,.14), 0 12px 28px rgba(43,36,56,.16);
 }
-
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 body{
-  background:var(--void);
-  color:var(--parchment);
-  font-family:var(--serif);
-  overflow:hidden;
-  overscroll-behavior:none;
-  text-rendering:optimizeLegibility;
-  -webkit-font-smoothing:antialiased;
+  background:var(--sky);color:var(--ink);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;touch-action:none;
 }
-button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+button,input{font:inherit;color:inherit}
+button{background:none;border:none;cursor:pointer}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 
 #scene{position:fixed;inset:0;z-index:0;display:block}
+#flash{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;mix-blend-mode:screen}
 
-/* --- chrome ------------------------------------------------------------- */
-#ui{position:fixed;inset:0;z-index:3;display:flex;flex-direction:column;pointer-events:none}
-#ui > *{pointer-events:auto}
+#ui{position:fixed;inset:0;z-index:2;pointer-events:none;display:flex;flex-direction:column}
+#ui>*{pointer-events:auto}
 
-.label{
-  font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;
-  color:var(--dim);
+/* --- shared pieces ------------------------------------------------------ */
+.card{
+  background:var(--paper);border-radius:22px;box-shadow:var(--shadow);
+  padding:18px;border:2px solid rgba(255,255,255,.7);
 }
+.btn{
+  display:block;width:100%;padding:16px 20px;border-radius:18px;
+  background:var(--gold);color:#3A2708;font-weight:800;font-size:16px;
+  letter-spacing:.02em;box-shadow:0 5px 0 var(--gold-deep);
+  transition:transform .08s,box-shadow .08s;
+}
+.btn:active:not(:disabled){transform:translateY(4px);box-shadow:0 1px 0 var(--gold-deep)}
+.btn:disabled{opacity:.45;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+.btn.ghost{background:var(--paper-2);color:var(--ink);box-shadow:0 5px 0 #D9CDB4}
+.btn.ghost:active:not(:disabled){box-shadow:0 1px 0 #D9CDB4}
+.btn.red{background:var(--cut);color:#fff;box-shadow:0 5px 0 #A62C20}
+.btn.red:active:not(:disabled){box-shadow:0 1px 0 #A62C20}
+.field{
+  width:100%;padding:15px 18px;border-radius:16px;border:2px solid var(--line);
+  background:var(--paper-2);font-weight:700;font-size:17px;text-align:center;
+}
+.field::placeholder{color:#A79C86;font-weight:600}
+.field:focus{outline:none;border-color:var(--gold);background:#fff}
+.label{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+.stack{display:flex;flex-direction:column;gap:10px}
 
-/* Top bar ---------------------------------------------------------------- */
+/* --- full-screen panels ------------------------------------------------- */
+.panel{
+  position:fixed;inset:0;z-index:5;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;
+  padding:calc(var(--safe-t) + 18px) var(--sp) calc(var(--safe-b) + 18px);
+  overflow-y:auto;
+}
+.panel.on{display:flex}
+.panel .card{width:100%;max-width:420px}
+
+#gate{background:linear-gradient(180deg,#8ED0EE,#CFEAF6 62%,#E9D5A0)}
+.wordmark{
+  font-size:clamp(42px,13vw,72px);font-weight:900;letter-spacing:-.02em;line-height:.95;
+  color:#fff;text-shadow:0 4px 0 var(--gold-deep),0 10px 24px rgba(43,36,56,.28);
+}
+.sub{font-weight:700;color:#2B5A72;font-size:15px;text-align:center;max-width:26ch}
+
+/* --- Eidolon maker ------------------------------------------------------ */
+#maker{background:linear-gradient(180deg,#9BD8F0,#E9D5A0);z-index:6}
+#preview-wrap{display:flex;justify-content:center;align-items:center;gap:14px}
+#preview{
+  width:132px;height:132px;border-radius:50%;border:5px solid #fff;
+  box-shadow:var(--shadow);background:var(--paper-2);display:block;flex:none;
+}
+.swatches{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
+.sw{width:30px;height:30px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.2)}
+.sw[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:2px}
+.slider{width:100%;accent-color:var(--gold)}
+.row{display:flex;gap:9px}
+.row>*{flex:1}
+#drop{
+  border:3px dashed var(--line);border-radius:18px;padding:18px;text-align:center;
+  font-weight:700;color:var(--ink-soft);background:var(--paper-2);font-size:14px;
+}
+#maker-err{color:var(--cut);font-weight:700;font-size:13px;min-height:16px;text-align:center}
+
+/* --- top bar ------------------------------------------------------------ */
 #top{
-  display:flex;align-items:center;gap:var(--sp);
-  padding:calc(var(--safe-t) + 12px) var(--sp) 12px;
-  background:linear-gradient(var(--void),rgba(6,6,11,.7) 58%,transparent);
+  display:flex;align-items:center;gap:10px;
+  padding:calc(var(--safe-t) + 10px) var(--sp) 0;
 }
 #top.hidden{display:none}
-#phase-name{
-  font-size:clamp(17px,4.6vw,23px);letter-spacing:.16em;text-transform:uppercase;
-  line-height:1;text-wrap:balance;
+.pill{
+  background:rgba(255,253,247,.94);border-radius:16px;padding:9px 14px;
+  box-shadow:0 3px 10px rgba(43,36,56,.18);
 }
-#phase-sub{margin-top:5px}
-#top-left{flex:1;min-width:0}
+#phase-name{font-weight:900;font-size:15px;line-height:1.1}
+#phase-sub{font-size:11px;color:var(--ink-soft);font-weight:700;margin-top:1px}
+#clock-pill{margin-left:auto;font-weight:900;font-size:20px;min-width:56px;text-align:center;
+  font-variant-numeric:tabular-nums}
+#clock-pill.urgent{background:var(--cut);color:#fff}
 
-#sound{
-  flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:2px;
-  display:grid;place-items:center;font-size:13px;color:var(--dim);
+/* --- bottom HUD --------------------------------------------------------- */
+#hud{
+  margin-top:auto;padding:0 var(--sp) calc(var(--safe-b) + 12px);
+  display:flex;flex-direction:column;gap:9px;
 }
-#sound:hover{border-color:var(--gold);color:var(--gold)}
-
-#clock{position:relative;width:52px;height:52px;flex:none}
-#clock svg{transform:rotate(-90deg);display:block}
-#clock .track{stroke:var(--line)}
-#clock .fill{stroke:var(--gold);transition:stroke .4s}
-#clock.urgent .fill{stroke:var(--cut)}
-#clock-num{
-  position:absolute;inset:0;display:grid;place-items:center;
-  font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums;
+#hud.hidden{display:none}
+#hud .card{max-height:44vh;overflow-y:auto}
+#role-strip{
+  display:flex;align-items:center;gap:10px;background:rgba(255,253,247,.94);
+  border-radius:16px;padding:9px 13px;box-shadow:0 3px 10px rgba(43,36,56,.18);
 }
-#clock.urgent #clock-num{color:var(--cut)}
+#role-strip .em{font-size:20px}
+#role-strip .t{font-weight:900;font-size:13px}
+#role-strip .d{font-size:12px;color:var(--ink-soft);font-weight:600;line-height:1.3}
+#role-strip.atropos{background:#FDECEA}#role-strip.atropos .t{color:#B3392B}
+#role-strip.lachesis{background:#FDF3E2}#role-strip.lachesis .t{color:#A9741A}
+#role-strip.nyx{background:#F2EBFA}#role-strip.nyx .t{color:#6E44A0}
+#role-strip.dead{background:#EFE9F7}
 
-/* Screens ---------------------------------------------------------------- */
-#stage{flex:1;display:flex;flex-direction:column;justify-content:center;
-  padding:0 var(--sp);overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
-.screen{display:none;flex-direction:column;gap:18px}
-.screen.on{display:flex}
-
-/* Gate ------------------------------------------------------------------- */
-#gate{align-items:center;text-align:center;gap:0}
-.wordmark{
-  font-size:clamp(46px,15vw,104px);letter-spacing:.14em;line-height:.9;
-  text-transform:uppercase;text-indent:.14em;
-  background:linear-gradient(175deg,var(--parchment) 22%,var(--gold) 74%,var(--gold-deep));
-  -webkit-background-clip:text;background-clip:text;color:transparent;
-}
-.tagline{margin-top:14px;color:var(--dim);font-size:15px;font-style:italic;max-width:30ch}
-.rule{width:64px;height:1px;background:var(--gold);opacity:.55;margin:26px auto}
-
-.field{
-  width:100%;max-width:340px;background:rgba(13,13,22,.8);border:1px solid var(--line);
-  color:var(--parchment);font-family:var(--mono);font-size:16px;letter-spacing:.14em;
-  text-transform:uppercase;text-align:center;padding:15px;border-radius:2px;
-}
-.field::placeholder{color:var(--dim);letter-spacing:.14em}
-.field:focus{border-color:var(--gold);outline:none}
-
-.btn{
-  width:100%;max-width:340px;padding:16px;border:1px solid var(--gold);
-  font-family:var(--mono);font-size:12px;letter-spacing:.24em;text-transform:uppercase;
-  color:var(--gold);border-radius:2px;transition:background .18s,color .18s;
-}
-.btn:hover:not(:disabled),.btn:active:not(:disabled){background:var(--gold);color:var(--void)}
-.btn:disabled{opacity:.32;cursor:not-allowed}
-.btn.solid{background:var(--gold);color:var(--void)}
-.btn.solid:hover:not(:disabled){background:var(--parchment);border-color:var(--parchment)}
-.btn.danger{border-color:var(--cut);color:var(--cut)}
-.btn.danger:hover:not(:disabled){background:var(--cut);color:var(--parchment)}
-
-.stack{display:flex;flex-direction:column;align-items:center;gap:11px;width:100%}
-#gate-error{color:var(--cut);font-family:var(--mono);font-size:11px;letter-spacing:.1em;
-  min-height:14px;text-transform:uppercase}
-
-/* Lobby ------------------------------------------------------------------ */
-#lobby{align-items:center;text-align:center}
-#code{
-  font-family:var(--mono);font-size:clamp(40px,13vw,74px);letter-spacing:.2em;
-  color:var(--gold);text-indent:.2em;line-height:1;
-}
-#roster{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:520px}
-.chip{
-  font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:8px 13px;
-  border:1px solid var(--line);border-radius:2px;background:rgba(13,13,22,.8);
-}
-.chip.host{border-color:var(--gold);color:var(--gold)}
-.chip.self{background:var(--raise);color:var(--parchment)}
-.chip.off{opacity:.4}
-
-/* Targets ---------------------------------------------------------------- */
-.targets{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:9px;
-  width:100%;max-width:560px;margin:0 auto;
-}
+#hint{font-weight:700;font-size:14px;text-align:center;color:var(--ink)}
+.targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
 .target{
-  position:relative;padding:13px 9px;border:1px solid var(--line);
-  background:rgba(13,13,22,.82);
-  border-radius:2px;text-align:center;transition:border-color .16s,background .16s;
-  display:flex;flex-direction:column;gap:5px;align-items:center;
+  padding:11px 8px;border-radius:15px;background:var(--paper-2);border:2px solid transparent;
+  font-weight:800;font-size:13px;position:relative;display:flex;flex-direction:column;
+  align-items:center;gap:5px;
 }
-.target:hover:not(:disabled){border-color:var(--dim)}
-.target .nm{font-family:var(--mono);font-size:12px;letter-spacing:.1em;
-  overflow:hidden;text-overflow:ellipsis;max-width:100%;white-space:nowrap}
-.target .sub{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--dim)}
-.target.picked{border-color:var(--cut);background:rgba(196,22,42,.16)}
-.target.picked .nm{color:var(--cut)}
-.target.gold.picked{border-color:var(--gold);background:rgba(217,164,65,.14)}
-.target.gold.picked .nm{color:var(--gold)}
-.target:disabled{opacity:.32;cursor:not-allowed}
-.target .tally{
-  position:absolute;top:-7px;right:-7px;min-width:21px;height:21px;border-radius:50%;
-  background:var(--cut);color:var(--parchment);font-family:var(--mono);font-size:11px;
-  display:grid;place-items:center;font-variant-numeric:tabular-nums;
+.target img{width:34px;height:34px;border-radius:50%;background:#fff;object-fit:cover}
+.target .ph{width:34px;height:34px;border-radius:50%;background:#DCCFB4}
+.target.picked{border-color:var(--cut);background:#FDECEA;color:#B3392B}
+.target:disabled{opacity:.5}
+.tally{
+  position:absolute;top:-6px;right:-6px;min-width:22px;height:22px;border-radius:11px;
+  background:var(--cut);color:#fff;font-size:12px;font-weight:900;display:grid;place-items:center;
 }
-.target .mark{position:absolute;top:5px;left:7px;font-size:11px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
+.chip{
+  padding:9px 13px;border-radius:14px;background:var(--paper-2);font-weight:700;font-size:12px;
+  border:2px solid transparent;
+}
+.chip.sel{border-color:var(--gold);background:#FDF3E2;color:#A9741A}
+.chip.shade{background:#F2EBFA;color:#6E44A0}
 
-/* Decree takeover -------------------------------------------------------- */
+/* --- controls ----------------------------------------------------------- */
+#stick{
+  position:fixed;left:calc(var(--sp) + 4px);bottom:calc(var(--safe-b) + 108px);
+  width:124px;height:124px;border-radius:50%;background:rgba(255,253,247,.42);
+  border:3px solid rgba(255,255,255,.75);z-index:3;display:none;touch-action:none;
+}
+#stick.on{display:block}
+#knob{
+  position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;
+  border-radius:50%;background:var(--paper);box-shadow:var(--shadow);
+}
+#emotes{
+  position:fixed;right:var(--sp);bottom:calc(var(--safe-b) + 108px);z-index:3;
+  display:none;flex-direction:column;gap:7px;
+}
+#emotes.on{display:flex}
+#emotes button{
+  width:46px;height:46px;border-radius:50%;background:rgba(255,253,247,.94);
+  font-size:20px;box-shadow:0 3px 10px rgba(43,36,56,.2);display:grid;place-items:center;
+}
+
+/* --- the forty seconds -------------------------------------------------- */
 #condemned{
-  position:fixed;inset:0;z-index:6;display:none;flex-direction:column;
-  align-items:center;justify-content:center;text-align:center;gap:22px;
-  padding:var(--sp);
-  /* Opaque base underneath: this panel must fully hide the board behind it,
-     or the player's private decree is stacked on top of public text. */
-  background-color:#0A0306;
-  background-image:radial-gradient(ellipse at 50% 45%,rgba(196,22,42,.40),rgba(10,3,6,.97) 68%);
-  animation:pulse 1.05s ease-in-out infinite;
+  position:fixed;inset:0;z-index:8;display:none;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;gap:18px;padding:var(--sp);
+  background:linear-gradient(180deg,#F6B6AE,#E04B3C 62%,#B3392B);
+  color:#fff;
 }
 #condemned.on{display:flex}
-@keyframes pulse{0%,100%{background-color:#0A0306}50%{background-color:#1A050B}}
-#condemned .cap{color:var(--cut);font-family:var(--mono);font-size:11px;letter-spacing:.3em}
-#decree-text{font-size:clamp(27px,7.6vw,46px);line-height:1.14;max-width:15ch;text-wrap:balance}
-#condemned .fine{color:var(--dim);font-size:14px;font-style:italic;max-width:30ch}
-#big-count{
-  font-family:var(--mono);font-size:clamp(56px,17vw,96px);color:var(--cut);
-  font-variant-numeric:tabular-nums;line-height:1;
-}
+#condemned .cap{font-weight:900;letter-spacing:.16em;font-size:12px;text-transform:uppercase;opacity:.9}
+#decree-text{font-size:clamp(28px,8vw,46px);font-weight:900;line-height:1.1;max-width:14ch;
+  text-shadow:0 4px 0 rgba(0,0,0,.15)}
+#condemned .fine{font-weight:700;font-size:14px;max-width:28ch;opacity:.95}
+#big-count{font-size:clamp(58px,17vw,96px);font-weight:900;font-variant-numeric:tabular-nums;
+  text-shadow:0 5px 0 rgba(0,0,0,.15)}
+#condemned .btn{max-width:280px;background:#fff;color:#B3392B;box-shadow:0 5px 0 rgba(0,0,0,.18)}
 
-/* Bottom sheet ----------------------------------------------------------- */
-#sheet{
-  background:linear-gradient(transparent,rgba(6,6,11,.84) 24%,var(--void) 58%);
-  padding:16px var(--sp) calc(var(--safe-b) + 16px);
-  display:flex;flex-direction:column;gap:11px;
-  /* The action area must never be taller than the screen, or the buttons at
-     the bottom become unreachable on a phone. */
-  max-height:62vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
-}
-#sheet.hidden{display:none}
-#hint{text-align:center;color:var(--dim);font-size:14px;font-style:italic;text-wrap:balance}
-.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
-.mini{
-  padding:9px 13px;border:1px solid var(--line);background:rgba(13,13,22,.8);
-  border-radius:2px;
-  font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;
-  color:var(--dim);transition:border-color .16s,color .16s;
-}
-.mini:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
-.mini.sel{border-color:var(--gold);color:var(--gold);background:rgba(217,164,65,.12)}
-.mini:disabled{opacity:.3;cursor:not-allowed}
-.mini.react{font-size:15px;padding:8px 12px;letter-spacing:0}
+/* --- reveal / results --------------------------------------------------- */
+.reveal{text-align:center;display:flex;flex-direction:column;gap:9px;align-items:center}
+.reveal .big{font-size:clamp(22px,6vw,34px);font-weight:900;line-height:1.15}
+.reveal .who{font-weight:800;font-size:13px;color:var(--ink-soft)}
+.finals{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.final{padding:7px 11px;border-radius:12px;background:var(--paper-2);font-weight:800;font-size:11px}
+.final.atropos{background:#FDECEA;color:#B3392B}
+.final.nyx{background:#F2EBFA;color:#6E44A0}
+.final.lachesis{background:#FDF3E2;color:#A9741A}
 
-/* Role card -------------------------------------------------------------- */
-#role{
-  display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid var(--line);
-  background:rgba(13,13,22,.86);border-radius:2px;max-width:560px;margin:0 auto;width:100%;
-}
-#role.hidden{display:none}
-#role .glyph{font-size:22px;line-height:1;flex:none}
-#role .txt{min-width:0;flex:1}
-#role .ttl{font-family:var(--mono);font-size:12px;letter-spacing:.2em}
-#role .how{color:var(--dim);font-size:13px;margin-top:3px;line-height:1.35}
-#role.atropos{border-color:rgba(196,22,42,.55)} #role.atropos .ttl{color:var(--cut)}
-#role.lachesis{border-color:rgba(217,164,65,.55)} #role.lachesis .ttl{color:var(--gold)}
-#role.nyx{border-color:rgba(122,92,196,.55)} #role.nyx .ttl{color:var(--shade)}
-#role.mortal .ttl{color:var(--parchment)}
-#role.dead{border-color:rgba(122,92,196,.55);background:rgba(122,92,196,.1)}
+#roster{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.who-chip{display:flex;align-items:center;gap:7px;background:var(--paper-2);
+  border-radius:14px;padding:6px 12px 6px 6px;font-weight:800;font-size:13px}
+.who-chip img{width:28px;height:28px;border-radius:50%;object-fit:cover;background:#fff}
+.who-chip .ph{width:28px;height:28px;border-radius:50%;background:#DCCFB4}
 
-/* Log -------------------------------------------------------------------- */
-#log{
-  max-height:24vh;overflow-y:auto;display:flex;flex-direction:column-reverse;gap:7px;
-  padding:0 var(--sp);-webkit-overflow-scrolling:touch;
-}
-#log.hidden{display:none}
-.entry{font-size:14px;line-height:1.4;color:var(--dim);text-wrap:pretty}
-.entry b{color:var(--parchment);font-weight:400;font-family:var(--mono);font-size:12px;
-  letter-spacing:.08em}
-.entry.cut{color:var(--cut)}
-.entry.verdict{color:var(--gold)}
-.entry.decree{color:var(--cut);font-style:italic}
-.entry.omen{color:var(--shade);font-style:italic}
-.entry.shade{color:var(--shade)}
-.entry.phase{color:var(--parchment);font-family:var(--mono);font-size:11px;
-  letter-spacing:.18em;text-transform:uppercase;padding-top:6px}
-.entry.system{font-style:italic}
-
-/* Verdict / over --------------------------------------------------------- */
-.reveal{text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
-.reveal .big{font-size:clamp(26px,7vw,44px);letter-spacing:.05em;text-wrap:balance;line-height:1.1}
-.reveal .who{font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:var(--gold)}
-.win-atropos .big{color:var(--cut)}
-.win-mortals .big{color:var(--gold)}
-.finals{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:560px}
-.final{font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:7px 11px;
-  border:1px solid var(--line);border-radius:2px}
-.final.atropos{border-color:var(--cut);color:var(--cut)}
-.final.nyx{border-color:var(--shade);color:var(--shade)}
-.final.lachesis{border-color:var(--gold);color:var(--gold)}
-
-@media (min-width:860px){
-  #log{max-height:19vh}
-  .targets{grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
-}
-@media (prefers-reduced-motion:reduce){
-  #condemned{animation:none}
-  .btn,.mini,.target{transition-duration:.01ms !important}
-}
+#code-big{font-size:clamp(38px,12vw,60px);font-weight:900;letter-spacing:.12em;
+  color:var(--gold-deep);text-align:center;line-height:1}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
 
 <canvas id="scene"></canvas>
+<div id="flash"></div>
 
 <div id="ui">
-
   <header id="top" class="hidden">
-    <div id="top-left">
-      <div id="phase-name">Loom</div>
-      <div id="phase-sub" class="label">Round 1</div>
+    <div class="pill">
+      <div id="phase-name">The Loom</div>
+      <div id="phase-sub">Round 1</div>
     </div>
-    <button id="sound" aria-label="Toggle sound" title="Sound">♪</button>
-    <div id="clock">
-      <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
-        <circle class="track" cx="26" cy="26" r="22" fill="none" stroke-width="2"/>
-        <circle id="clock-fill" class="fill" cx="26" cy="26" r="22" fill="none"
-                stroke-width="2" stroke-linecap="round"
-                stroke-dasharray="138.2" stroke-dashoffset="0"/>
-      </svg>
-      <div id="clock-num">40</div>
-    </div>
+    <div class="pill" id="clock-pill">40</div>
   </header>
 
-  <main id="stage">
-
-    <section id="gate" class="screen on">
-      <h1 class="wordmark">Atropos</h1>
-      <p class="tagline">One of you holds the shears. The rest of you have until morning.</p>
-      <div class="rule"></div>
-      <div class="stack">
-        <input id="name-in" class="field" placeholder="Your name" maxlength="14"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" />
-        <input id="code-in" class="field" placeholder="Room code" maxlength="5"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" />
-        <button id="join-btn" class="btn solid">Join the room</button>
-        <button id="open-btn" class="btn">Open a new room</button>
-        <div id="gate-error" role="alert"></div>
-      </div>
-    </section>
-
-    <section id="lobby" class="screen">
-      <div class="label">Room code</div>
-      <div id="code">-----</div>
-      <button id="share-btn" class="btn solid">Share this room</button>
-      <div id="roster"></div>
-      <div id="lobby-note" class="label"></div>
-      <button id="start-btn" class="btn" disabled>Begin</button>
-    </section>
-
-    <section id="play" class="screen">
-      <div id="targets" class="targets"></div>
-      <div id="reveal" class="reveal"></div>
-    </section>
-
-  </main>
-
-  <div id="log"></div>
-
-  <footer id="sheet" class="hidden">
-    <div id="role" class="hidden">
-      <div class="glyph"></div>
-      <div class="txt"><div class="ttl"></div><div class="how"></div></div>
+  <div id="hud" class="hidden">
+    <div id="role-strip" style="display:none">
+      <div class="em"></div>
+      <div><div class="t"></div><div class="d"></div></div>
     </div>
-    <div id="hint"></div>
-    <div id="options" class="row"></div>
-    <div id="actions" class="row"></div>
-  </footer>
-
+    <div class="card">
+      <div id="hint"></div>
+      <div id="reveal" class="reveal"></div>
+      <div id="targets" class="targets" style="margin-top:10px"></div>
+      <div id="options" class="chips" style="margin-top:10px"></div>
+      <div id="actions" class="stack" style="margin-top:10px"></div>
+    </div>
+  </div>
 </div>
 
+<div id="stick"><div id="knob"></div></div>
+<div id="emotes">
+  <button data-e="wave" aria-label="Wave">👋</button>
+  <button data-e="dance" aria-label="Dance">🕺</button>
+  <button data-e="point" aria-label="Point">👉</button>
+  <button data-e="cheer" aria-label="Cheer">🙌</button>
+</div>
+
+<!-- GATE -->
+<section id="gate" class="panel on">
+  <div class="wordmark">ATROPOS</div>
+  <p class="sub">A sunny island. Everyone is friends. One of you is holding the shears.</p>
+  <div class="card stack">
+    <input id="name-in" class="field" placeholder="Your name" maxlength="14"
+           autocomplete="off" autocapitalize="words" spellcheck="false" />
+    <input id="code-in" class="field" placeholder="Room code" maxlength="5"
+           autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    <button id="join-btn" class="btn">Join island</button>
+    <button id="open-btn" class="btn ghost">Make a new island</button>
+    <div id="gate-error" style="color:var(--cut);font-weight:700;font-size:13px;min-height:16px;text-align:center"></div>
+  </div>
+</section>
+
+<!-- EIDOLON MAKER -->
+<section id="maker" class="panel">
+  <div class="wordmark" style="font-size:clamp(26px,8vw,40px)">Make your Eidolon</div>
+  <p class="sub">Add a photo and we'll cartoon it. Or build one by hand — your photo never leaves this phone.</p>
+  <div class="card stack">
+    <div id="preview-wrap">
+      <canvas id="preview" width="128" height="128"></canvas>
+      <div class="stack" style="flex:1">
+        <button id="pick-btn" class="btn ghost" style="padding:12px">📷 Use a photo</button>
+        <button id="draw-btn" class="btn ghost" style="padding:12px">🎲 Surprise me</button>
+      </div>
+    </div>
+    <input id="file-in" type="file" accept="image/*" hidden />
+
+    <div id="photo-tools" style="display:none">
+      <div class="label" style="margin-bottom:5px">Zoom</div>
+      <input id="zoom" class="slider" type="range" min="100" max="260" value="130" />
+      <div class="label" style="margin:8px 0 5px">Nudge up / down</div>
+      <input id="offy" class="slider" type="range" min="-30" max="30" value="0" />
+    </div>
+
+    <div id="hand-tools">
+      <div class="label" style="margin-bottom:6px">Skin</div>
+      <div class="swatches" id="sw-skin"></div>
+      <div class="label" style="margin:10px 0 6px">Hair</div>
+      <div class="swatches" id="sw-hair"></div>
+    </div>
+
+    <div class="label" style="margin:10px 0 6px">Shirt</div>
+    <div class="swatches" id="sw-shirt"></div>
+
+    <div id="maker-err"></div>
+    <button id="enter-btn" class="btn">Enter the island</button>
+  </div>
+</section>
+
+<!-- LOBBY -->
+<section id="lobby" class="panel">
+  <div class="card stack">
+    <div class="label" style="text-align:center">Island code</div>
+    <div id="code-big">-----</div>
+    <button id="share-btn" class="btn">Share this island</button>
+    <div id="roster"></div>
+    <div id="lobby-note" class="label" style="text-align:center"></div>
+    <button id="start-btn" class="btn" disabled>Start the game</button>
+    <button id="walk-btn" class="btn ghost">Walk around while you wait</button>
+  </div>
+</section>
+
+<!-- FORTY SECONDS -->
 <div id="condemned">
   <div class="cap">Your thread is held</div>
   <div id="decree-text"></div>
   <div class="fine">Do this out loud, in the room, right now. Nobody is told it was you.</div>
   <div id="big-count">40</div>
-  <button id="obey-btn" class="btn danger" style="max-width:260px">I did it</button>
+  <button id="obey-btn" class="btn">I did it</button>
 </div>
 
 <script>
 "use strict";
 /* ===========================================================================
-   ATROPOS - client
-
-   The world is a ring of living threads around a turning spindle. Everything
-   on screen is generated: no textures, no models, no audio files. The look
-   comes from a custom strand shader and a hand-rolled bloom chain, and the
-   sound is synthesised on the fly.
+   ATROPOS ISLAND - client
    =========================================================================== */
 
 const $ = (id) => document.getElementById(id);
-const REACTION_GLYPHS = { eye:"\u{1F441}", flame:"\u{1F525}", hand:"✋", skull:"\u{1F480}" };
-const ROLE_GLYPHS = { atropos:"✂", lachesis:"\u{1F9F5}", nyx:"\u{1F319}", mortal:"◇" };
-const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
+const ROLE_EMOJI = { atropos:"✂️", lachesis:"🧵", nyx:"🌙", mortal:"🫒" };
 const PHASE_COPY = {
-  lobby:   { name:"Gathering",     sub:"Waiting for threads" },
-  loom:    { name:"The Loom",      sub:"The lights go down" },
+  lobby:   { name:"The Square",    sub:"Waiting for everyone" },
+  loom:    { name:"The Loom",      sub:"Night falls" },
   decree:  { name:"Forty Seconds", sub:"Someone was told to do something" },
-  agora:   { name:"The Agora",     sub:"Argue out loud. Then vote." },
-  verdict: { name:"The Verdict",   sub:"The room decides" },
+  agora:   { name:"The Agora",     sub:"Argue out loud, then vote" },
+  verdict: { name:"The Verdict",   sub:"The island decides" },
   over:    { name:"The End",       sub:"" }
 };
 
 let state = null, prev = null, net = null, myPid = null;
+let ready = false;          // true once this player has an Eidolon and is in the world
 let clockBase = { remaining:0, duration:1, at:0 };
-let picked = { target:null, manner:0, decree:0 };
+let eidolons = {};          // pid -> {face, skin, hair, shirt, faceTexture}
+let myEidolon = null;
+let decreePick = 0, decreeOffset = 0;
+let walking = false;
 
 const store = {
-  get(code){ try { return JSON.parse(localStorage.getItem("atropos:"+code) || "null"); } catch(e){ return null; } },
-  set(code,v){ try { localStorage.setItem("atropos:"+code, JSON.stringify(v)); } catch(e){} },
-  name(){ try { return localStorage.getItem("atropos:name") || ""; } catch(e){ return ""; } },
-  setName(v){ try { localStorage.setItem("atropos:name", v); } catch(e){} }
+  get(k){ try { return JSON.parse(localStorage.getItem("atropos:"+k) || "null"); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem("atropos:"+k, JSON.stringify(v)); } catch(e){} }
 };
 
 /* ===========================================================================
-   AUDIO - everything synthesised, nothing downloaded
+   EIDOLON MAKER
    =========================================================================== */
-const Audio_ = (() => {
-  let ctx = null, master = null, drone = null, on = true, heart = null;
+const maker = {
+  image: null, zoom: 1.3, offY: 0,
+  hand: Eidolon.randomChoice(),
+  result: null,
+  mode: "hand"
+};
 
-  function ensure(){
-    if (ctx) return ctx;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return null;
-    ctx = new AC();
-    master = ctx.createGain();
-    master.gain.value = 0.5;
-    master.connect(ctx.destination);
-    return ctx;
-  }
-
-  /* A low bed of two detuned oscillators through a slow filter sweep. */
-  function startDrone(){
-    if (!ensure() || drone) return;
-    drone = ctx.createGain();
-    drone.gain.value = 0;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 240;
-    filter.Q.value = 3;
-    [55, 55.6, 82.5].forEach((hz, i) => {
-      const o = ctx.createOscillator();
-      o.type = i === 2 ? "triangle" : "sawtooth";
-      o.frequency.value = hz;
-      const g = ctx.createGain();
-      g.gain.value = i === 2 ? 0.12 : 0.2;
-      o.connect(g).connect(filter);
-      o.start();
-    });
-    // A very slow LFO on the cutoff keeps the bed from sitting still.
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.045;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 110;
-    lfo.connect(lfoGain).connect(filter.frequency);
-    lfo.start();
-
-    filter.connect(drone).connect(master);
-    drone.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 4);
-  }
-
-  function tone({ freq=440, type="sine", dur=0.4, gain=0.3, sweep=null, delay=0 }){
-    if (!ensure() || !on) return;
-    const t0 = ctx.currentTime + delay;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(freq, t0);
-    if (sweep) o.frequency.exponentialRampToValueAtTime(Math.max(1, sweep), t0 + dur);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(master);
-    o.start(t0); o.stop(t0 + dur + 0.05);
-  }
-
-  /* Filtered noise burst - used for the shear and for sparks. */
-  function noise({ dur=0.3, gain=0.3, freq=2400, q=1, type="bandpass", delay=0 }){
-    if (!ensure() || !on) return;
-    const t0 = ctx.currentTime + delay;
-    const len = Math.ceil(ctx.sampleRate * dur);
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = (Math.random()*2 - 1) * (1 - i/len);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const f = ctx.createBiquadFilter();
-    f.type = type; f.frequency.value = freq; f.Q.value = q;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(gain, t0);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    src.connect(f).connect(g).connect(master);
-    src.start(t0);
-  }
-
-  return {
-    unlock(){
-      if (!ensure()) return;
-      if (ctx.state === "suspended") ctx.resume();
-      startDrone();
-    },
-    toggle(){
-      on = !on;
-      if (master) master.gain.linearRampToValueAtTime(on ? 0.5 : 0, ctx.currentTime + 0.3);
-      return on;
-    },
-    get enabled(){ return on; },
-
-    // A single bell, struck on every phase change.
-    bell(){ tone({ freq:196, type:"sine", dur:2.4, gain:0.22 });
-            tone({ freq:294, type:"sine", dur:1.6, gain:0.1, delay:0.03 }); },
-
-    // The shears: a metallic scrape into a snap.
-    snap(){
-      noise({ dur:0.09, gain:0.45, freq:5200, q:0.8, type:"highpass" });
-      noise({ dur:0.5,  gain:0.3,  freq:900,  q:2,   delay:0.05 });
-      tone({ freq:120, type:"sine", dur:1.3, gain:0.4, sweep:38, delay:0.04 });
-    },
-
-    // Heartbeat during the forty seconds, tightening as it runs out.
-    heartOn(){
-      if (!ensure() || heart) return;
-      let beat = 0;
-      const step = () => {
-        if (!heart) return;
-        const left = clockLeft();
-        const rate = Math.max(0.34, Math.min(1.0, left/40));   // faster as it drains
-        tone({ freq:58, type:"sine", dur:0.2, gain:0.5, sweep:34 });
-        tone({ freq:52, type:"sine", dur:0.24, gain:0.34, sweep:30, delay:0.19 });
-        beat++;
-        heart = setTimeout(step, rate * 1000);
-      };
-      heart = setTimeout(step, 10);
-    },
-    heartOff(){ if (heart){ clearTimeout(heart); heart = null; } },
-
-    vote(){ tone({ freq:660, type:"triangle", dur:0.13, gain:0.16 }); },
-    gavel(){ noise({ dur:0.24, gain:0.4, freq:320, q:1.4 });
-             tone({ freq:88, type:"sine", dur:0.9, gain:0.3, sweep:44 }); },
-    win(good){
-      const notes = good ? [262,330,392,523] : [247,208,175,131];
-      notes.forEach((f,i) => tone({ freq:f, type:"sine", dur:1.8, gain:0.2, delay:i*0.16 }));
-    }
-  };
-})();
-
-function clockLeft(){
-  return Math.max(0, clockBase.remaining - (performance.now() - clockBase.at)/1000);
+function paintPreview(){
+  const out = maker.mode === "photo" && maker.image
+    ? Eidolon.render(maker.image, { zoom: maker.zoom, offsetY: maker.offY })
+    : Eidolon.drawn("", maker.hand);
+  maker.result = out;
+  const ctx = $("preview").getContext("2d");
+  ctx.clearRect(0,0,128,128);
+  ctx.drawImage(out.canvas, 0, 0, 128, 128);
+  // A photo tells us the colours; a hand-built one is told them.
+  if (maker.mode === "photo") maker.hand = Object.assign({}, out.colors);
+  markSwatches();
 }
 
-function buzz(pattern){
-  if (navigator.vibrate && !REDUCED) { try { navigator.vibrate(pattern); } catch(e){} }
-}
-
-/* ===========================================================================
-   THE WORLD
-   =========================================================================== */
-const World = (() => {
-  let renderer, scene, camera, spindle, spindleCore, motes, sparks;
-  let threads = [], voteLines = null;
-  const RADIUS = 7.4;
-  const STRAND_H = 6.5;
-  let t = 0, quality = 1, shake = 0, lastFrame = performance.now(), fpsAvg = 60;
-
-  /* -- post-processing chain --------------------------------------------- */
-  let sceneRT, brightRT, blurA, blurB, quadScene, quadCam, quadMesh;
-  const passes = {};
-
-  const QUAD_VERT = `
-    varying vec2 vUv;
-    void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
-  `;
-
-  /* Pull out only what is brighter than the threshold; that is what blooms. */
-  const BRIGHT_FRAG = `
-    varying vec2 vUv;
-    uniform sampler2D tDiffuse;
-    uniform float uThreshold;
-    void main(){
-      vec3 c = texture2D(tDiffuse, vUv).rgb;
-      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-      float k = max(0.0, l - uThreshold) / max(l, 0.0001);
-      gl_FragColor = vec4(c * k, 1.0);
-    }
-  `;
-
-  /* Separable gaussian - run once horizontally, once vertically. */
-  const BLUR_FRAG = `
-    varying vec2 vUv;
-    uniform sampler2D tDiffuse;
-    uniform vec2 uDir;
-    void main(){
-      vec4 sum = texture2D(tDiffuse, vUv) * 0.227;
-      sum += texture2D(tDiffuse, vUv + uDir * 1.3846) * 0.316;
-      sum += texture2D(tDiffuse, vUv - uDir * 1.3846) * 0.316;
-      sum += texture2D(tDiffuse, vUv + uDir * 3.2308) * 0.070;
-      sum += texture2D(tDiffuse, vUv - uDir * 3.2308) * 0.070;
-      gl_FragColor = sum;
-    }
-  `;
-
-  /* Composite: bloom, a whisper of chromatic aberration at the edges,
-     filmic tone mapping, vignette and animated grain - all in one pass. */
-  const COMP_FRAG = `
-    varying vec2 vUv;
-    uniform sampler2D tScene;
-    uniform sampler2D tBloom;
-    uniform float uTime, uBloom, uFlash, uAberration;
-    uniform vec3 uFlashColor;
-
-    vec3 aces(vec3 x){
-      return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0);
-    }
-    float hash(vec2 p){
-      return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-    }
-
-    void main(){
-      vec2 uv = vUv;
-      float r2 = dot(uv - 0.5, uv - 0.5);
-
-      // No chromatic aberration. Against thin bright geometry on black it
-      // shears every thread into red and blue ghosts. Bloom does the work.
-      vec3 col = texture2D(tScene, uv).rgb;
-      col += texture2D(tBloom, uv).rgb * uBloom;
-      // Weighted to the edges so a cut reads as the room flaring, not as a
-      // flat wash that hides the wheel.
-      col += uFlashColor * uFlash * (0.18 + r2 * 2.4);
-
-      col = aces(col * 1.02);
-
-      float vig = smoothstep(1.55, 0.10, r2 * 2.1);
-      col *= vig;
-
-      float g = hash(uv * vec2(1024.0, 768.0) + fract(uTime)) - 0.5;
-      col += g * 0.018;
-
-      gl_FragColor = vec4(col, 1.0);
-    }
-  `;
-
-  /* A living thread. The strand carries light down its length; the pulse
-     travels faster and hotter when the thread is being looked at. */
-  const STRAND_VERT = `
-    varying vec2 vUv;
-    varying vec3 vNormalW;
-    varying vec3 vViewDir;
-    void main(){
-      vUv = uv;
-      vec4 world = modelMatrix * vec4(position, 1.0);
-      vNormalW = normalize(mat3(modelMatrix) * normal);
-      vViewDir = normalize(cameraPosition - world.xyz);
-      gl_Position = projectionMatrix * viewMatrix * world;
-    }
-  `;
-
-  const STRAND_FRAG = `
-    varying vec2 vUv;
-    varying vec3 vNormalW;
-    varying vec3 vViewDir;
-    uniform float uTime, uAlive, uHeat, uSeed, uSever;
-    uniform vec3 uColor, uDead;
-
-    void main(){
-      // Pulses running down the strand.
-      float flow = sin(vUv.y * 15.0 - uTime * (2.0 + uHeat * 3.0) + uSeed) * 0.5 + 0.5;
-      flow = pow(flow, 3.0);
-
-      // A second, slower travelling wave keeps it from looking like a loop.
-      float slow = pow(sin(vUv.y * 4.0 - uTime * 0.7 + uSeed * 2.0) * 0.5 + 0.5, 2.0);
-
-      // Fade both ends into the fog so the thread has no visible termination.
-      float ends = smoothstep(0.0, 0.16, vUv.y) * smoothstep(1.0, 0.84, vUv.y);
-
-      // Rim light along the silhouette.
-      float fres = pow(1.0 - abs(dot(normalize(vNormalW), normalize(vViewDir))), 2.2);
-
-      // The severed gap opens outward from the middle of the strand.
-      float gap = 1.0 - smoothstep(0.0, 0.20, abs(vUv.y - 0.5) - uSever * 0.42);
-      float cutMask = 1.0 - gap * step(0.001, uSever);
-
-      // Kept deliberately under 1.0 at rest so only the travelling pulse
-      // crosses the bloom threshold. Otherwise every thread reads as white.
-      vec3 base = mix(uDead, uColor, uAlive) * 1.05;
-      vec3 col = base * (0.5 + flow * 0.95 + slow * 0.3) + base * fres * 0.7;
-      col *= 1.0 + uHeat * 1.8;
-
-      float a = ends * (0.58 + flow * 0.55 + fres * 0.45) * cutMask;
-      gl_FragColor = vec4(col, a);
-    }
-  `;
-
-  /* Sparks thrown off the moment a thread parts. */
-  const SPARK_VERT = `
-    attribute vec3 aVel;
-    attribute float aSeed;
-    uniform float uAge;
-    varying float vLife;
-    void main(){
-      float life = clamp(1.0 - uAge / 1.5, 0.0, 1.0);
-      vLife = life * life;
-      vec3 p = position + aVel * uAge + vec3(0.0, -1.7 * uAge * uAge, 0.0);
-      vec4 mv = modelViewMatrix * vec4(p, 1.0);
-      gl_PointSize = (1.0 + aSeed * 4.0) * life * 26.0 / max(0.001, -mv.z);
-      gl_Position = projectionMatrix * mv;
-    }
-  `;
-  const SPARK_FRAG = `
-    varying float vLife;
-    uniform vec3 uColor;
-    void main(){
-      vec2 d = gl_PointCoord - 0.5;
-      float m = 1.0 - smoothstep(0.0, 0.5, length(d));
-      gl_FragColor = vec4(uColor * (1.0 + vLife * 2.0), m * vLife);
-    }
-  `;
-
-  function makeQuad(fragment, uniforms){
-    return new THREE.ShaderMaterial({
-      vertexShader: QUAD_VERT, fragmentShader: fragment, uniforms, depthTest:false, depthWrite:false
-    });
-  }
-
-  function buildPost(){
-    const w = Math.max(1, Math.floor(innerWidth * quality));
-    const h = Math.max(1, Math.floor(innerHeight * quality));
-    const bw = Math.max(1, Math.floor(w / 4));
-    const bh = Math.max(1, Math.floor(h / 4));
-    const opts = { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, format:THREE.RGBAFormat };
-
-    [sceneRT, brightRT, blurA, blurB].forEach(rt => rt && rt.dispose());
-    sceneRT  = new THREE.WebGLRenderTarget(w, h, opts);
-    brightRT = new THREE.WebGLRenderTarget(bw, bh, opts);
-    blurA    = new THREE.WebGLRenderTarget(bw, bh, opts);
-    blurB    = new THREE.WebGLRenderTarget(bw, bh, opts);
-
-    if (!quadScene){
-      quadScene = new THREE.Scene();
-      quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-      quadMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null);
-      quadScene.add(quadMesh);
-
-      passes.bright = makeQuad(BRIGHT_FRAG, {
-        tDiffuse:{ value:null }, uThreshold:{ value:0.72 }
-      });
-      passes.blur = makeQuad(BLUR_FRAG, {
-        tDiffuse:{ value:null }, uDir:{ value:new THREE.Vector2() }
-      });
-      passes.comp = makeQuad(COMP_FRAG, {
-        tScene:{ value:null }, tBloom:{ value:null },
-        uTime:{ value:0 }, uBloom:{ value:1.05 }, uFlash:{ value:0 },
-        uAberration:{ value:0.35 }, uFlashColor:{ value:new THREE.Color(0xC4162A) }
-      });
-    }
-  }
-
-  function runPass(material, target){
-    quadMesh.material = material;
-    renderer.setRenderTarget(target || null);
-    renderer.render(quadScene, quadCam);
-  }
-
-  /* -- construction ------------------------------------------------------- */
-  function init(){
-    const canvas = $("scene");
-    renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, powerPreference:"high-performance" });
-    quality = Math.min(devicePixelRatio || 1, 1.6);
-    renderer.setPixelRatio(1);            // the render targets carry resolution
-    renderer.setSize(innerWidth, innerHeight, false);
-    renderer.setClearColor(0x06060b, 1);
-
-    scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x06060b, 0.028);
-    camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 120);
-
-    buildSpindle();
-    buildMotes();
-    buildFloor();
-    buildSparks();
-    buildPost();
-
-    addEventListener("resize", resize, { passive:true });
-    renderer.setAnimationLoop(frame);
-  }
-
-  function buildFloor(){
-    // Concentric rings that read as a loom bed without needing a texture.
-    const g = new THREE.Group();
-    for (let i = 0; i < 7; i++){
-      const r = 2.6 + i * 2.9;
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(r, r + 0.012, 96),
-        new THREE.MeshBasicMaterial({
-          color:0xd9a441, transparent:true, opacity:0.16 - i*0.019, side:THREE.DoubleSide
-        })
-      );
-      ring.rotation.x = -Math.PI/2;
-      g.add(ring);
-    }
-    g.position.y = -4.6;
-    scene.add(g);
-  }
-
-  function buildSpindle(){
-    spindle = new THREE.Group();
-    spindle.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(0.045, 0.045, 2.4, 12),
-      new THREE.MeshBasicMaterial({ color:0xC9A05A })
-    ));
-    for (let i = 0; i < 3; i++){
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.46 - i*0.11, 0.013, 8, 48),
-        new THREE.MeshBasicMaterial({ color:0xd9a441, transparent:true, opacity:0.95 })
-      );
-      ring.rotation.x = Math.PI/2;
-      ring.position.y = -0.62 + i*0.62;
-      spindle.add(ring);
-    }
-    // A soft core so the spindle blooms.
-    spindleCore = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 16, 16),
-      new THREE.MeshBasicMaterial({ color:0xE8C88A, transparent:true, opacity:0.7 })
-    );
-    spindle.add(spindleCore);
-    scene.add(spindle);
-  }
-
-  function buildMotes(){
-    const N = 240, pos = new Float32Array(N*3), seed = new Float32Array(N);
-    for (let i = 0; i < N; i++){
-      const r = 2.5 + Math.pow(Math.random(), 0.6) * 16;
-      const a = Math.random()*Math.PI*2;
-      pos[i*3] = Math.cos(a)*r;
-      pos[i*3+1] = (Math.random()-0.5)*11;
-      pos[i*3+2] = Math.sin(a)*r;
-      seed[i] = Math.random();
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
-    motes = new THREE.Points(geo, new THREE.ShaderMaterial({
-      transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
-      uniforms:{ uTime:{ value:0 } },
-      vertexShader:`
-        attribute float aSeed; varying float vA; uniform float uTime;
-        void main(){
-          vec3 p = position;
-          p.y += sin(uTime * 0.25 + aSeed * 30.0) * 0.7;
-          vec4 mv = modelViewMatrix * vec4(p, 1.0);
-          vA = 0.18 + 0.55 * pow(sin(uTime * 0.8 + aSeed * 22.0) * 0.5 + 0.5, 2.0);
-          gl_PointSize = (1.0 + aSeed * 1.6) * 20.0 / max(0.001, -mv.z);
-          gl_Position = projectionMatrix * mv;
-        }`,
-      fragmentShader:`
-        varying float vA;
-        void main(){
-          float m = 1.0 - smoothstep(0.0, 0.5, length(gl_PointCoord - 0.5));
-          gl_FragColor = vec4(vec3(0.72, 0.55, 0.24), m * vA * 0.4);
-        }`
-    }));
-    scene.add(motes);
-  }
-
-  function buildSparks(){
-    const N = 260;
-    const pos = new Float32Array(N*3), vel = new Float32Array(N*3), seed = new Float32Array(N);
-    for (let i = 0; i < N; i++){
-      const a = Math.random()*Math.PI*2, b = Math.acos(Math.random()*2-1);
-      const s = 0.5 + Math.random()*2.2;
-      vel[i*3]   = Math.sin(b)*Math.cos(a)*s;
-      vel[i*3+1] = Math.abs(Math.cos(b))*s*0.8;
-      vel[i*3+2] = Math.sin(b)*Math.sin(a)*s;
-      seed[i] = Math.random();
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute("aVel", new THREE.BufferAttribute(vel, 3));
-    geo.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
-    sparks = new THREE.Points(geo, new THREE.ShaderMaterial({
-      transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
-      uniforms:{ uAge:{ value:99 }, uColor:{ value:new THREE.Color(0xff6a4a) } },
-      vertexShader:SPARK_VERT, fragmentShader:SPARK_FRAG
-    }));
-    sparks.visible = false;
-    scene.add(sparks);
-  }
-
-  function nameTexture(player, dim){
-    const c = document.createElement("canvas");
-    c.width = 640; c.height = 160;
-    const g = c.getContext("2d");
-    g.clearRect(0,0,640,160);
-    g.font = "700 64px ui-monospace, SFMono-Regular, Menlo, monospace";
-    g.textAlign = "center"; g.textBaseline = "middle";
-    const text = (player.name || "").slice(0, 14).split("").join(" ");
-    if (dim){
-      g.shadowColor = "#7A5CC4"; g.shadowBlur = 22;
-      g.fillStyle = "#9B84D8"; g.globalAlpha = 0.85;
-    } else {
-      g.shadowColor = "#D9A441"; g.shadowBlur = 26;
-      g.fillStyle = "#FFF6E2";
-    }
-    g.fillText(text, 320, 82);
-    const tex = new THREE.CanvasTexture(c);
-    tex.minFilter = THREE.LinearFilter;
-    return tex;
-  }
-
-  /* One player = one warp thread of the loom: a spoke running from their node
-     on the rim into the spindle at the centre. Seen from above the whole room
-     reads as a wheel, and a cut spoke is unmistakable. */
-  function makeThread(player, index, total){
-    const group = new THREE.Group();
-    const angle = (index/total)*Math.PI*2;
-    group.rotation.y = -angle;
-
-    const mat = new THREE.ShaderMaterial({
-      vertexShader:STRAND_VERT, fragmentShader:STRAND_FRAG,
-      transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
-      uniforms:{
-        uTime:{ value:0 }, uAlive:{ value:1 }, uHeat:{ value:0 },
-        uSeed:{ value:Math.random()*10 }, uSever:{ value:0 },
-        uColor:{ value:new THREE.Color(0xF0C069) },
-        uDead:{ value:new THREE.Color(0x7A5CC4) }
+function swatchRow(host, list, key){
+  host.innerHTML = "";
+  list.forEach(hex => {
+    const b = document.createElement("button");
+    b.className = "sw";
+    b.style.background = hex;
+    b.setAttribute("aria-label", key + " " + hex);
+    b.setAttribute("aria-pressed", String(maker.hand[key] === hex));
+    b.onclick = () => {
+      maker.hand[key] = hex;
+      if (key === "shirt" && maker.mode === "photo" && maker.result){
+        maker.result.colors.shirt = hex;   // keep the photo, restyle the outfit
+        markSwatches();
+        return;
       }
-    });
-
-    // The spoke lies along +X; the group's Y rotation swings it into place.
-    const span = RADIUS - 0.7;
-    const strand = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.026, 0.026, span, 6, 1, true), mat);
-    strand.rotation.z = Math.PI/2;
-    strand.position.x = 0.7 + span/2;
-    group.add(strand);
-
-    // The node is the player themself, sitting on the rim.
-    const node = new THREE.Mesh(
-      new THREE.SphereGeometry(0.2, 14, 14),
-      new THREE.MeshBasicMaterial({ color:0xFFE6B0, transparent:true, opacity:0.95 })
-    );
-    node.position.x = RADIUS;
-    group.add(node);
-
-    // A soft halo so each player reads as a light, not a dot.
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-      map:haloTexture(), transparent:true, depthWrite:false,
-      blending:THREE.AdditiveBlending, opacity:0.55
-    }));
-    halo.scale.set(2.1, 2.1, 1);
-    halo.position.x = RADIUS;
-    group.add(halo);
-
-    const plate = new THREE.Sprite(new THREE.SpriteMaterial({
-      map:nameTexture(player, false), transparent:true, depthWrite:false, depthTest:false
-    }));
-    plate.scale.set(3.9, 0.98, 1);
-    plate.position.set(RADIUS + 1.55, 0.1, 0);
-    group.add(plate);
-
-    scene.add(group);
-    return {
-      group, strand, node, halo, plate, mat, angle, pid:player.pid,
-      alive:player.alive, cutAt:null, heat:0, seed:Math.random()*Math.PI*2,
-      pos:new THREE.Vector3(Math.cos(angle)*RADIUS, 0, -Math.sin(angle)*RADIUS)
+      if (maker.mode === "photo" && key !== "shirt") maker.mode = "photo";
+      paintPreview();
     };
-  }
-
-  let _halo = null;
-  function haloTexture(){
-    if (_halo) return _halo;
-    const c = document.createElement("canvas");
-    c.width = c.height = 128;
-    const g = c.getContext("2d");
-    const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    grd.addColorStop(0,    "rgba(255,228,170,0.95)");
-    grd.addColorStop(0.25, "rgba(230,175,80,0.35)");
-    grd.addColorStop(1,    "rgba(230,175,80,0)");
-    g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
-    _halo = new THREE.CanvasTexture(c);
-    return _halo;
-  }
-
-  function threadFor(pid){ return threads.find(t => t.pid === pid); }
-
-  function sync(players){
-    const same = threads.length === players.length &&
-                 threads.every((t,i) => t.pid === players[i].pid);
-    if (!same){
-      threads.forEach(t => scene.remove(t.group));
-      threads = players.map((p,i) => makeThread(p, i, Math.max(players.length,1)));
-      return;
-    }
-    players.forEach((p,i) => {
-      const t = threads[i];
-      if (t.alive && !p.alive) sever(t, p);
-      else if (!t.alive && p.alive) restore(t, p);
-    });
-  }
-
-  function sever(t, player){
-    t.alive = false;
-    t.cutAt = 0;
-    t.mat.uniforms.uAlive.value = 0;
-    t.plate.material.map = nameTexture(player, true);
-    t.plate.material.needsUpdate = true;
-
-    // Sparks fly from the middle of the spoke, where it parts.
-    sparks.position.copy(t.pos).multiplyScalar(0.55);
-    sparks.material.uniforms.uAge.value = 0;
-    sparks.visible = true;
-
-    shake = 1;
-    flash(0xC4162A, 0.5);
-  }
-
-  function restore(t, player){
-    t.alive = true; t.cutAt = null;
-    t.group.position.y = 0;
-    t.node.position.set(RADIUS, 0, 0);
-    t.node.material.color.setHex(0xFFE6B0);
-    t.halo.material.opacity = 0.55;
-    t.mat.uniforms.uAlive.value = 1;
-    t.mat.uniforms.uSever.value = 0;
-    t.plate.material.map = nameTexture(player, false);
-    t.plate.material.needsUpdate = true;
-  }
-
-  let flashAmount = 0, flashColor = new THREE.Color(0xC4162A);
-  function flash(hex, amount){ flashColor.setHex(hex); flashAmount = amount; }
-
-  /* Threads run hot when they are being voted on or targeted. */
-  function setHeat(map){
-    threads.forEach(t => { t.heat = (map && map[t.pid]) || 0; });
-  }
-
-  function setVotes(votes){
-    if (voteLines){ scene.remove(voteLines); voteLines.geometry.dispose(); voteLines = null; }
-    if (!votes) return;
-    const pts = [];
-    for (const voter in votes){
-      const a = threadFor(voter), b = threadFor(votes[voter]);
-      if (!a || !b) continue;
-      // Bow the accusation up and over the wheel so it reads across the rim.
-      const mid = new THREE.Vector3().addVectors(a.pos, b.pos).multiplyScalar(0.42);
-      mid.y = 2.6;
-      const curve = new THREE.QuadraticBezierCurve3(
-        a.pos.clone().setY(0.15), mid, b.pos.clone().setY(0.15)
-      );
-      const seg = curve.getPoints(18);
-      for (let i = 0; i < seg.length - 1; i++){
-        pts.push(seg[i].x, seg[i].y, seg[i].z, seg[i+1].x, seg[i+1].y, seg[i+1].z);
-      }
-    }
-    if (!pts.length) return;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pts), 3));
-    voteLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
-      color:0xC4162A, transparent:true, opacity:0.55, blending:THREE.AdditiveBlending
-    }));
-    scene.add(voteLines);
-  }
-
-  /* -- camera director ---------------------------------------------------- */
-  /* Every shot looks down on the ring so it reads as a circle of threads
-     rather than a row of bars, and sits high in frame where the UI is thin. */
-  const SHOTS = {
-    lobby:   { dist:13.0, height:12.5, look:0, fov:46, speed:0.040, roll:0 },
-    loom:    { dist:12.0, height:9.5,  look:0, fov:48, speed:0.026, roll:0.012 },
-    decree:  { dist:9.0,  height:7.0,  look:0, fov:56, speed:0.12,  roll:0.04 },
-    agora:   { dist:11.0, height:16.0, look:0, fov:44, speed:0.036, roll:0 },
-    verdict: { dist:11.0, height:10.0, look:0, fov:44, speed:0.018, roll:0 },
-    over:    { dist:16.0, height:15.0, look:0, fov:48, speed:0.026, roll:0 }
-  };
-  let shot = { ...SHOTS.lobby }, shotTarget = { ...SHOTS.lobby }, orbit = 0, focusPid = null;
-
-  function cue(phase, pid){
-    shotTarget = { ...(SHOTS[phase] || SHOTS.lobby) };
-    focusPid = pid || null;
-  }
-
-  function updateCamera(dt){
-    // Ease every shot parameter toward the target so cuts feel directed.
-    const k = REDUCED ? 1 : 1 - Math.pow(0.0015, dt);
-    for (const key in shotTarget) shot[key] += (shotTarget[key] - shot[key]) * k;
-
-    orbit += dt * shot.speed;
-
-    // Frame the wheel from the horizontal field of view rather than guessing.
-    // A phone is far narrower than it is tall, so the binding constraint is
-    // always width: solve for the distance that fits the rim plus its name
-    // plates, widen the lens on portrait, and keep the shot's elevation angle.
-    const portrait = camera.aspect < 1;
-    const fov = portrait ? Math.min(72, shot.fov * 1.32) : shot.fov;
-    const vFov = fov * Math.PI/180;
-    const hFov = 2 * Math.atan(Math.tan(vFov/2) * camera.aspect);
-    // `needed` is the true distance from the centre, not the ground radius -
-    // decompose it along the shot's elevation angle or the camera flies away.
-    const needed = (RADIUS + 1.9) / Math.tan(hFov/2);
-    const elevation = Math.atan2(shot.height, shot.dist);
-    const trueDist = Math.max(Math.hypot(shot.dist, shot.height), needed);
-    const dist = trueDist * Math.cos(elevation);
-    const height = trueDist * Math.sin(elevation);
-    const lift = portrait ? -4.6 : -1.2;
-
-    if (Math.abs(camera.fov - fov) > 0.01){
-      camera.fov = fov;
-      camera.updateProjectionMatrix();
-    }
-
-    // When a thread matters, swing the camera around behind it.
-    let angle = orbit;
-    const f = focusPid && threadFor(focusPid);
-    if (f){
-      const want = f.angle + Math.PI;
-      angle = angle + (((want - angle + Math.PI*3) % (Math.PI*2)) - Math.PI) * (1 - Math.pow(0.02, dt));
-      orbit = angle;
-    }
-
-    // Handheld drift keeps a static shot alive.
-    const hx = Math.sin(t*0.43)*0.09 + Math.sin(t*1.31)*0.03;
-    const hy = Math.cos(t*0.37)*0.07 + Math.cos(t*1.11)*0.025;
-    const s = shake * shake;
-
-    camera.position.set(
-      Math.cos(angle)*dist + hx + (Math.random()-0.5)*s*0.5,
-      height + hy + (Math.random()-0.5)*s*0.5,
-      Math.sin(angle)*dist + (Math.random()-0.5)*s*0.5
-    );
-    camera.lookAt(0, shot.look + lift, 0);
-    camera.rotation.z += shot.roll * Math.sin(t*0.6) + (Math.random()-0.5)*s*0.06;
-  }
-
-  /* -- frame -------------------------------------------------------------- */
-  function frame(){
-    const now = performance.now();
-    const dt = Math.min(0.05, (now - lastFrame)/1000);
-    lastFrame = now;
-    t += dt;
-
-    // Drop the render scale on a struggling device rather than stuttering.
-    fpsAvg = fpsAvg*0.94 + (1/Math.max(dt,0.001))*0.06;
-    if (fpsAvg < 34 && quality > 0.62){ quality = 0.62; buildPost(); }
-
-    spindle.rotation.y = t*0.3;
-    spindleCore.scale.setScalar(1 + Math.sin(t*2.1)*0.14);
-    motes.material.uniforms.uTime.value = t;
-    motes.rotation.y = t*0.012;
-
-    threads.forEach(th => {
-      const u = th.mat.uniforms;
-      u.uTime.value = t;
-      u.uHeat.value += (th.heat - u.uHeat.value) * Math.min(1, dt*4);
-      if (th.alive){
-        // A living node breathes on the rim.
-        const b = Math.sin(t*1.4 + th.seed)*0.5 + 0.5;
-        th.node.scale.setScalar(0.9 + b*0.25 + th.heat*0.5);
-        th.halo.material.opacity = 0.4 + b*0.2 + th.heat*0.45;
-        th.group.position.y += (0 - th.group.position.y) * Math.min(1, dt*3);
-      } else {
-        th.cutAt += dt;
-        const age = th.cutAt;
-        u.uSever.value = Math.min(1, age*0.9);
-        // The severed node recoils off the rim and sinks out of the wheel.
-        const k = Math.min(1, age*0.55);
-        th.node.position.x = RADIUS + k*2.4;
-        th.node.position.y = -k*k*3.4;
-        th.halo.position.copy(th.node.position);
-        th.plate.position.set(RADIUS + 1.55 + k*2.4, 0.1 - k*k*3.4, 0);
-        th.node.material.color.setHex(0x7A5CC4);
-        th.node.scale.setScalar(Math.max(0.35, 1 - k*0.6));
-        th.halo.material.opacity = Math.max(0.12, 0.5 - k*0.4);
-      }
-    });
-
-    if (sparks.visible){
-      const age = sparks.material.uniforms.uAge.value + dt;
-      sparks.material.uniforms.uAge.value = age;
-      if (age > 1.5) sparks.visible = false;
-    }
-
-    if (voteLines) voteLines.material.opacity = 0.4 + Math.sin(t*3)*0.16;
-
-    shake = Math.max(0, shake - dt*2.4);
-    flashAmount = Math.max(0, flashAmount - dt*1.4);
-
-    updateCamera(dt);
-
-    // --- render chain ---
-    renderer.setRenderTarget(sceneRT);
-    renderer.clear();
-    renderer.render(scene, camera);
-
-    passes.bright.uniforms.tDiffuse.value = sceneRT.texture;
-    runPass(passes.bright, brightRT);
-
-    const texel = new THREE.Vector2(1/brightRT.width, 1/brightRT.height);
-    passes.blur.uniforms.tDiffuse.value = brightRT.texture;
-    passes.blur.uniforms.uDir.value.set(texel.x, 0);
-    runPass(passes.blur, blurA);
-    passes.blur.uniforms.tDiffuse.value = blurA.texture;
-    passes.blur.uniforms.uDir.value.set(0, texel.y);
-    runPass(passes.blur, blurB);
-    // A second, wider pass gives the bloom a soft halo instead of a hard ring.
-    passes.blur.uniforms.tDiffuse.value = blurB.texture;
-    passes.blur.uniforms.uDir.value.set(texel.x*2.4, 0);
-    runPass(passes.blur, blurA);
-    passes.blur.uniforms.tDiffuse.value = blurA.texture;
-    passes.blur.uniforms.uDir.value.set(0, texel.y*2.4);
-    runPass(passes.blur, blurB);
-
-    const c = passes.comp.uniforms;
-    c.tScene.value = sceneRT.texture;
-    c.tBloom.value = blurB.texture;
-    c.uTime.value = t;
-    c.uFlash.value = flashAmount;
-    c.uFlashColor.value.copy(flashColor);
-    runPass(passes.comp, null);
-  }
-
-  function resize(){
-    if (!renderer) return;
-    camera.aspect = innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight, false);
-    buildPost();
-  }
-
-  return { init, sync, setVotes, setHeat, cue, flash,
-           pulse(hex){ flash(hex, 0.5); } };
-})();
-
-/* ===========================================================================
-   UI
-   =========================================================================== */
-function show(screen){
-  ["gate","lobby","play"].forEach(id => $(id).classList.toggle("on", id === screen));
+    host.appendChild(b);
+  });
 }
 
+function markSwatches(){
+  document.querySelectorAll("#sw-skin .sw").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.style.backgroundColor === hexToRgb(maker.hand.skin))));
+  document.querySelectorAll("#sw-hair .sw").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.style.backgroundColor === hexToRgb(maker.hand.hair))));
+  document.querySelectorAll("#sw-shirt .sw").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.style.backgroundColor === hexToRgb(maker.hand.shirt))));
+}
+function hexToRgb(h){
+  if (!h) return "";
+  const n = parseInt(h.slice(1), 16);
+  return `rgb(${(n>>16)&255}, ${(n>>8)&255}, ${n&255})`;
+}
+
+function setupMaker(){
+  swatchRow($("sw-skin"),  Eidolon.PRESET_SKIN,  "skin");
+  swatchRow($("sw-hair"),  Eidolon.PRESET_HAIR,  "hair");
+  swatchRow($("sw-shirt"), Eidolon.PRESET_SHIRT, "shirt");
+  paintPreview();
+
+  $("pick-btn").onclick = () => $("file-in").click();
+  $("draw-btn").onclick = () => {
+    maker.mode = "hand";
+    maker.hand = Eidolon.randomChoice();
+    $("photo-tools").style.display = "none";
+    $("hand-tools").style.display = "";
+    paintPreview();
+  };
+  $("file-in").onchange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    $("maker-err").textContent = "";
+    try {
+      maker.image = await Eidolon.load(file);
+      maker.mode = "photo";
+      $("photo-tools").style.display = "";
+      $("hand-tools").style.display = "none";
+      paintPreview();
+    } catch(err){
+      $("maker-err").textContent = "Couldn't read that photo. Try another.";
+    }
+  };
+  $("zoom").oninput = (e) => { maker.zoom = e.target.value/100; paintPreview(); };
+  $("offy").oninput = (e) => { maker.offY = e.target.value/100; paintPreview(); };
+  $("enter-btn").onclick = () => {
+    const out = maker.result;
+    const colors = maker.mode === "photo"
+      ? Object.assign({}, out.colors, { shirt: maker.hand.shirt })
+      : maker.hand;
+    myEidolon = { face: out.face, colors };
+    store.set("eidolon", myEidolon);
+    net.send({ t:"eidolon", face: out.face, colors });
+    $("maker").classList.remove("on");
+    ready = true;
+    showLobbyOrGame();
+  };
+}
+
+/* ===========================================================================
+   MOVEMENT
+   =========================================================================== */
+const me = { x:0, z:0, angle:0, vx:0, vz:0, moving:false };
+const input = { mx:0, my:0, keys:{} };
+let lastSent = 0;
+
+function setupControls(){
+  // Virtual stick.
+  const stick = $("stick"), knob = $("knob");
+  let sid = null, cx = 0, cy = 0;
+  const R = 44;
+  stick.addEventListener("pointerdown", (e) => {
+    sid = e.pointerId;
+    const r = stick.getBoundingClientRect();
+    cx = r.left + r.width/2; cy = r.top + r.height/2;
+    stick.setPointerCapture(sid);
+    e.preventDefault();
+  });
+  stick.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== sid) return;
+    let dx = e.clientX - cx, dy = e.clientY - cy;
+    const d = Math.hypot(dx, dy);
+    if (d > R){ dx = dx/d*R; dy = dy/d*R; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    input.mx = dx/R; input.my = dy/R;
+  });
+  const release = (e) => {
+    if (sid !== null && e.pointerId !== sid) return;
+    sid = null; input.mx = input.my = 0;
+    knob.style.transform = "";
+  };
+  stick.addEventListener("pointerup", release);
+  stick.addEventListener("pointercancel", release);
+
+  // Drag anywhere else to swing the camera.
+  let cid = null, lx = 0, ly = 0;
+  $("scene").addEventListener("pointerdown", (e) => {
+    cid = e.pointerId; lx = e.clientX; ly = e.clientY;
+  });
+  addEventListener("pointermove", (e) => {
+    if (e.pointerId !== cid) return;
+    Village.orbit(e.clientX - lx, e.clientY - ly);
+    lx = e.clientX; ly = e.clientY;
+  });
+  addEventListener("pointerup", (e) => { if (e.pointerId === cid) cid = null; });
+  addEventListener("wheel", (e) => Village.zoom(e.deltaY * 0.01), { passive:true });
+
+  addEventListener("keydown", (e) => { input.keys[e.key.toLowerCase()] = true; });
+  addEventListener("keyup",   (e) => { input.keys[e.key.toLowerCase()] = false; });
+
+  document.querySelectorAll("#emotes button").forEach(b => {
+    b.onclick = () => net && net.send({ t:"emote", name: b.dataset.e });
+  });
+}
+
+function stepMovement(dt){
+  if (!net || !myPid) return;
+  let ix = input.mx, iz = input.my;
+  const k = input.keys;
+  if (k.w || k.arrowup)    iz -= 1;
+  if (k.s || k.arrowdown)  iz += 1;
+  if (k.a || k.arrowleft)  ix -= 1;
+  if (k.d || k.arrowright) ix += 1;
+
+  const mag = Math.hypot(ix, iz);
+  const SPEED = 5.4;
+  if (mag > 0.08){
+    ix /= mag; iz /= mag;
+    // Move relative to where the camera is looking, like every 3D game.
+    const yaw = Village.heading() || 0;
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
+    const wx = ix * fz - iz * fx;
+    const wz = -ix * fx - iz * fz;
+    me.x += wx * SPEED * dt;
+    me.z += wz * SPEED * dt;
+    me.angle = Math.atan2(wx, wz);
+    me.moving = true;
+  } else {
+    me.moving = false;
+  }
+
+  // Nudge out of anyone we are standing inside, so a crowd spreads instead of
+  // stacking into one pile.
+  const sep = Village.separation(myPid, me.x, me.z) || [0, 0];
+  me.x += sep[0] * dt * 9;
+  me.z += sep[1] * dt * 9;
+
+  const r = Math.hypot(me.x, me.z);
+  if (r > Village.VILLAGE_RADIUS){
+    me.x *= Village.VILLAGE_RADIUS / r;
+    me.z *= Village.VILLAGE_RADIUS / r;
+  }
+
+  Village.setSelf(myPid, me.x, me.z, me.angle, me.moving);
+
+  const now = performance.now();
+  if (now - lastSent > 100){          // ~10 a second, matched to the server frame
+    lastSent = now;
+    net.send({ t:"move", x:+me.x.toFixed(2), z:+me.z.toFixed(2),
+               a:+me.angle.toFixed(2), m: me.moving ? 1 : 0 });
+  }
+}
+
+let lastTick = performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastTick)/1000);
+  lastTick = now;
+  stepMovement(dt);
+  tickClock();
+}
+requestAnimationFrame(loop);
+
+/* ===========================================================================
+   CLOCK
+   =========================================================================== */
 function setClock(remaining, duration){
   clockBase = { remaining, duration: duration || 1, at: performance.now() };
 }
-
+function clockLeft(){
+  return Math.max(0, clockBase.remaining - (performance.now() - clockBase.at)/1000);
+}
 function tickClock(){
-  requestAnimationFrame(tickClock);
   if (!state || state.phase === "lobby") return;
-  const left = clockLeft();
-  const secs = Math.ceil(left);
-  const frac = clockBase.duration ? left/clockBase.duration : 0;
-  $("clock-num").textContent = secs;
-  $("clock-fill").style.strokeDashoffset = String(138.2 * (1 - frac));
-  $("clock").classList.toggle("urgent", left <= 10);
+  const left = clockLeft(), secs = Math.ceil(left);
+  $("clock-pill").textContent = secs;
+  $("clock-pill").classList.toggle("urgent", left <= 10);
   if ($("condemned").classList.contains("on")) $("big-count").textContent = secs;
 }
-requestAnimationFrame(tickClock);
 
+/* ===========================================================================
+   RENDER
+   =========================================================================== */
 function render(s){
   prev = state; state = s;
-  const me = s.me || {};
+  const m = s.me || {};
   const phase = s.phase;
-  const copy = PHASE_COPY[phase] || { name:phase, sub:"" };
   const changed = !prev || prev.phase !== phase || prev.round !== s.round;
 
-  World.sync(s.players);
-  World.setVotes(phase === "agora" ? s.votes : null);
+  Village.sync(s.players, eidolons);
+  if (myPid) Village.setFollow(myPid);
 
-  // Heat: what the camera and the threads should care about right now.
-  const heat = {};
-  if (phase === "agora" && s.votes){
-    const counts = {};
-    Object.values(s.votes).forEach(p => { counts[p] = (counts[p]||0)+1; });
-    const max = Math.max(1, ...Object.values(counts));
-    Object.keys(counts).forEach(p => { heat[p] = counts[p]/max; });
-  }
-  if (phase === "loom" && me.role === "atropos" && me.cut) heat[me.cut] = 1;
-  if (phase === "decree" && me.condemned) heat[me.pid] = 1;
-  World.setHeat(heat);
+  // Mark who you have voted for with a ring under their feet.
+  const marks = {};
+  if (phase === "agora" && m.vote) marks[m.vote] = true;
+  Village.setMarkers(marks);
 
   if (changed){
-    const focus = phase === "verdict" && s.lastVerdict ? s.lastVerdict.pid
-                : phase === "decree" && s.lastCut ? s.lastCut.pid
-                : null;
-    World.cue(phase, focus);
-    if (phase !== "lobby") Audio_.bell();
-    if (phase === "decree"){ Audio_.heartOn(); buzz([30,60,30]); }
-    else Audio_.heartOff();
-    if (phase === "verdict"){ Audio_.gavel(); World.flash(0xD9A441, 0.5); }
-    if (phase === "over"){ Audio_.win(s.winner === "mortals"); }
+    if (phase === "decree") Village.flash(0xE04B3C, 0.5);
+    if (phase === "verdict") Village.flash(0xE8A33D, 0.4);
+    if (navigator.vibrate && phase === "decree") { try { navigator.vibrate([30,60,30]); } catch(e){} }
+  }
+  const newCut = s.lastCut && (!prev || !prev.lastCut || prev.lastCut.pid !== s.lastCut.pid);
+  if (newCut){
+    Village.flash(0xE04B3C, 0.9);
+    if (navigator.vibrate) { try { navigator.vibrate([0,90,50,140]); } catch(e){} }
   }
 
-  // A thread parting is the loudest moment in the game.
-  const newCut = s.lastCut && (!prev || !prev.lastCut || prev.lastCut.pid !== s.lastCut.pid);
-  if (newCut){ Audio_.snap(); buzz([0,90,50,140]); }
-
-  $("top").classList.toggle("hidden", phase === "lobby");
+  const copy = PHASE_COPY[phase] || { name:phase, sub:"" };
   $("phase-name").textContent = copy.name;
-  $("phase-sub").textContent = phase === "over"
-    ? (s.winner === "atropos" ? "The shears are kept" : "The shears are broken")
-    : (s.round ? `Round ${s.round} · ${copy.sub}` : copy.sub);
+  $("phase-sub").textContent = s.round && phase !== "lobby"
+    ? `Round ${s.round} · ${copy.sub}` : copy.sub;
   setClock(s.remaining, s.duration);
 
-  renderLog(s);
-  if (phase === "lobby"){ renderLobby(s, me); show("lobby"); }
-  else { renderPlay(s, me); show("play"); }
-  renderCondemned(s, me);
+  if (phase === "lobby"){
+    renderLobby(s, m);
+  } else {
+    $("lobby").classList.remove("on");
+    $("top").classList.remove("hidden");
+    $("hud").classList.remove("hidden");
+    $("stick").classList.add("on");
+    $("emotes").classList.add("on");
+    renderPlay(s, m);
+  }
+  renderCondemned(s, m);
 }
 
-function renderLobby(s, me){
-  $("code").textContent = s.code;
-  $("roster").innerHTML = "";
+function faceOf(pid){
+  const e = eidolons[pid];
+  return e && e.face ? e.face : null;
+}
+
+function renderLobby(s, m){
+  if (!walking) $("lobby").classList.add("on");
+  $("top").classList.add("hidden");
+  $("hud").classList.add("hidden");
+  $("stick").classList.toggle("on", walking);
+  $("emotes").classList.toggle("on", walking);
+
+  $("code-big").textContent = s.code;
+  const roster = $("roster");
+  roster.innerHTML = "";
   s.players.forEach(p => {
     const el = document.createElement("div");
-    el.className = "chip" + (p.host ? " host" : "") + (p.pid === myPid ? " self" : "")
-                 + (p.connected ? "" : " off");
-    el.textContent = p.name + (p.host ? " ★" : "");
-    $("roster").appendChild(el);
+    el.className = "who-chip";
+    const f = faceOf(p.pid);
+    el.innerHTML = (f ? `<img src="${f}" alt="">` : `<div class="ph"></div>`)
+      + `<span>${escapeHtml(p.name)}${p.host ? " ⭐" : ""}</span>`;
+    roster.appendChild(el);
   });
   const n = s.players.length, enough = n >= s.minPlayers;
   $("lobby-note").textContent = enough
-    ? `${n} of ${s.maxPlayers} · ready when you are`
-    : `${n} of ${s.minPlayers} needed · share the code`;
+    ? `${n} of ${s.maxPlayers} here` : `Need ${s.minPlayers - n} more`;
   const start = $("start-btn");
-  start.style.display = me.host ? "" : "none";
+  start.style.display = m.host ? "" : "none";
   start.disabled = !enough;
-  start.textContent = enough ? "Begin" : `Need ${s.minPlayers - n} more`;
-  $("sheet").classList.add("hidden");
-  $("log").classList.remove("hidden");
 }
 
-function renderPlay(s, me){
-  $("sheet").classList.remove("hidden");
-  $("log").classList.remove("hidden");
-  renderRole(s, me);
-  $("targets").innerHTML = ""; $("reveal").innerHTML = "";
-  $("options").innerHTML = ""; $("actions").innerHTML = "";
-  $("reveal").className = "reveal";
+function renderPlay(s, m){
+  const targets = $("targets"), options = $("options"), actions = $("actions"), reveal = $("reveal");
+  targets.innerHTML = ""; options.innerHTML = ""; actions.innerHTML = ""; reveal.innerHTML = "";
 
-  if (s.phase === "loom")    return renderLoom(s, me);
-  if (s.phase === "decree")  return renderDecreeWatch(s, me);
-  if (s.phase === "agora")   return renderAgora(s, me);
-  if (s.phase === "verdict") return renderVerdict(s, me);
-  if (s.phase === "over")    return renderOver(s, me);
+  const strip = $("role-strip");
+  if (m.role){
+    strip.style.display = "";
+    strip.className = m.role + (m.alive ? "" : " dead");
+    strip.querySelector(".em").textContent = m.alive ? (ROLE_EMOJI[m.role]||"") : "👻";
+    strip.querySelector(".t").textContent = m.alive ? m.title : "SHADE · " + m.title;
+    strip.querySelector(".d").textContent = m.alive ? m.howto
+      : "You can see everything now. Spend your one Omen well.";
+  } else strip.style.display = "none";
+
+  if (s.phase === "loom")    return renderLoom(s, m);
+  if (s.phase === "decree")  return renderDecreeWatch(s, m);
+  if (s.phase === "agora")   return renderAgora(s, m);
+  if (s.phase === "verdict") return renderVerdict(s, m);
+  if (s.phase === "over")    return renderOver(s, m);
 }
 
-function renderRole(s, me){
-  const card = $("role");
-  if (!me.role){ card.classList.add("hidden"); return; }
-  card.className = me.role + (me.alive ? "" : " dead");
-  card.querySelector(".glyph").textContent = me.alive ? (ROLE_GLYPHS[me.role] || "") : "\u{1F311}";
-  card.querySelector(".ttl").textContent = me.alive ? me.title : `SHADE · ${me.title}`;
-  card.querySelector(".how").textContent = me.alive
-    ? me.howto
-    : "You see everything now. Spend your one Omen wisely, and keep quiet otherwise.";
-}
-
-function renderLoom(s, me){
-  const others = s.players.filter(p => p.alive && p.pid !== me.pid);
-  if (!me.alive){ $("hint").textContent = "The living are asleep. You are not."; return; }
-
-  if (me.role === "atropos"){
-    $("hint").textContent = me.cut
-      ? "Chosen. You may still change your mind."
-      : "Choose a thread to cut, and an order they must obey.";
-    buildTargets(others, me.cut, (pid) => {
-      picked.target = pid;
-      Audio_.vote();
-      net.send({ t:"cut", target:pid, manner:picked.manner, decree:picked.decree });
-    });
-    // Four at a time, not twelve. The whole list does not fit on a phone, and
-    // a party game should not open with a wall of choices.
-    decreeChoices(s).forEach((i) => {
-      const b = document.createElement("button");
-      b.className = "mini" + (i === picked.decree ? " sel" : "");
-      b.textContent = s.decrees[i];
-      b.onclick = () => {
-        picked.decree = i;
-        const target = picked.target || me.cut;
-        if (target) net.send({ t:"cut", target, manner:picked.manner, decree:i });
-        else renderPlay(state, me);
-      };
-      $("options").appendChild(b);
-    });
-    const shuffle = document.createElement("button");
-    shuffle.className = "mini";
-    shuffle.textContent = "↻ other orders";
-    shuffle.onclick = () => { decreeOffset += 4; renderPlay(state, me); };
-    $("options").appendChild(shuffle);
-    return;
-  }
-
-  if (me.role === "lachesis"){
-    if (me.measured){
-      const f = me.findings[me.findings.length - 1];
-      $("hint").innerHTML = f.atropos
-        ? `<b style="color:var(--cut)">${escapeHtml(f.name)} HOLDS THE SHEARS.</b>`
-        : `${escapeHtml(f.name)} is clean. Sleep on it.`;
-    } else {
-      $("hint").textContent = "Take one thread in your hands. You will know what it is.";
-      buildTargets(others, null, (pid) => { Audio_.vote(); net.send({ t:"measure", target:pid }); }, true);
-    }
-    renderFindings(me);
-    return;
-  }
-
-  if (me.role === "nyx"){
-    const names = s.players.filter(p => (me.knows || []).includes(p.pid)).map(p => p.name);
-    $("hint").innerHTML = `Sleep. You already know: <b style="color:var(--cut)">${escapeHtml(names.join(", "))}</b>`;
-    return;
-  }
-  $("hint").textContent = "Sleep. The room is dark, and it is not your turn.";
-}
-
-let decreeOffset = 0;
-
-/* A stable window of four decrees, rotated by the shuffle button. */
-function decreeChoices(s){
-  const n = (s.decrees || []).length;
-  if (!n) return [];
-  const start = (s.round * 3 + decreeOffset) % n;
-  return [0,1,2,3].map(k => (start + k) % n);
-}
-
-function renderFindings(me){
-  (me.findings || []).forEach(f => {
-    const el = document.createElement("div");
-    el.className = "mini";
-    el.style.borderColor = f.atropos ? "var(--cut)" : "var(--line)";
-    el.style.color = f.atropos ? "var(--cut)" : "var(--dim)";
-    el.textContent = `${f.name} · ${f.atropos ? "ATROPOS" : "clean"}`;
-    $("options").appendChild(el);
-  });
-}
-
-function renderDecreeWatch(s, me){
-  const decree = (s.log.filter(e => e.kind === "decree").slice(-1)[0] || {}).text || "";
-  $("reveal").innerHTML = `
-    <div class="label">Someone in this room was just told</div>
-    <div class="big" style="color:var(--cut)">${escapeHtml(decree)}</div>
-    <div class="who">Watch. Whoever does it is already gone.</div>`;
-  $("hint").textContent = me.alive
-    ? "Say nothing. Just watch who moves."
-    : "You already know who it is. Enjoy it.";
-}
-
-function renderAgora(s, me){
-  const living = s.players.filter(p => p.alive);
-  const tallies = {};
-  Object.values(s.votes || {}).forEach(pid => { tallies[pid] = (tallies[pid]||0)+1; });
-
-  if (me.alive){
-    $("hint").textContent = "Argue out loud. Tap a name to vote. Tap again to take it back.";
-    buildTargets(living.filter(p => p.pid !== me.pid), me.vote,
-      (pid) => { Audio_.vote(); net.send({ t:"vote", target:pid }); }, false, tallies, me);
-    (s.calls || []).slice(0,4).forEach((text,i) => {
-      const b = document.createElement("button");
-      b.className = "mini"; b.textContent = text;
-      b.onclick = () => net.send({ t:"call", index:i });
-      $("actions").appendChild(b);
-    });
-  } else {
-    $("hint").textContent = me.omenSpent
-      ? "Your Omen is spent. Watch them get it wrong."
-      : "Send one Omen to the living. You only get one, all game.";
-    buildTargets(living, null, null, false, tallies, me);
-    if (!me.omenSpent){
-      (s.omens || []).forEach((text,i) => {
-        const b = document.createElement("button");
-        b.className = "mini";
-        b.style.borderColor = "var(--shade)"; b.style.color = "var(--shade)";
-        b.textContent = text;
-        b.onclick = () => net.send({ t:"omen", index:i });
-        $("actions").appendChild(b);
-      });
-    }
-  }
-
-  Object.keys(REACTION_GLYPHS).forEach(sym => {
-    const b = document.createElement("button");
-    b.className = "mini react"; b.textContent = REACTION_GLYPHS[sym];
-    b.setAttribute("aria-label", sym);
-    b.onclick = () => net.send({ t:"react", symbol:sym });
-    $("options").appendChild(b);
-  });
-}
-
-function renderVerdict(s, me){
-  const v = s.lastVerdict;
-  if (!v){
-    $("reveal").innerHTML = `<div class="big">No majority.</div>
-      <div class="who">The Agora breaks with nothing</div>`;
-  } else {
-    $("reveal").innerHTML = `
-      <div class="label">Cast out on ${v.votes} vote${v.votes === 1 ? "" : "s"}</div>
-      <div class="big">${escapeHtml(v.name)}</div>
-      <div class="who" style="color:${v.correct ? "var(--gold)" : "var(--cut)"}">
-        ${escapeHtml(v.title)}${v.correct ? " — you were right" : " — you were wrong"}</div>`;
-  }
-  $("hint").textContent = "The lights are going down again.";
-}
-
-function renderOver(s, me){
-  const won = s.winner === "atropos";
-  $("reveal").className = "reveal " + (won ? "win-atropos" : "win-mortals");
-  $("reveal").innerHTML = `
-    <div class="big">${won ? "The shears are kept." : "The shears are broken."}</div>
-    <div class="who">${won ? "Atropos wins" : "The mortals win"}</div>
-    <div class="finals">${s.players.map(p =>
-      `<div class="final ${p.role}">${escapeHtml(p.name)} · ${escapeHtml(p.title || "")}</div>`
-    ).join("")}</div>`;
-  $("hint").textContent = "";
-  if (me.host){
-    const b = document.createElement("button");
-    b.className = "btn solid"; b.style.maxWidth = "260px"; b.textContent = "Play again";
-    b.onclick = () => net.send({ t:"again" });
-    $("actions").appendChild(b);
-  }
-}
-
-function buildTargets(players, selected, onPick, gold, tallies, me){
+function buildTargets(list, selected, onPick, tallies, m){
   const wrap = $("targets");
-  players.forEach(p => {
+  list.forEach(p => {
     const b = document.createElement("button");
-    b.className = "target" + (gold ? " gold" : "") + (p.pid === selected ? " picked" : "");
+    b.className = "target" + (p.pid === selected ? " picked" : "");
     b.disabled = !onPick;
-
-    const nm = document.createElement("div");
-    nm.className = "nm"; nm.textContent = p.name;
-    b.appendChild(nm);
-
-    const sub = document.createElement("div");
-    sub.className = "sub";
-    // A Shade sees the truth of every thread; the living see nothing.
-    const known = me && me.revealed ? me.revealed[p.pid] : null;
-    sub.textContent = known ? known.toUpperCase() : (p.connected ? "·" : "away");
-    if (known === "atropos") sub.style.color = "var(--cut)";
-    b.appendChild(sub);
-
-    if (p.reaction){
-      const m = document.createElement("div");
-      m.className = "mark"; m.textContent = REACTION_GLYPHS[p.reaction] || "";
-      b.appendChild(m);
+    const f = faceOf(p.pid);
+    b.innerHTML = (f ? `<img src="${f}" alt="">` : `<div class="ph"></div>`)
+      + `<span>${escapeHtml(p.name)}</span>`;
+    const known = m && m.revealed ? m.revealed[p.pid] : null;
+    if (known){
+      const t = document.createElement("span");
+      t.style.cssText = "font-size:10px;font-weight:900;color:" +
+        (known === "atropos" ? "var(--cut)" : "var(--ink-soft)");
+      t.textContent = known.toUpperCase();
+      b.appendChild(t);
     }
     if (tallies && tallies[p.pid]){
-      const tl = document.createElement("div");
-      tl.className = "tally"; tl.textContent = tallies[p.pid];
-      b.appendChild(tl);
+      const t = document.createElement("div");
+      t.className = "tally"; t.textContent = tallies[p.pid];
+      b.appendChild(t);
     }
     if (onPick) b.onclick = () => onPick(p.pid);
     wrap.appendChild(b);
   });
 }
 
-function renderCondemned(s, me){
-  const on = s.phase === "decree" && me.condemned && !me.condemned.obeyed;
-  $("condemned").classList.toggle("on", !!on);
-  if (on) $("decree-text").textContent = me.condemned.decree;
+function renderLoom(s, m){
+  const others = s.players.filter(p => p.alive && p.pid !== m.pid);
+  if (!m.alive){ $("hint").textContent = "The island is asleep. You are not."; return; }
+
+  if (m.role === "atropos"){
+    $("hint").textContent = m.cut ? "Chosen. You can still change your mind."
+                                  : "Pick who to cut, and an order they must obey.";
+    buildTargets(others, m.cut, (pid) =>
+      net.send({ t:"cut", target:pid, manner:0, decree:decreePick }), null, m);
+    const n = (s.decrees||[]).length;
+    for (let i = 0; i < 4 && n; i++){
+      const idx = ((s.round*3 + decreeOffset + i) % n);
+      const b = document.createElement("button");
+      b.className = "chip" + (idx === decreePick ? " sel" : "");
+      b.textContent = s.decrees[idx];
+      b.onclick = () => {
+        decreePick = idx;
+        if (m.cut) net.send({ t:"cut", target:m.cut, manner:0, decree:idx });
+        else renderPlay(state, m);
+      };
+      $("options").appendChild(b);
+    }
+    const sh = document.createElement("button");
+    sh.className = "chip"; sh.textContent = "↻ other orders";
+    sh.onclick = () => { decreeOffset += 4; renderPlay(state, m); };
+    $("options").appendChild(sh);
+    return;
+  }
+
+  if (m.role === "lachesis"){
+    if (m.measured){
+      const f = m.findings[m.findings.length-1];
+      $("hint").innerHTML = f.atropos
+        ? `<b style="color:var(--cut)">${escapeHtml(f.name)} HOLDS THE SHEARS.</b>`
+        : `${escapeHtml(f.name)} is clean.`;
+    } else {
+      $("hint").textContent = "Look into one person. You'll know what they are.";
+      buildTargets(others, null, (pid) => net.send({ t:"measure", target:pid }), null, m);
+    }
+    (m.findings||[]).forEach(f => {
+      const c = document.createElement("div");
+      c.className = "chip";
+      c.style.color = f.atropos ? "var(--cut)" : "";
+      c.textContent = `${f.name} · ${f.atropos ? "ATROPOS" : "clean"}`;
+      $("options").appendChild(c);
+    });
+    return;
+  }
+
+  if (m.role === "nyx"){
+    const names = s.players.filter(p => (m.knows||[]).includes(p.pid)).map(p => p.name);
+    $("hint").innerHTML = `Sleep. You already know: <b style="color:var(--cut)">${escapeHtml(names.join(", "))}</b>`;
+    return;
+  }
+  $("hint").textContent = "Sleep. It isn't your turn.";
 }
 
-function renderLog(s){
-  const log = $("log");
-  log.innerHTML = "";
-  s.log.slice(-24).reverse().forEach(e => {
-    const el = document.createElement("div");
-    el.className = "entry " + e.kind;
-    if (e.who && !e.anonymous) el.innerHTML = `<b>${escapeHtml(e.who)}</b> ${escapeHtml(e.text)}`;
-    else el.textContent = e.text;
-    log.appendChild(el);
-  });
+function renderDecreeWatch(s, m){
+  const d = (s.log.filter(e => e.kind === "decree").slice(-1)[0] || {}).text || "";
+  $("reveal").innerHTML = `<div class="label">Someone here was just told</div>
+    <div class="big" style="color:var(--cut)">${escapeHtml(d)}</div>
+    <div class="who">Watch. Whoever does it is already gone.</div>`;
+  $("hint").textContent = m.alive ? "Say nothing. Watch who moves." : "You know who it is.";
+}
+
+function renderAgora(s, m){
+  const living = s.players.filter(p => p.alive);
+  const tallies = {};
+  Object.values(s.votes || {}).forEach(p => { tallies[p] = (tallies[p]||0)+1; });
+
+  if (m.alive){
+    $("hint").textContent = "Argue out loud. Tap a face to vote, tap again to undo.";
+    buildTargets(living.filter(p => p.pid !== m.pid), m.vote,
+      (pid) => net.send({ t:"vote", target:pid }), tallies, m);
+    (s.calls||[]).slice(0,4).forEach((text,i) => {
+      const b = document.createElement("button");
+      b.className = "chip"; b.textContent = text;
+      b.onclick = () => net.send({ t:"call", index:i });
+      $("actions").appendChild(b);
+    });
+  } else {
+    $("hint").textContent = m.omenSpent ? "Your Omen is spent."
+      : "Send one Omen to the living. You only get one, all game.";
+    buildTargets(living, null, null, tallies, m);
+    if (!m.omenSpent){
+      (s.omens||[]).forEach((text,i) => {
+        const b = document.createElement("button");
+        b.className = "chip shade"; b.textContent = text;
+        b.onclick = () => net.send({ t:"omen", index:i });
+        $("actions").appendChild(b);
+      });
+    }
+  }
+}
+
+function renderVerdict(s, m){
+  const v = s.lastVerdict;
+  $("reveal").innerHTML = v
+    ? `<div class="label">Voted out on ${v.votes}</div>
+       <div class="big">${escapeHtml(v.name)}</div>
+       <div class="who" style="color:${v.correct ? "var(--grass)" : "var(--cut)"}">
+         ${escapeHtml(v.title)} — ${v.correct ? "you were right" : "you were wrong"}</div>`
+    : `<div class="big">No majority.</div><div class="who">Nobody goes</div>`;
+  $("hint").textContent = "";
+}
+
+function renderOver(s, m){
+  const won = s.winner === "atropos";
+  $("reveal").innerHTML = `
+    <div class="big">${won ? "Atropos wins." : "The island wins."}</div>
+    <div class="finals">${s.players.map(p =>
+      `<div class="final ${p.role}">${escapeHtml(p.name)} · ${escapeHtml(p.title||"")}</div>`).join("")}</div>`;
+  $("hint").textContent = "";
+  if (m.host){
+    const b = document.createElement("button");
+    b.className = "btn"; b.textContent = "Play again";
+    b.onclick = () => net.send({ t:"again" });
+    $("actions").appendChild(b);
+  }
+}
+
+function renderCondemned(s, m){
+  const on = s.phase === "decree" && m.condemned && !m.condemned.obeyed;
+  $("condemned").classList.toggle("on", !!on);
+  if (on) $("decree-text").textContent = m.condemned.decree;
 }
 
 function escapeHtml(str){
@@ -1551,124 +856,187 @@ function escapeHtml(str){
 }
 
 /* ===========================================================================
-   TRANSPORT
+   NET
    =========================================================================== */
-class LiveNet {
+class Net {
   constructor(code, name, secret, onState, onError){
     this.onState = onState; this.onError = onError; this.closed = false;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const qs = new URLSearchParams({ name:name || "", secret:secret || "" });
+    const qs = new URLSearchParams({ name:name||"", secret:secret||"" });
     this.ws = new WebSocket(`${proto}//${location.host}/api/v1/game/ws/${code}?${qs}`);
-    this.ws.onmessage = (ev) => {
+    this.ws.onmessage = async (ev) => {
       const msg = JSON.parse(ev.data);
-      if (msg.t === "welcome"){ myPid = msg.pid; store.set(code, { pid:msg.pid, secret:msg.secret }); }
-      else if (msg.t === "state"){ if (msg.me) myPid = msg.me.pid; this.onState(msg); }
-      else if (msg.t === "error"){ this.onError(msg.message || "Something went wrong."); }
+      if (msg.t === "welcome"){
+        myPid = msg.pid;
+        store.set(code, { pid:msg.pid, secret:msg.secret });
+      } else if (msg.t === "state"){
+        if (msg.me) myPid = msg.me.pid;
+        this.onState(msg);
+      } else if (msg.t === "pos"){
+        Village.applyPositions(msg.players, myPid);
+        // Adopt the server's spawn point the first time we hear it.
+        if (!this.spawned && myPid){
+          const mine = msg.players.find(p => p[0] === myPid);
+          if (mine){ me.x = mine[1]; me.z = mine[2]; me.angle = mine[3]; this.spawned = true; }
+        }
+      } else if (msg.t === "eidolons"){
+        await adoptEidolons(msg.map);
+        // Only redraw once the player is actually in the world - otherwise a
+        // face arriving mid-build pops the lobby over the top of the maker.
+        if (state && ready) render(state);
+      } else if (msg.t === "error"){
+        this.onError(msg.message || "Something went wrong.");
+      }
     };
-    this.ws.onerror = () => { if (!this.closed) this.onError("Lost the room."); };
+    this.ws.onerror = () => { if (!this.closed) this.onError("Lost the island."); };
     this.ws.onclose  = () => { if (!this.closed) this.onError("Disconnected."); };
   }
-  send(msg){ if (this.ws.readyState === 1) this.ws.send(JSON.stringify(msg)); }
+  send(m){ if (this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); }
   close(){ this.closed = true; try { this.ws.close(); } catch(e){} }
 }
 
+/* Faces arrive as data URLs; decode each once into a texture and cache it. */
+async function adoptEidolons(map){
+  const jobs = [];
+  Object.keys(map || {}).forEach(pid => {
+    const incoming = map[pid];
+    if (!incoming || !incoming.face) return;
+    const existing = eidolons[pid];
+    if (existing && existing.face === incoming.face){
+      Object.assign(existing, incoming, { faceTexture: existing.faceTexture });
+      return;
+    }
+    jobs.push(Village.faceTextureFor(incoming.face).then(tex => {
+      eidolons[pid] = Object.assign({}, incoming, { faceTexture: tex });
+    }));
+  });
+  await Promise.all(jobs);
+}
+
 /* ===========================================================================
-   GATE
+   FLOW
    =========================================================================== */
 function gateError(msg){ $("gate-error").textContent = msg || ""; }
 
-async function openRoom(){
-  gateError("");
+async function openIsland(){
   const name = $("name-in").value.trim();
   if (!name) return gateError("Pick a name first");
-  store.setName(name);
+  store.set("name", name);
   try {
     const res = await fetch("/api/v1/game/rooms", { method:"POST" });
     if (!res.ok) throw new Error();
     const room = await res.json();
     history.replaceState(null, "", "/play/" + room.code);
     connect(room.code, name);
-  } catch(e){ gateError("Could not open a room"); }
+  } catch(e){ gateError("Could not make an island"); }
 }
 
-function joinRoom(){
-  gateError("");
+function joinIsland(){
   const name = $("name-in").value.trim();
   const code = $("code-in").value.trim().toUpperCase();
   if (!name) return gateError("Pick a name first");
   if (code.length < 5) return gateError("That code looks wrong");
-  store.setName(name);
+  store.set("name", name);
   connect(code, name);
 }
 
 function connect(code, name){
   const saved = store.get(code);
   if (net) net.close();
-  net = new LiveNet(code, name, saved && saved.secret, render, (msg) => {
-    show("gate"); $("top").classList.add("hidden"); $("sheet").classList.add("hidden");
-    World.cue("lobby", null);
+  gateError("");
+  net = new Net(code, name, saved && saved.secret, (s) => {
+    $("gate").classList.remove("on");
+    if (!myEidolon){
+      // Straight into the maker the first time; returning players skip it.
+      const remembered = store.get("eidolon");
+      if (remembered){
+        myEidolon = remembered;
+        ready = true;
+        net.send({ t:"eidolon", face: remembered.face, colors: remembered.colors });
+      } else {
+        $("maker").classList.add("on");
+        state = s;
+        return;
+      }
+    }
+    ready = true;
+    render(s);
+  }, (msg) => {
+    $("gate").classList.add("on");
+    $("maker").classList.remove("on");
+    $("lobby").classList.remove("on");
+    $("top").classList.add("hidden");
+    $("hud").classList.add("hidden");
     gateError(msg);
   });
 }
 
+function showLobbyOrGame(){ if (state) render(state); }
+
 async function share(){
   const url = location.origin + "/play/" + state.code;
-  const payload = { title:"ATROPOS", text:`Room ${state.code}. One of us holds the shears.`, url };
+  const payload = { title:"Atropos Island", text:`Come to my island. Code ${state.code}.`, url };
   try {
     if (navigator.share){ await navigator.share(payload); return; }
-    await navigator.clipboard.writeText(url); flashShare("Link copied");
+    await navigator.clipboard.writeText(url); flashShare("Link copied!");
   } catch(e){
     if (e && e.name === "AbortError") return;
-    try { await navigator.clipboard.writeText(url); flashShare("Link copied"); }
+    try { await navigator.clipboard.writeText(url); flashShare("Link copied!"); }
     catch(_){ flashShare(url); }
   }
 }
-
 function flashShare(msg){
   const b = $("share-btn"), old = b.textContent;
   b.textContent = msg;
-  setTimeout(() => { b.textContent = old; }, 1800);
+  setTimeout(() => { b.textContent = old; }, 1600);
 }
 
 /* --- wiring -------------------------------------------------------------- */
-$("open-btn").onclick = openRoom;
-$("join-btn").onclick = joinRoom;
+$("open-btn").onclick = openIsland;
+$("join-btn").onclick = joinIsland;
 $("share-btn").onclick = share;
 $("start-btn").onclick = () => net.send({ t:"start" });
-$("obey-btn").onclick = () => { Audio_.heartOff(); net.send({ t:"obey" }); };
-$("sound").onclick = () => { $("sound").textContent = Audio_.toggle() ? "♪" : "✕"; };
-$("code-in").addEventListener("keydown", e => { if (e.key === "Enter") joinRoom(); });
+$("obey-btn").onclick = () => net.send({ t:"obey" });
+$("walk-btn").onclick = () => {
+  walking = true;
+  $("lobby").classList.remove("on");
+  $("stick").classList.add("on");
+  $("emotes").classList.add("on");
+};
+$("code-in").addEventListener("keydown", e => { if (e.key === "Enter") joinIsland(); });
 $("name-in").addEventListener("keydown", e => { if (e.key === "Enter") $("code-in").focus(); });
 
-// Browsers will not start audio until the player touches something.
-addEventListener("pointerdown", () => Audio_.unlock(), { once:true });
-addEventListener("keydown", () => Audio_.unlock(), { once:true });
+// Tapping the island while in the lobby brings the panel back.
+$("scene").addEventListener("dblclick", () => {
+  if (state && state.phase === "lobby"){ walking = false; render(state); }
+});
 
-/* --- boot ----------------------------------------------------------------
-   The 3D world is atmosphere, not the game. If WebGL is unavailable or the
-   renderer throws, every World call becomes a no-op and the game plays on. */
+/* --- boot ---------------------------------------------------------------- */
 try {
-  World.init();
-  World.cue("lobby", null);
+  Village.init($("scene"));
 } catch (err){
-  console.warn("Atropos: falling back to flat mode.", err);
-  document.getElementById("scene").style.display = "none";
-  document.body.style.background =
-    "radial-gradient(ellipse 80% 60% at 50% 40%, #12101d 0%, #06060B 70%)";
-  for (const key of Object.keys(World)) World[key] = () => {};
+  console.warn("Atropos: 3D unavailable, running flat.", err);
+  $("scene").style.display = "none";
+  document.body.style.background = "linear-gradient(180deg,#8ED0EE,#CFEAF6 60%,#E9D5A0)";
+  const KEEP = { separation: () => [0, 0], heading: () => 0, VILLAGE_RADIUS: Village.VILLAGE_RADIUS };
+  for (const k of Object.keys(Village)){
+    if (typeof Village[k] === "function") Village[k] = KEEP[k] || (() => {});
+  }
 }
+setupMaker();
+setupControls();
 
-$("name-in").value = store.name();
+const savedName = store.get("name");
+if (savedName) $("name-in").value = savedName;
+myEidolon = store.get("eidolon");
 
 (function boot(){
   const fromUrl = (location.pathname.match(/\/play\/([A-Z0-9]{5})/i) || [])[1];
   if (!fromUrl) return;
   const code = fromUrl.toUpperCase();
   $("code-in").value = code;
-  $("join-btn").textContent = "Join room " + code;
-  const saved = store.get(code);
-  if (saved && store.name()) connect(code, store.name());
-  else $("name-in").focus();
+  $("join-btn").textContent = "Join island " + code;
+  if (store.get(code) && savedName) connect(code, savedName);
 })();
 </script>
 </body>

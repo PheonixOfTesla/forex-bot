@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/game", tags=["Atropos"])
 
-TICK_SECONDS = 0.25
+TICK_SECONDS = 0.05
+# Movement frames go out every 3 ticks - about 7 a second, which is smooth once
+# the client interpolates between them and stays cheap on a camp network.
+POSITION_EVERY = 3
 
 
 # =============================================================================
@@ -59,15 +62,54 @@ async def broadcast(room: Room) -> None:
             room.players[pid].connected = False
 
 
+async def broadcast_positions(room: Room) -> None:
+    """
+    The movement frame.
+
+    Walking is sent far more often than anything else, so it travels on its own
+    tiny message instead of riding a full state snapshot - a snapshot carries
+    the log, the roster and every per-player secret, and is far too heavy to
+    send eight times a second.
+    """
+    if not room.sockets:
+        return
+    frame = {"t": "pos", "players": room.positions()}
+    for pid, socket in list(room.sockets.items()):
+        try:
+            await socket.send_json(frame)
+        except Exception:
+            pass
+
+
+async def send_eidolons(room: Room) -> None:
+    """Faces change rarely, so they are pushed on their own when they do."""
+    if not room.sockets:
+        return
+    message = {"t": "eidolons", "map": room.eidolons()}
+    for socket in list(room.sockets.values()):
+        try:
+            await socket.send_json(message)
+        except Exception:
+            pass
+
+
 async def clock(room: Room) -> None:
     """Advance the room whenever its phase expires or every action is already in."""
+    ticks = 0
     try:
         while True:
             await asyncio.sleep(TICK_SECONDS)
+            ticks += 1
             if not room.sockets:
                 # Nobody is watching. Park the clock; the socket handler restarts it.
                 room.task = None
                 return
+
+            # Movement runs on its own cadence, in the lobby as well as in game -
+            # milling around the square before the start is half the fun.
+            if ticks % POSITION_EVERY == 0:
+                await broadcast_positions(room)
+
             if room.phase is Phase.LOBBY:
                 continue
 
@@ -175,6 +217,7 @@ async def play(
     room.last_seen = time.time()
     ensure_clock(room)
     await broadcast(room)
+    await send_eidolons(room)   # a joiner needs every face already in the room
 
     try:
         while True:
@@ -255,6 +298,22 @@ async def handle(room: Room, player: Any, message: Dict[str, Any], websocket: We
 
     if kind == "react":
         room.act_react(player, message.get("symbol") or "")
+        return True
+
+    # Walking is high frequency and rides the movement frame, so it must not
+    # trigger a full state rebroadcast.
+    if kind == "move":
+        room.act_move(player, message.get("x"), message.get("z"),
+                      message.get("a"), message.get("m"))
+        return False
+
+    if kind == "emote":
+        room.act_emote(player, message.get("name"))
+        return False
+
+    if kind == "eidolon":
+        room.act_eidolon(player, message.get("face"), message.get("colors"))
+        await send_eidolons(room)
         return True
 
     return False

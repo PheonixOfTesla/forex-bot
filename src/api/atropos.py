@@ -41,7 +41,9 @@ routes/game.py.
 
 import asyncio
 import logging
+import math
 import random
+import re
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -127,6 +129,16 @@ OMENS = [
 
 REACTIONS = ["eye", "flame", "hand", "skull"]
 
+EMOTES = ["wave", "dance", "point", "sit", "cheer", "shrug"]
+
+# The village players walk around in, in world units.
+VILLAGE_RADIUS = 26.0
+SPAWN_RADIUS = 7.0
+
+# A face thumbnail is relayed to every player, so it is hard-capped. The client
+# sends roughly a 128px cel-shaded JPEG, which lands near 6 KB.
+MAX_EIDOLON_BYTES = 24000
+
 
 class Phase(str, Enum):
     LOBBY = "lobby"
@@ -206,6 +218,16 @@ class Player:
     vote: Optional[str] = None
     obeyed: bool = False
     reaction: Optional[str] = None
+
+    # Where they are standing in the village, and which way they face.
+    x: float = 0.0
+    z: float = 0.0
+    angle: float = 0.0
+    moving: bool = False
+    emote: Optional[str] = None
+
+    # Their Eidolon: a cel-shaded face thumbnail plus the colours pulled from it.
+    eidolon: Optional[Dict[str, Any]] = None
 
     # Lachesis findings: round -> {"pid", "name", "atropos"}
     findings: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -346,6 +368,7 @@ class Room:
         self.round = 0
         self.winner = None
         self.log = []
+        self.spawn_positions()
         self.write_log("system", "The shears have found a hand. Nobody knows whose.")
         self.begin_loom()
 
@@ -458,6 +481,60 @@ class Room:
     def act_react(self, actor: Player, symbol: str) -> None:
         if symbol in REACTIONS:
             actor.reaction = symbol
+
+    def act_move(self, actor: Player, x: Any, z: Any, angle: Any, moving: Any) -> None:
+        """Walk. Clamped to the village so nobody can wander off the island."""
+        try:
+            nx, nz, na = float(x), float(z), float(angle)
+        except (TypeError, ValueError):
+            return
+        if not all(map(math.isfinite, (nx, nz, na))):
+            return
+        radius = math.hypot(nx, nz)
+        if radius > VILLAGE_RADIUS:
+            nx *= VILLAGE_RADIUS / radius
+            nz *= VILLAGE_RADIUS / radius
+        actor.x, actor.z, actor.angle = nx, nz, na
+        actor.moving = bool(moving)
+
+    def act_emote(self, actor: Player, name: Any) -> None:
+        actor.emote = name if name in EMOTES else None
+
+    def act_eidolon(self, actor: Player, face: Any, colors: Any) -> None:
+        """Store a player's likeness. Size-capped: this is relayed to everyone."""
+        if not isinstance(face, str) or not face.startswith("data:image/"):
+            return
+        if len(face) > MAX_EIDOLON_BYTES:
+            return
+        safe: Dict[str, Any] = {"face": face}
+        if isinstance(colors, dict):
+            for key in ("skin", "hair", "shirt"):
+                value = colors.get(key)
+                if isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+                    safe[key] = value
+        actor.eidolon = safe
+
+    def spawn_positions(self) -> None:
+        """Stand everyone in a ring in the square, facing the middle."""
+        seated = self.seated
+        for index, player in enumerate(seated):
+            a = (index / max(1, len(seated))) * math.tau
+            player.x = math.cos(a) * SPAWN_RADIUS
+            player.z = math.sin(a) * SPAWN_RADIUS
+            player.angle = a + math.pi
+            player.moving = False
+            player.emote = None
+
+    def positions(self) -> List[List[Any]]:
+        """The lightweight movement frame, sent far more often than full state."""
+        return [
+            [p.pid, round(p.x, 2), round(p.z, 2), round(p.angle, 2),
+             1 if p.moving else 0, 1 if p.alive else 0, p.emote or ""]
+            for p in self.seated
+        ]
+
+    def eidolons(self) -> Dict[str, Any]:
+        return {p.pid: p.eidolon for p in self.seated if p.eidolon}
 
     # -- resolution ---------------------------------------------------------
 
@@ -622,6 +699,7 @@ class Room:
                 "manner": p.manner,
                 "castOut": p.cast_out,
                 "reaction": p.reaction,
+                "hasEidolon": p.eidolon is not None,
                 # Roles become public only when the game is over.
                 "role": p.role.value if over else None,
                 "title": ROLE_TITLES[p.role] if over else None,
