@@ -25,7 +25,11 @@
    =========================================================================== */
 
 // Change this one line to point the game at its backend.
-const API_ORIGIN = "https://molua-backend.up.railway.app";
+//
+// The game server lives inside the DigitalApple API rather than on its own
+// host: that service already deploys to Railway from its repo, so the game got
+// a home the moment it was committed there instead of waiting on a new one.
+const API_ORIGIN = "https://digitalapple-backend-production.up.railway.app";
 
 (function resolveBackend(){
   // Never clobber a value set ahead of this file.
