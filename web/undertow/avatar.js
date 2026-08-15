@@ -518,11 +518,17 @@ const Avatar = (() => {
       put(ball(0.36, 14), [0, -R * 0.64, -R * 0.94], [0.78, 2.05, 0.78], [-0.42, 0, 0]);
     }
     else if (style === "curls"){
+      // Ringed round the crown, not round the head. At the old chibi head
+      // these sat clear of the brow; on the rebuilt figure the same ring
+      // dropped over the eyes and the scientist ended up peering out between
+      // two curls. Front-facing curls are skipped outright.
       for (let i = 0; i < 9; i++){
         const a = (i / 9) * Math.PI * 2;
-        put(ball(0.30, 10), [Math.cos(a) * R * 0.78,
-                             R * 0.28 + Math.sin(i * 2.1) * R * 0.15,
-                             Math.sin(a) * R * 0.78]);
+        const facing = Math.cos(a - Math.PI / 2);      // 1 straight ahead
+        if (facing > 0.55) continue;                   // leave the face alone
+        put(ball(0.30, 10), [Math.cos(a) * R * 0.74,
+                             R * 0.56 + Math.sin(i * 2.1) * R * 0.13,
+                             Math.sin(a) * R * 0.74]);
       }
     }
     else if (style === "bun"){

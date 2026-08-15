@@ -81,13 +81,22 @@ const Village = (() => {
      Five was a face full of the back of your own head; eleven was a drone
      shot. Aiming a little above centre pushes the body down the frame and
      leaves the ground ahead visible, which is what you actually steer by. */
-  let camYaw = 0, camPitch = 0.22, camDist = 8.0;
-  // Measured, not guessed: 0.90 put the body at 28% across, and centre is 50%,
-  // so a unit of offset is worth about 24 points. A third of that lands the
-  // character near 42% - off centre enough to leave the path ahead clear,
-  // not so far that they are hugging the edge of the screen.
-  const SHOULDER = 0.34;
-  const EYE_HEIGHT = 2.05;    // aim above the waist; the body drops down frame
+  /* A Sims camera, not an over-the-shoulder one.
+
+     Over-the-shoulder is a shooter's framing: close, low, and it shows you
+     what your character is pointing at. This is a game about watching a room
+     full of people, so it wants The Sims - up high, angled down, far enough
+     back that the plaza and everybody standing in it are on screen at once.
+
+         distance 14, pitch 0.52   ->  character 19% of screen height,
+                                       camera 8.4 units up, looking down ~30 deg
+
+     The shoulder offset goes with it. Off-centring the subject is how you
+     leave room for what a character is aiming at; when the subject is the
+     room, centre is correct. */
+  let camYaw = 0, camPitch = 0.52, camDist = 14.0;
+  const SHOULDER = 0.0;
+  const EYE_HEIGHT = 1.40;    // mid-height, because we are looking down at it
   let followPid = null;
   let shakeAmount = 0, flashAmount = 0;
   let flashColor = { r: 1, g: 0.3, b: 0.25 };
@@ -1232,7 +1241,7 @@ const Village = (() => {
     camYaw -= dx * 0.005;
     camPitch = Math.max(0.06, Math.min(1.05, camPitch + dy * 0.004));
   }
-  function zoom(delta){ camDist = Math.max(4.0, Math.min(14, camDist + delta)); }
+  function zoom(delta){ camDist = Math.max(6.0, Math.min(26, camDist + delta)); }
   function heading(){ return camYaw; }
 
   /* ------------------------------------------------------------------
@@ -1434,7 +1443,7 @@ const Village = (() => {
   // top of a cap and an elbow; the point of a showcase is the whole body, so
   // it steps back, lifts a little, and aims at mid-height instead of the
   // chest so head and feet both stay in frame.
-  const EMOTE_CAM = { blend: 0, dist: 9.4, pitch: 0.30, orbit: 0, eye: 1.45 };
+  const EMOTE_CAM = { blend: 0, dist: 11.0, pitch: 0.42, orbit: 0, eye: 1.45 };
   // Everyone spawns on a ring facing the middle, and the monument is the
   // middle - so swinging the camera round to a character's front drove it
   // straight inside the stone. A slow orbit from wherever the camera already
@@ -1565,6 +1574,7 @@ const Village = (() => {
     onSpawn(fn){ onSpawn = fn; },
     camera: () => camera,     // for framing checks
     renderer: () => renderer, // for draw-call and frame-time budgets
+    rigs: () => avatars,      // for checking who has a speech bubble up
     faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking, say,
     applyMap, currentMap,
     // Exposed for the tile inspector: judging a repeating texture from a
