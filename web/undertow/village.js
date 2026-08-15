@@ -12,7 +12,7 @@
 const Village = (() => {
 
   const SKY_TOP   = 0x5FA8DC;
-  const SKY_BOT   = 0xC9DCC0;
+  const SKY_BOT   = 0xA6CFE6;
   const SEA       = 0x3F7FA8;
   const SAND      = 0xD9C88C;
   const GRASS     = 0x9FAA5C;
@@ -32,7 +32,7 @@ const Village = (() => {
   let avatars = new Map();       // pid -> rig
   let clock = 0;
   let quality = 1, fpsAvg = 60, lastFrame = performance.now();
-  let camYaw = 0, camPitch = 0.52, camDist = 12.5;
+  let camYaw = 0, camPitch = 0.30, camDist = 11.0;
   let followPid = null;
   let shakeAmount = 0, flashAmount = 0;
   let flashColor = { r: 1, g: 0.3, b: 0.25 };
@@ -46,6 +46,77 @@ const Village = (() => {
       return s / 4294967296;
     };
   }
+
+  /* ------------------------------------------------------------------
+     Textures
+
+     The single biggest thing separating a low-poly toy from Hyrule Field is
+     that the console textured everything. These are drawn on canvases at 64px
+     and tiled hard, then point-sampled up close and mipmapped in the distance,
+     which is exactly what the hardware did.
+     ------------------------------------------------------------------ */
+  const texCache = {};
+
+  function makeTex(key, draw, repeat){
+    if (texCache[key]) return texCache[key];
+    const size = 64;
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    draw(c.getContext("2d"), size);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.NearestFilter;              // point sampling, like the N64
+    t.minFilter = THREE.LinearMipmapLinearFilter;   // but mipmapped into the distance
+    t.repeat.set(repeat || 1, repeat || 1);
+    texCache[key] = t;
+    return t;
+  }
+
+  /* Speckled noise, the workhorse for ground surfaces. */
+  function speckle(base, spots, density){
+    return (g, S) => {
+      g.fillStyle = base; g.fillRect(0, 0, S, S);
+      for (let i = 0; i < density; i++){
+        g.fillStyle = spots[(Math.random() * spots.length) | 0];
+        const x = Math.random() * S, y = Math.random() * S;
+        const w = 1 + Math.random() * 3;
+        g.fillRect(x, y, w, 1 + Math.random() * 2);
+      }
+    };
+  }
+
+  const TEX = {
+    grass: () => makeTex("grass", speckle("#6E8F3C", ["#7FA349","#5D7B33","#87AC55","#4F6B2C"], 900), 28),
+    dirt:  () => makeTex("dirt",  speckle("#B39B63", ["#C4AC73","#9C8452","#CBB682"], 700), 10),
+    sand:  () => makeTex("sand",  speckle("#D9C88C", ["#E4D69F","#C8B478"], 600), 22),
+    stone: () => makeTex("stone", speckle("#C6BFAC", ["#D3CCBA","#AFA792","#DAD4C4"], 500), 6),
+    plaster: () => makeTex("plaster", speckle("#DCD3BE", ["#E6DECB","#CFC5AE"], 300), 2),
+    roof: () => makeTex("roof", (g,S)=>{
+      g.fillStyle = "#B4573A"; g.fillRect(0,0,S,S);
+      // overlapping tile courses
+      for (let y = 0; y < S; y += 8){
+        g.fillStyle = "#9C4830"; g.fillRect(0, y, S, 1);
+        for (let x = (y/8 % 2) * 6; x < S; x += 12){
+          g.fillStyle = "#C4634A"; g.fillRect(x, y + 1, 10, 6);
+        }
+      }
+    }, 3),
+    bark: () => makeTex("bark", (g,S)=>{
+      g.fillStyle = "#6E4E30"; g.fillRect(0,0,S,S);
+      for (let i = 0; i < 40; i++){
+        g.fillStyle = ["#5B3F26","#7E5B39","#4E3520"][(Math.random()*3)|0];
+        g.fillRect(Math.random()*S, 0, 1 + Math.random()*2, S);   // vertical grain
+      }
+    }, 2),
+    leaf: () => makeTex("leaf", speckle("#4F7A33", ["#5E8C3E","#42682A","#6B9A48"], 700), 3),
+    water: () => makeTex("water", (g,S)=>{
+      g.fillStyle = "#3F7FA8"; g.fillRect(0,0,S,S);
+      for (let y = 0; y < S; y += 5){
+        g.fillStyle = y % 10 ? "#4E8FB8" : "#356E93";
+        g.fillRect(0, y, S, 2);
+      }
+    }, 40)
+  };
 
   /* ------------------------------------------------------------------
      Materials
@@ -71,6 +142,12 @@ const Village = (() => {
       Object.assign({ color }, opts || {}));
   }
 
+  /* Textured surface. The colour still tints it, so one texture serves several
+     materials without redrawing the canvas. */
+  function surf(texFn, tint){
+    return new THREE.MeshLambertMaterial({ map: texFn(), color: tint || 0xffffff });
+  }
+
   /* ------------------------------------------------------------------
      Island
      ------------------------------------------------------------------ */
@@ -84,17 +161,33 @@ const Village = (() => {
       },
       vertexShader: `
         varying float vH;
+        varying vec3 vDir;
         void main(){
           vec4 w = modelMatrix * vec4(position, 1.0);
-          vH = normalize(w.xyz).y;
+          vDir = normalize(w.xyz);
+          vH = vDir.y;
           gl_Position = projectionMatrix * viewMatrix * w;
         }`,
       fragmentShader: `
         varying float vH;
+        varying vec3 vDir;
         uniform vec3 top; uniform vec3 bottom;
+        // Cheap value noise, enough for soft cloud banding.
+        float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+        float noise(vec2 p){
+          vec2 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1,0)), f.x),
+                     mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+        }
         void main(){
-          float t = smoothstep(-0.06, 0.55, vH);
-          gl_FragColor = vec4(mix(bottom, top, t), 1.0);
+          float t = smoothstep(-0.10, 0.30, vH);
+          vec3 sky = mix(bottom, top, t);
+          // Clouds sit in a band above the horizon and fade out overhead.
+          vec2 uv = vDir.xz / max(0.18, vDir.y + 0.35) * 1.4;
+          float n = noise(uv * 1.4) * 0.6 + noise(uv * 3.1) * 0.3 + noise(uv * 6.3) * 0.1;
+          float cloud = smoothstep(0.52, 0.78, n) * smoothstep(0.02, 0.30, vH) * (1.0 - t * 0.45);
+          gl_FragColor = vec4(mix(sky, vec3(0.97, 0.98, 1.0), cloud * 0.85), 1.0);
         }`
     });
     scene.add(new THREE.Mesh(geo, mat));
@@ -104,24 +197,24 @@ const Village = (() => {
     // Sea, out to the horizon.
     const sea = new THREE.Mesh(
       new THREE.CircleGeometry(170, 48),
-      new THREE.MeshBasicMaterial({ color: SEA })
+      new THREE.MeshBasicMaterial({ map: TEX.water() })
     );
     sea.rotation.x = -Math.PI/2;
     sea.position.y = -0.85;
     scene.add(sea);
 
     // Beach, then grass, then the paved square in the middle.
-    const beach = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS + 3.5, 56), toon(SAND));
+    const beach = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS + 3.5, 56), surf(TEX.sand));
     beach.rotation.x = -Math.PI/2;
     beach.position.y = -0.34;
     scene.add(beach);
 
-    const grass = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS - 1.5, 56), toon(GRASS));
+    const grass = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS - 1.5, 56), surf(TEX.grass));
     grass.rotation.x = -Math.PI/2;
     grass.position.y = -0.12;
     scene.add(grass);
 
-    const plaza = new THREE.Mesh(new THREE.CircleGeometry(11, 40), toon(PLAZA));
+    const plaza = new THREE.Mesh(new THREE.CircleGeometry(11, 40), surf(TEX.dirt));
     plaza.rotation.x = -Math.PI/2;
     plaza.position.y = -0.05;
     scene.add(plaza);
@@ -145,7 +238,7 @@ const Village = (() => {
     const h = 2.4 + rand() * 1.7;
     const d = 2.6 + rand() * 1.6;
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), toon(WHITEWASH));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), surf(TEX.plaster));
     body.position.y = h/2;
     g.add(body);
 
@@ -156,7 +249,7 @@ const Village = (() => {
       dome.position.y = h;
       g.add(dome);
     } else {
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.78, 1.15, 4), toon(TERRA));
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.78, 1.15, 4), surf(TEX.roof));
       roof.position.y = h + 0.55;
       roof.rotation.y = Math.PI/4;
       g.add(roof);
@@ -178,13 +271,13 @@ const Village = (() => {
   function buildTree(rand, x, z){
     const g = new THREE.Group();
     const th = 1.5 + rand() * 1.0;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, th, 7), toon(TRUNK));
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, th, 7), surf(TEX.bark));
     trunk.position.y = th/2;
     g.add(trunk);
     // A few overlapping blobs make a nicer canopy than one sphere.
     for (let i = 0; i < 3; i++){
       const r = 0.85 + rand() * 0.55;
-      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), toon(LEAF));
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), surf(TEX.leaf));
       blob.position.set((rand()-0.5) * 1.1, th + 0.25 + rand() * 0.6, (rand()-0.5) * 1.1);
       blob.scale.y = 0.82;
       g.add(blob);
@@ -195,16 +288,35 @@ const Village = (() => {
 
   /* The nightfall monument in the middle of the square - the game's namesake,
      and the thing everyone gathers around to vote. */
+  /* A ring of hills well beyond the island. They sit inside the fog, so they
+     read as distance rather than as geometry, which is the trick the console
+     used to make a small world feel like a big one. */
+  function buildHorizon(){
+    const rand = seeded(90210);
+    for (let i = 0; i < 22; i++){
+      const a = (i / 22) * Math.PI * 2 + rand() * 0.18;
+      const dist = 78 + rand() * 26;
+      const h = 9 + rand() * 16;
+      const hill = new THREE.Mesh(
+        new THREE.ConeGeometry(11 + rand() * 13, h, 6),
+        new THREE.MeshLambertMaterial({ color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0xBFD0B4), 0.45) })
+      );
+      hill.position.set(Math.cos(a) * dist, h * 0.5 - 3, Math.sin(a) * dist);
+      hill.rotation.y = rand() * Math.PI;
+      scene.add(hill);
+    }
+  }
+
   function buildMonument(){
     const g = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.4, 0.5, 24), toon(0xE4D6B0));
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.4, 0.5, 24), surf(TEX.stone));
     base.position.y = 0.25;
     g.add(base);
-    const step = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.7, 0.4, 24), toon(0xEFE3C4));
+    const step = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.7, 0.4, 24), surf(TEX.stone));
     step.position.y = 0.68;
     g.add(step);
 
-    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 3.4, 18), toon(WHITEWASH));
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 3.4, 18), surf(TEX.stone));
     column.position.y = 2.55;
     g.add(column);
 
@@ -358,11 +470,11 @@ const Village = (() => {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
     renderer.setPixelRatio(1);
     renderer.setSize(innerWidth, innerHeight, false);
-    renderer.setClearColor(0xBFD0B4, 1);
+    renderer.setClearColor(0xC2D6DE, 1);
     buildLowRes();
 
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0xBFD0B4, 26, 92);
+    scene.fog = new THREE.Fog(0xC2D6DE, 34, 112);
     camera = new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 400);
 
     // Warm sun from above, cool bounce from the sky and sand.
@@ -375,6 +487,7 @@ const Village = (() => {
     buildIsland();
     scatter();
     buildMonument();
+    buildHorizon();
 
     addEventListener("resize", resize, { passive: true });
     renderer.setAnimationLoop(frame);
@@ -384,16 +497,19 @@ const Village = (() => {
      the same: draw the world into a small buffer, then blow it up with nearest
      filtering so the pixels stay square and chunky. It is also much cheaper,
      which is why the island holds framerate on a cheap phone. */
-  const N64_HEIGHT = 240;
+  const N64_HEIGHT = 360;
   let lowRT = null, blitScene = null, blitCam = null, blitMesh = null;
 
   function buildLowRes(){
     const h = N64_HEIGHT;
     const w = Math.max(160, Math.round(h * (innerWidth / innerHeight)));
     if (lowRT) lowRT.dispose();
+    // Linear on the way back up, not nearest: the console's output went
+    // through a CRT, which softened it. Hard nearest reads as pixel art
+    // instead of as 1998 hardware.
     lowRT = new THREE.WebGLRenderTarget(w, h, {
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
       format: THREE.RGBAFormat
     });
     if (!blitScene){
