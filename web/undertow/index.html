@@ -60,7 +60,21 @@ button,input{font:inherit;color:inherit}
 button{background:none;border:none;cursor:pointer}
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 
-#scene{position:fixed;inset:0;z-index:0;display:block}
+/* width and height are not decoration here, and leaving them off was the bug
+   behind "I cannot see my avatar and it is not centred".
+
+   A canvas is a replaced element. For an absolutely positioned replaced
+   element with width:auto, CSS resolves the width to the INTRINSIC width -
+   the canvas buffer - and then quietly ignores the right/bottom offsets as
+   over-constrained. inset:0 therefore did nothing. The renderer sizes its
+   buffer at devicePixelRatio, so on a phone at dpr 2 or 3 the canvas was
+   displayed at 860x1864 CSS pixels inside a 430x932 window, anchored top
+   left. The character sat dead centre of the buffer, which landed in the
+   bottom right corner of the screen.
+
+   On a desktop at dpr 1 buffer and window are the same size, which is why it
+   looked perfect everywhere I tested and wrong on every phone. */
+#scene{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
 #flash{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;mix-blend-mode:screen}
 
 #ui{position:fixed;inset:0;z-index:2;pointer-events:none;display:flex;flex-direction:column}
@@ -1256,7 +1270,8 @@ function render(s){
   Village.sync(s.players, islanders);
   $("mic").classList.add("on");
   $("sound-btn").classList.add("on");
-  $("say-bar").classList.add("on");
+  // The say bar is owned by syncWorldChrome now - turning it on here as well
+  // is what put two of them on screen during Nightfall.
   // Someone arriving or leaving should be audible, not just visible.
   const names = s.players.map(p => p.pid).join(",");
   if (lastRoster !== null && names !== lastRoster){
@@ -1305,11 +1320,9 @@ function render(s){
     $("lobby").classList.remove("on");
     $("top").classList.remove("hidden");
     $("hud").classList.remove("hidden");
-    // Walking controls would sit on top of the card's buttons, so they only
-    // appear once the card is folded away.
-    const folded = $("hud").classList.contains("min");
-    $("stick").classList.toggle("on", folded);
-    $("emotes").classList.toggle("on", folded);
+    // Walking controls and the floating chat would sit on top of the card, so
+    // they only appear once it is folded away.
+    syncWorldChrome();
     renderPlay(s, m);
   }
   renderCondemned(s, m);
@@ -1326,6 +1339,7 @@ function renderLobby(s, m){
   $("hud").classList.add("hidden");
   $("stick").classList.toggle("on", walking);
   $("emotes").classList.toggle("on", walking);
+  syncWorldChrome();
 
   $("code-big").textContent = s.code;
   const roster = $("roster");
@@ -1980,12 +1994,35 @@ document.addEventListener("click", (e) => {
   else Sound.tap();
 }, true);
 
+/* One owner for the world-layer widgets.
+
+   The HUD card carries its own transcript and its own say box, and the
+   floating pair along the bottom of the screen carry the same two things -
+   so with the card open both were on screen at once. On a phone that is a
+   duplicated line of chat, two text fields and two send buttons stacked over
+   each other, which is what a screenshot of Nightfall actually showed.
+
+   They also cannot simply be layered: #crawl and #say-bar are fixed at
+   z-index 3 and 4, the card lives inside #ui at 2, and a child cannot escape
+   its parent's stacking context. So the rule is ownership rather than depth -
+   whoever is showing chat is the only one showing chat.
+
+   The stick and the emote column were already following this; they just did
+   it in two places by hand, and the other two got forgotten. */
+function syncWorldChrome(){
+  const hud = $("hud");
+  const cardOpen = !hud.classList.contains("hidden") && !hud.classList.contains("min");
+  $("stick").classList.toggle("on", !cardOpen && (walking || !hud.classList.contains("hidden")));
+  $("emotes").classList.toggle("on", !cardOpen && (walking || !hud.classList.contains("hidden")));
+  $("say-bar").classList.toggle("on", !cardOpen);
+  $("crawl").classList.toggle("on", !cardOpen);
+}
+
 $("fold").onclick = () => {
   const hud = $("hud");
   const folded = hud.classList.toggle("min");
   $("fold").textContent = folded ? "▴ show" : "▾ hide";
-  $("stick").classList.toggle("on", folded);
-  $("emotes").classList.toggle("on", folded);
+  syncWorldChrome();
 };
 $("walk-btn").onclick = () => {
   walking = true;

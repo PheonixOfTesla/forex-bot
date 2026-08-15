@@ -1636,9 +1636,14 @@ const Village = (() => {
     }));
     const scale = 2.4;                     // world units across the widest bubble
     sprite.scale.set(scale * (w / 620), scale * (h / 620), 1);
-    // Above the name tag, and stepped per seat so two people talking at once
-    // do not stack their bubbles on top of each other.
-    sprite.position.y = 3.78 + ((rig.seat || 0) % 3) * 0.42;
+    /* Clear of everything else over a head, and stepped per seat so two people
+       talking at once do not stack their bubbles on each other.
+
+       The stack, from the shoulders up: head 2.95, name tag 3.32, the
+       plumbob through about 4.35, and the bubble from here. At 3.78 the
+       bubble sat exactly where the diamond is and cut it in half. A bubble is
+       transient and grows upward anyway, so it is the one that moves. */
+    sprite.position.y = 4.58 + ((rig.seat || 0) % 3) * 0.42;
     sprite.center.set(0.5, 0);             // grow upward from the head
     rig.group.add(sprite);
     rig.bubble = sprite;
@@ -1760,7 +1765,13 @@ const Village = (() => {
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;   // ACES darkens midtones; take it back
-    renderer.setSize(innerWidth, innerHeight, false);
+    // Deliberately not innerWidth/innerHeight - see resize(). The camera does
+    // not exist yet at this point, so this only sizes the buffer; resize()
+    // runs again once the camera is built and sets the aspect with it.
+    {
+      const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
+      renderer.setSize(w, h, false);
+    }
     // Dusk, not daylight, for the frame or two before applyMap runs - a white
     // flash before a night scene is the most visible thing on the page.
     renderer.setClearColor(0x8A6A72, 1);
@@ -1809,15 +1820,46 @@ const Village = (() => {
     scene.add(worldGroup);
     applyMap(mapId || "village");
 
+    // One authoritative pass now that both the renderer and the camera exist.
+    resize();
     addEventListener("resize", resize, { passive: true });
+    addEventListener("orientationchange", resize, { passive: true });
+    // iOS moves the visual viewport without ever firing a window resize - the
+    // URL bar collapsing on scroll, the keyboard opening under the say bar.
+    if (window.visualViewport){
+      visualViewport.addEventListener("resize", resize, { passive: true });
+    }
+    // And a last resort for the cases none of those cover: if the canvas box
+    // ever stops matching the buffer, notice within a frame rather than
+    // leaving the picture the wrong size until something else happens.
+    if (window.ResizeObserver){
+      new ResizeObserver(resize).observe(canvas);
+    }
     renderer.setAnimationLoop(frame);
   }
 
+  /* Size from the canvas, not from the window.
+
+     innerWidth and innerHeight describe the window; what the picture has to
+     match is the box the canvas is actually laid out in, and on a phone those
+     are not the same thing - browser chrome, safe-area insets and a visual
+     viewport that moves when the keyboard opens all sit between them. Reading
+     the element's own client box makes the render buffer and the display box
+     the same by construction, whatever CSS decides.
+
+     updateStyle stays false because the stylesheet owns the layout. That is
+     only safe now that the stylesheet actually sets a width and a height; it
+     was not before, and the picture was drawn at twice the size of the window
+     on every device with a retina screen. */
   function resize(){
     if (!renderer) return;
-    camera.aspect = innerWidth/innerHeight;
+    const el = renderer.domElement;
+    const w = el.clientWidth || innerWidth;
+    const h = el.clientHeight || innerHeight;
+    if (!w || !h) return;
+    camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight, false);
+    renderer.setSize(w, h, false);
   }
 
   /* Rebuild the cast when the roster or somebody's Islander changes. */
