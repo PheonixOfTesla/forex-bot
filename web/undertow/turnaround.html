@@ -1,15 +1,15 @@
 <!doctype html><html><head><meta charset="utf-8"><title>Eidolon turnaround</title>
 <script src="/undertow/three.min.js"></script><script src="/undertow/avatar.js"></script>
-<style>html,body{margin:0;height:100%;background:#EAF4FA;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
+<style>html,body{margin:0;height:100%;background:#BFD0B4;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
 </head><body><canvas id="c"></canvas><script>
-const r=new THREE.WebGLRenderer({canvas:c,antialias:true});
-r.setPixelRatio(2); r.setSize(innerWidth,innerHeight); r.setClearColor(0xEAF4FA,1);
+const r=new THREE.WebGLRenderer({canvas:c,antialias:false});
+r.setPixelRatio(1); r.setSize(innerWidth,innerHeight); r.setClearColor(0xBFD0B4,1);
 const sc=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,0.1,100);
-sc.add(new THREE.HemisphereLight(0xE8F4FF,0xD8C9A8,1.05));
+sc.add(new THREE.HemisphereLight(0xBBD6EA,0xB0A06A,0.8));
 const sun=new THREE.DirectionalLight(0xFFF6E2,0.8); sun.position.set(4,8,6); sc.add(sun);
 const floor=new THREE.Mesh(new THREE.CircleGeometry(40,48),
-  new THREE.MeshToonMaterial({color:0xDCEAF2,gradientMap:Avatar.gradientMap()}));
+  new THREE.MeshLambertMaterial({color:0xB8C79E,flatShading:true}));
 floor.rotation.x=-Math.PI/2; sc.add(floor);
 const CFGS = JSON.parse(decodeURIComponent(location.hash.slice(1) || "%5B%5D"));
 const built=[];

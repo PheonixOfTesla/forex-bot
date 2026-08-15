@@ -11,17 +11,17 @@
 
 const Village = (() => {
 
-  const SKY_TOP   = 0x2E8BC9;
-  const SKY_BOT   = 0xCFEAF6;
-  const SEA       = 0x2C7DA0;
-  const SAND      = 0xE9D5A0;
-  const GRASS     = 0x86A85E;
-  const PLAZA     = 0xEFE3C4;
-  const WHITEWASH = 0xFBF7EF;
+  const SKY_TOP   = 0x5FA8DC;
+  const SKY_BOT   = 0xC9DCC0;
+  const SEA       = 0x3F7FA8;
+  const SAND      = 0xD9C88C;
+  const GRASS     = 0x9FAA5C;
+  const PLAZA     = 0xC9BE92;
+  const WHITEWASH = 0xE8E0CE;
   const DOME      = 0x2E6FA8;
   const TERRA     = 0xCF6A47;
-  const TRUNK     = 0x8A6242;
-  const LEAF      = 0x6F9350;
+  const TRUNK     = 0x7A5636;
+  const LEAF      = 0x5E8442;
   const GOLD      = 0xE8A33D;
 
   const ISLAND_RADIUS  = 30;
@@ -62,9 +62,13 @@ const Village = (() => {
     return tex;
   }
 
+  /* N64 hardware did per-vertex Gouraud lighting with no specular, which is
+     exactly what Lambert gives - and it has no flatShading option because
+     per-vertex is already the model. The toon ramp read as modern cel
+     shading; this reads as 1998. */
   function toon(color, opts){
-    return new THREE.MeshToonMaterial(
-      Object.assign({ color, gradientMap: gradientMap() }, opts || {}));
+    return new THREE.MeshLambertMaterial(
+      Object.assign({ color }, opts || {}));
   }
 
   /* ------------------------------------------------------------------
@@ -349,19 +353,21 @@ const Village = (() => {
      Public surface
      ------------------------------------------------------------------ */
   function init(canvas){
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    quality = Math.min(window.devicePixelRatio || 1, 2);
-    renderer.setPixelRatio(quality);
+    // No antialiasing and pixelRatio 1: the console never had either, and the
+    // hard pixel edges are most of what makes this read as N64.
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
+    renderer.setPixelRatio(1);
     renderer.setSize(innerWidth, innerHeight, false);
-    renderer.setClearColor(SKY_BOT, 1);
+    renderer.setClearColor(0xBFD0B4, 1);
+    buildLowRes();
 
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(SKY_BOT, 52, 130);
+    scene.fog = new THREE.Fog(0xBFD0B4, 26, 92);
     camera = new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 400);
 
     // Warm sun from above, cool bounce from the sky and sand.
-    scene.add(new THREE.HemisphereLight(0xDCF0FF, 0xE0C98F, 0.95));
-    sun = new THREE.DirectionalLight(0xFFF3D6, 0.85);
+    scene.add(new THREE.HemisphereLight(0xBBD6EA, 0xB0A06A, 0.72));
+    sun = new THREE.DirectionalLight(0xFFF0CC, 0.95);
     sun.position.set(14, 22, 9);
     scene.add(sun);
 
@@ -374,11 +380,41 @@ const Village = (() => {
     renderer.setAnimationLoop(frame);
   }
 
+  /* The console rendered around 320x240 and let the display stretch it. We do
+     the same: draw the world into a small buffer, then blow it up with nearest
+     filtering so the pixels stay square and chunky. It is also much cheaper,
+     which is why the island holds framerate on a cheap phone. */
+  const N64_HEIGHT = 240;
+  let lowRT = null, blitScene = null, blitCam = null, blitMesh = null;
+
+  function buildLowRes(){
+    const h = N64_HEIGHT;
+    const w = Math.max(160, Math.round(h * (innerWidth / innerHeight)));
+    if (lowRT) lowRT.dispose();
+    lowRT = new THREE.WebGLRenderTarget(w, h, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat
+    });
+    if (!blitScene){
+      blitScene = new THREE.Scene();
+      blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      blitMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(2, 2),
+        new THREE.MeshBasicMaterial({ map: null, depthTest: false, depthWrite: false })
+      );
+      blitScene.add(blitMesh);
+    }
+    blitMesh.material.map = lowRT.texture;
+    blitMesh.material.needsUpdate = true;
+  }
+
   function resize(){
     if (!renderer) return;
     camera.aspect = innerWidth/innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight, false);
+    buildLowRes();
   }
 
   /* Rebuild the cast when the roster or somebody's Islander changes. */
@@ -636,7 +672,12 @@ const Village = (() => {
         `rgb(${flashColor.r*255|0},${flashColor.g*255|0},${flashColor.b*255|0})`;
     }
 
+    // World into the small buffer, then upscale it to fill the screen.
+    renderer.setRenderTarget(lowRT);
+    renderer.clear();
     renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.render(blitScene, blitCam);
   }
 
   return {

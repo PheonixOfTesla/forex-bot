@@ -158,6 +158,7 @@ ISLANDER_STYLE_KEYS = {
     "brows": {"soft", "flat", "arched", "thick"},
     "mouth": {"smile", "grin", "smirk", "open", "calm"},
     "hatStyle": {"cap", "capBack"},
+    "costume": {"cap", "crown", "scientist", "bear", "explorer", "chef", "diver", "none"},
 }
 
 

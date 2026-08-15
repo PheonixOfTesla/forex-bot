@@ -44,6 +44,7 @@ const Avatar = (() => {
       eyes: pick(EYE_STYLES), brows: pick(BROW_STYLES), mouth: pick(MOUTH_STYLES),
       glasses: Math.random() < 0.22, face: null,
       hat: true, hatStyle: pick(HAT_STYLES), hatColor: pick(HAT_COLORS),
+      costume: pick(COSTUMES),
       brand: "CLOCKWORK HUB"
     };
   }
@@ -251,13 +252,19 @@ const Avatar = (() => {
   }
 
   function toon(color){
-    return new THREE.MeshToonMaterial({ color: new THREE.Color(color), gradientMap: gradientMap() });
+    return new THREE.MeshLambertMaterial({ color: new THREE.Color(color) });
   }
 
   /* The inverted-hull outline: the single biggest quality jump available
      without art. Draw the shape again, inside out and slightly bigger, in ink.
      Applied only to the large silhouette pieces to keep the draw count sane. */
+  /* Outlines are off. The inverted hull is a modern cel-shading device and it
+     fought the N64 look, which gets its definition from flat facets and hard
+     lighting instead. The hull is kept behind a flag so the look can be
+     switched back without rebuilding the rig. */
+  let OUTLINES = false;
   function outlined(geo, mat, thickness){
+    if (!OUTLINES) return new THREE.Mesh(geo, mat);
     const group = new THREE.Group();
     const solid = new THREE.Mesh(geo, mat);
     group.add(solid);
@@ -347,6 +354,11 @@ const Avatar = (() => {
   // One hat, tuned properly. Five styles each needed their own fitting pass
   // and all five came out worse than a single cap that fits.
   const HAT_STYLES = ["cap", "capBack"];
+
+  /* Costumes. A cast of one silhouette gets dull fast, so headwear carries the
+     character: a crown, a lab band, bear ears. Each is built from the same
+     primitives as everything else, so a costume costs nothing to ship. */
+  const COSTUMES = ["cap", "crown", "scientist", "bear", "explorer", "chef", "diver", "none"];
   const HAT_COLORS = ["#2B2438","#E05B4B","#3B82C4","#4CAF6E","#E8A33D","#F2F0E6","#8E5FA8","#38B2AC"];
 
   const brandCache = {};
@@ -382,6 +394,108 @@ const Avatar = (() => {
     tex.minFilter = THREE.LinearFilter;
     brandCache[key] = tex;
     return tex;
+  }
+
+  function buildCostume(cfg, R, wrap){
+    const kind = cfg.costume || "cap";
+    if (kind === "none") return new THREE.Group();
+    if (kind === "cap") return buildHat(cfg, R, wrap);
+
+    const g = new THREE.Group();
+    const cloth = cfg.hatColor || "#2B2438";
+
+    if (kind === "crown"){
+      const gold = toon("#E8C15A");
+      const band = wrap(new THREE.CylinderGeometry(R*0.96, R*1.0, R*0.34, 14), gold, 0.06);
+      band.position.y = R * 0.78;
+      g.add(band);
+      // Points around the rim, alternating tall and short.
+      for (let i = 0; i < 8; i++){
+        const a = (i/8) * Math.PI * 2;
+        const tall = i % 2 === 0;
+        const spike = wrap(new THREE.ConeGeometry(R*0.14, tall ? R*0.42 : R*0.26, 5), gold, 0.07);
+        spike.position.set(Math.cos(a) * R*0.94, R * (tall ? 1.16 : 1.08), Math.sin(a) * R*0.94);
+        g.add(spike);
+      }
+      const jewel = wrap(new THREE.SphereGeometry(R*0.13, 8, 6), toon("#C4162A"), 0.1);
+      jewel.position.set(0, R*0.82, R*1.0);
+      g.add(jewel);
+    }
+    else if (kind === "scientist"){
+      // Wild hair either side, and goggles pushed up on the forehead.
+      const hair = toon(cfg.hair || "#E8E4DA");
+      [-1, 1].forEach(sd => {
+        const puff = wrap(new THREE.SphereGeometry(R*0.34, 10, 8), hair, 0.06);
+        puff.position.set(sd * R*0.86, R*0.42, -R*0.1);
+        puff.scale.set(0.9, 0.8, 0.9);
+        g.add(puff);
+      });
+      const strap = wrap(new THREE.CylinderGeometry(R*1.04, R*1.04, R*0.16, 16), toon("#4A4A55"), 0.05);
+      strap.position.y = R * 0.62;
+      g.add(strap);
+      [-1, 1].forEach(sd => {
+        const lens = wrap(new THREE.CylinderGeometry(R*0.24, R*0.24, R*0.12, 12), toon("#9FE0F0"), 0.07);
+        lens.rotation.x = Math.PI/2;
+        lens.position.set(sd * R*0.34, R*0.66, R*0.86);
+        g.add(lens);
+      });
+    }
+    else if (kind === "bear"){
+      const fur = toon(cfg.hair || "#8B5A2B");
+      [-1, 1].forEach(sd => {
+        const ear = wrap(new THREE.SphereGeometry(R*0.30, 10, 8), fur, 0.06);
+        ear.position.set(sd * R*0.62, R*0.86, -R*0.06);
+        ear.scale.set(1, 1, 0.6);
+        g.add(ear);
+        const inner = wrap(new THREE.SphereGeometry(R*0.17, 8, 6), toon("#D9A98A"), 0.08);
+        inner.position.set(sd * R*0.62, R*0.86, R*0.06);
+        inner.scale.set(1, 1, 0.5);
+        g.add(inner);
+      });
+      const snout = wrap(new THREE.SphereGeometry(R*0.26, 10, 8), toon("#D9BC96"), 0.06);
+      snout.position.set(0, -R*0.16, R*0.88);
+      snout.scale.set(1.1, 0.8, 0.8);
+      g.add(snout);
+      const nose = wrap(new THREE.SphereGeometry(R*0.11, 8, 6), toon("#2A2333"), 0.1);
+      nose.position.set(0, -R*0.10, R*1.06);
+      g.add(nose);
+    }
+    else if (kind === "explorer"){
+      const felt = toon(cfg.hatColor || "#8A6242");
+      const crown = wrap(new THREE.CylinderGeometry(R*0.82, R*0.92, R*0.52, 14), felt, 0.05);
+      crown.position.y = R * 0.74;
+      g.add(crown);
+      const brim = wrap(new THREE.CylinderGeometry(R*1.5, R*1.5, R*0.08, 18), felt, 0.05);
+      brim.position.y = R * 0.5;
+      g.add(brim);
+      const band = wrap(new THREE.CylinderGeometry(R*0.84, R*0.94, R*0.16, 14), toon("#5E4028"), 0.05);
+      band.position.y = R * 0.56;
+      g.add(band);
+    }
+    else if (kind === "chef"){
+      const white = toon("#F4F1E8");
+      const band = wrap(new THREE.CylinderGeometry(R*1.0, R*1.0, R*0.26, 14), white, 0.05);
+      band.position.y = R * 0.68;
+      g.add(band);
+      const puff = wrap(new THREE.SphereGeometry(R*0.92, 12, 10), white, 0.05);
+      puff.position.y = R * 1.16;
+      puff.scale.set(1, 0.82, 1);
+      g.add(puff);
+    }
+    else if (kind === "diver"){
+      const rubber = toon(cfg.hatColor || "#3B5BA5");
+      const hood = wrap(new THREE.SphereGeometry(R*1.06, 14, 12, 0, Math.PI*2, 0, Math.PI*0.62), rubber, 0.05);
+      hood.position.y = R * 0.04;
+      g.add(hood);
+      const mask = wrap(new THREE.BoxGeometry(R*1.36, R*0.5, R*0.3), toon("#9FE0F0"), 0.05);
+      mask.position.set(0, R*0.30, R*0.82);
+      g.add(mask);
+      const snorkel = wrap(new THREE.CylinderGeometry(R*0.09, R*0.09, R*1.1, 8), toon("#E8A33D"), 0.07);
+      snorkel.position.set(R*0.92, R*0.62, R*0.1);
+      snorkel.rotation.z = -0.16;
+      g.add(snorkel);
+    }
+    return g;
   }
 
   function buildHat(cfg, R, wrap){
@@ -522,7 +636,7 @@ const Avatar = (() => {
       head.add(buildHair(cfg.hairStyle, cfg.hair, HEAD_R));
     } else {
       head.add(buildFringe(cfg.hair, HEAD_R, wrap));
-      head.add(buildHat(cfg, HEAD_R, wrap));
+      head.add(buildCostume(cfg, HEAD_R, wrap));
     }
     rig.add(head);
 
@@ -569,6 +683,6 @@ const Avatar = (() => {
   return {
     build, faceTexture, defaults, toon, gradientMap, spirit,
     SKIN, HAIR, CLOTH, PANTS, SHOES, HAT_COLORS,
-    HAIR_STYLES, HAT_STYLES, EYE_STYLES, BROW_STYLES, MOUTH_STYLES
+    HAIR_STYLES, HAT_STYLES, COSTUMES, EYE_STYLES, BROW_STYLES, MOUTH_STYLES
   };
 })();
