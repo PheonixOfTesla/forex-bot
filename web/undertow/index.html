@@ -1574,6 +1574,21 @@ async function probeBackend(){
     backendUp = false;
   }
   if (down) down.style.display = backendUp ? "none" : "";
+  // A custom backend must never be silent: anyone can put ?api= on a link,
+  // and a player should always be able to see which server they are on.
+  if (window.MOLUA_API_CUSTOM){
+    const why = $("gate-down-why");
+    if (down && why){
+      down.style.display = "";
+      down.style.background = backendUp ? "#E7F3E2" : "#FFF3D6";
+      down.style.borderColor = backendUp ? "#5E8C3E" : "#E8A33D";
+      down.firstElementChild.textContent = backendUp
+        ? "Using a custom server" : "Custom server not answering";
+      let host = API; try { host = new URL(API).host; } catch(e){}
+      why.textContent = (backendUp ? "This page is talking to " : "Could not reach ")
+        + host + ", set by the ?api= on the link.";
+    }
+  }
   // Joining a code is just as doomed as opening one, so both say so.
   ["open-btn", "join-btn"].forEach(id => {
     const b = $(id);
