@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """
-ATROPOS - Transport
+UNDERTOW - Transport
 
 REST for opening and inspecting a room, WebSocket for playing in it.
 
@@ -22,11 +22,11 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 
-from ..atropos import MAX_PLAYERS, Phase, Room, registry
+from ..undertow import MAX_PLAYERS, Phase, Room, registry
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/game", tags=["Atropos"])
+router = APIRouter(prefix="/api/v1/game", tags=["Undertow"])
 
 TICK_SECONDS = 0.05
 # Movement frames go out every 3 ticks - about 7 a second, which is smooth once
@@ -81,11 +81,11 @@ async def broadcast_positions(room: Room) -> None:
             pass
 
 
-async def send_eidolons(room: Room) -> None:
+async def send_islanders(room: Room) -> None:
     """Faces change rarely, so they are pushed on their own when they do."""
     if not room.sockets:
         return
-    message = {"t": "eidolons", "map": room.eidolons()}
+    message = {"t": "islanders", "map": room.islanders()}
     for socket in list(room.sockets.values()):
         try:
             await socket.send_json(message)
@@ -120,7 +120,7 @@ async def clock(room: Room) -> None:
     except asyncio.CancelledError:
         raise
     except Exception:
-        logger.exception("atropos: clock failed for room %s", room.code)
+        logger.exception("undertow: clock failed for room %s", room.code)
         room.task = None
 
 
@@ -217,7 +217,7 @@ async def play(
     room.last_seen = time.time()
     ensure_clock(room)
     await broadcast(room)
-    await send_eidolons(room)   # a joiner needs every face already in the room
+    await send_islanders(room)   # a joiner needs every face already in the room
 
     try:
         while True:
@@ -232,7 +232,7 @@ async def play(
     except WebSocketDisconnect:
         pass
     except Exception:
-        logger.exception("atropos: socket failed in room %s", room.code)
+        logger.exception("undertow: socket failed in room %s", room.code)
     finally:
         if room.sockets.get(player.pid) is websocket:
             room.sockets.pop(player.pid, None)
@@ -315,9 +315,9 @@ async def handle(room: Room, player: Any, message: Dict[str, Any], websocket: We
         room.act_emote(player, message.get("name"))
         return False
 
-    if kind == "eidolon":
-        room.act_eidolon(player, message.get("face"), message.get("colors"))
-        await send_eidolons(room)
+    if kind == "islander":
+        room.act_islander(player, message.get("face"), message.get("colors"))
+        await send_islanders(room)
         return True
 
     return False

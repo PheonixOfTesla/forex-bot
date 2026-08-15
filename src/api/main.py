@@ -201,35 +201,35 @@ async def ping():
 # =============================================================================
 
 
-# Atropos - multiplayer party game. Carries its own /api/v1/game prefix.
+# Undertow - multiplayer party game. Carries its own /api/v1/game prefix.
 app.include_router(game.router)
 
 
 # =============================================================================
-# Atropos Client
+# Undertow Client
 # =============================================================================
 
-ATROPOS_DIR = Path(__file__).resolve().parents[2] / "web" / "atropos"
-ATROPOS_CLIENT = ATROPOS_DIR / "index.html"
+UNDERTOW_DIR = Path(__file__).resolve().parents[2] / "web" / "undertow"
+UNDERTOW_CLIENT = UNDERTOW_DIR / "index.html"
 
-if ATROPOS_DIR.is_dir():
+if UNDERTOW_DIR.is_dir():
     # Serves the vendored three.js. Bundled rather than pulled from a CDN so a
     # weak network cannot take the game down.
-    app.mount("/atropos", StaticFiles(directory=str(ATROPOS_DIR)), name="atropos")
+    app.mount("/undertow", StaticFiles(directory=str(UNDERTOW_DIR)), name="undertow")
 
 
 @app.get("/play", include_in_schema=False)
 @app.get("/play/{code}", include_in_schema=False)
-async def atropos_client(code: str = ""):
+async def undertow_client(code: str = ""):
     """
     Serve the game client.
 
     Both paths return the same file - the room code is read from the URL by the
     client, so a shared link drops the recipient straight into the right room.
     """
-    if not ATROPOS_CLIENT.exists():
+    if not UNDERTOW_CLIENT.exists():
         return JSONResponse(status_code=404, content={"error": "Game client not built."})
-    return FileResponse(ATROPOS_CLIENT, media_type="text/html")
+    return FileResponse(UNDERTOW_CLIENT, media_type="text/html")
 
 
 # Dashboard routes

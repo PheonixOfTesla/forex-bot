@@ -13,15 +13,16 @@
    To move the backend, change API_ORIGIN and nothing else.
    =========================================================================== */
 
-const API_ORIGIN = "https://web-production-7d1c.up.railway.app";
+// Change this one line to point the game at its backend.
+const API_ORIGIN = "https://molua-backend.up.railway.app";
 
 // Never clobber a value set ahead of this file. That lets a host inject its
 // own backend at build time, and lets a test point the client somewhere else,
 // without editing this file at all.
-if (!window.ATROPOS_API){
+if (!window.MOLUA_API){
   const sameOrigin =
     /(^|\.)railway\.app$/.test(location.hostname) ||
     location.hostname === "localhost" ||
     location.hostname === "127.0.0.1";
-  window.ATROPOS_API = sameOrigin ? location.origin : API_ORIGIN;
+  window.MOLUA_API = sameOrigin ? location.origin : API_ORIGIN;
 }

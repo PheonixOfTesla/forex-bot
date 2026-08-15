@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <meta name="theme-color" content="#8ED0EE" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="description" content="A sunlit island party game. One of you holds the shears." />
-<title>Atropos Island</title>
-<script src="/atropos/config.js"></script>
-<script src="/atropos/three.min.js"></script>
-<script src="/atropos/eidolon.js"></script>
-<script src="/atropos/avatar.js"></script>
-<script src="/atropos/village.js"></script>
+<meta name="description" content="A sunlit island party game. Something in the water is taking people." />
+<title>Molua Island</title>
+<script src="/undertow/config.js"></script>
+<script src="/undertow/three.min.js"></script>
+<script src="/undertow/islander.js"></script>
+<script src="/undertow/avatar.js"></script>
+<script src="/undertow/village.js"></script>
 <style>
 /* ===========================================================================
-   ATROPOS ISLAND
+   UNDERTOW ISLAND
    Bright, rounded and friendly. A sunny Greek village, not a haunted one.
    =========================================================================== */
 :root{
@@ -22,7 +22,7 @@
   --paper:#FFFDF7; --paper-2:#F4EEE0; --line:#E2D7C0;
   --ink:#2B2438; --ink-soft:#6B6280;
   --gold:#E8A33D; --gold-deep:#C07E1E;
-  --cut:#E04B3C; --grass:#6F9350; --shade:#8E5FA8;
+  --cut:#E04B3C; --grass:#6F9350; --spirit:#8E5FA8;
   --round:#{}; /* placeholder removed */
   --font:ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",system-ui,"Helvetica Neue",sans-serif;
   --sp:clamp(14px,3.6vw,20px);
@@ -89,7 +89,7 @@ button{background:none;border:none;cursor:pointer}
 }
 .sub{font-weight:700;color:#2B5A72;font-size:15px;text-align:center;max-width:26ch}
 
-/* --- Eidolon maker ------------------------------------------------------ */
+/* --- Islander maker ------------------------------------------------------ */
 #maker{background:linear-gradient(180deg,#9BD8F0,#E9D5A0);z-index:6}
 #preview-wrap{display:flex;justify-content:center;align-items:center;gap:14px}
 #preview{
@@ -138,9 +138,9 @@ button{background:none;border:none;cursor:pointer}
 #role-strip .em{font-size:20px}
 #role-strip .t{font-weight:900;font-size:13px}
 #role-strip .d{font-size:12px;color:var(--ink-soft);font-weight:600;line-height:1.3}
-#role-strip.atropos{background:#FDECEA}#role-strip.atropos .t{color:#B3392B}
-#role-strip.lachesis{background:#FDF3E2}#role-strip.lachesis .t{color:#A9741A}
-#role-strip.nyx{background:#F2EBFA}#role-strip.nyx .t{color:#6E44A0}
+#role-strip.undertow{background:#FDECEA}#role-strip.undertow .t{color:#B3392B}
+#role-strip.navigator{background:#FDF3E2}#role-strip.navigator .t{color:#A9741A}
+#role-strip.reef{background:#F2EBFA}#role-strip.reef .t{color:#6E44A0}
 #role-strip.dead{background:#EFE9F7}
 
 #hint{font-weight:700;font-size:14px;text-align:center;color:var(--ink)}
@@ -154,11 +154,11 @@ button{background:none;border:none;cursor:pointer}
 .msg{font-size:14px;line-height:1.35;font-weight:600;color:var(--ink);
   word-break:break-word;text-align:left}
 .msg b{font-weight:900;color:var(--ink-soft);margin-right:5px}
-.msg.shade{color:var(--shade)} .msg.shade b{color:var(--shade)}
+.msg.spirit{color:var(--spirit)} .msg.spirit b{color:var(--spirit)}
 .msg.sys{color:var(--ink-soft);font-style:italic;font-weight:700}
 .msg.cut{color:var(--cut);font-weight:800}
 .msg.verdict{color:#A9741A;font-weight:800}
-.msg.omen{color:var(--shade);font-style:italic;font-weight:800}
+.msg.omen{color:var(--spirit);font-style:italic;font-weight:800}
 #chat-form{display:flex;gap:7px}
 #chat-in{
   flex:1;min-width:0;padding:11px 14px;border-radius:14px;border:2px solid var(--line);
@@ -199,7 +199,7 @@ button{background:none;border:none;cursor:pointer}
   border:2px solid transparent;
 }
 .chip.sel{border-color:var(--gold);background:#FDF3E2;color:#A9741A}
-.chip.shade{background:#F2EBFA;color:#6E44A0}
+.chip.spirit{background:#F2EBFA;color:#6E44A0}
 
 /* --- controls ----------------------------------------------------------- */
 #stick{
@@ -244,9 +244,9 @@ button{background:none;border:none;cursor:pointer}
 .reveal .who{font-weight:800;font-size:13px;color:var(--ink-soft)}
 .finals{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .final{padding:7px 11px;border-radius:12px;background:var(--paper-2);font-weight:800;font-size:11px}
-.final.atropos{background:#FDECEA;color:#B3392B}
-.final.nyx{background:#F2EBFA;color:#6E44A0}
-.final.lachesis{background:#FDF3E2;color:#A9741A}
+.final.undertow{background:#FDECEA;color:#B3392B}
+.final.reef{background:#F2EBFA;color:#6E44A0}
+.final.navigator{background:#FDF3E2;color:#A9741A}
 
 #roster{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .who-chip{display:flex;align-items:center;gap:7px;background:var(--paper-2);
@@ -267,7 +267,7 @@ button{background:none;border:none;cursor:pointer}
 <div id="ui">
   <header id="top" class="hidden">
     <div class="pill">
-      <div id="phase-name">The Loom</div>
+      <div id="phase-name">The Nightfall</div>
       <div id="phase-sub">Round 1</div>
     </div>
     <div class="pill" id="clock-pill">40</div>
@@ -308,8 +308,8 @@ button{background:none;border:none;cursor:pointer}
 
 <!-- GATE -->
 <section id="gate" class="panel on">
-  <div class="wordmark">ATROPOS</div>
-  <p class="sub">A sunny island. Everyone is friends. One of you is holding the shears.</p>
+  <div class="wordmark">MOLUA</div>
+  <p class="sub">A sunny island. Everyone is friends. One of you is the Undertow.</p>
   <div class="card stack">
     <input id="name-in" class="field" placeholder="Your name" maxlength="14"
            autocomplete="off" autocapitalize="words" spellcheck="false" />
@@ -321,9 +321,9 @@ button{background:none;border:none;cursor:pointer}
   </div>
 </section>
 
-<!-- EIDOLON MAKER -->
+<!-- ISLANDER MAKER -->
 <section id="maker" class="panel">
-  <div class="wordmark" style="font-size:clamp(26px,8vw,40px)">Make your Eidolon</div>
+  <div class="wordmark" style="font-size:clamp(26px,8vw,40px)">Make your Islander</div>
   <p class="sub">Add a photo and we'll cartoon it. Or build one by hand — your photo never leaves this phone.</p>
   <div class="card stack">
     <div id="preview-wrap">
@@ -388,43 +388,51 @@ button{background:none;border:none;cursor:pointer}
 <script>
 "use strict";
 /* ===========================================================================
-   ATROPOS ISLAND - client
+   UNDERTOW ISLAND - client
    =========================================================================== */
 
 const $ = (id) => document.getElementById(id);
-const ROLE_EMOJI = { atropos:"✂️", lachesis:"🧵", nyx:"🌙", mortal:"🫒" };
+const ROLE_EMOJI = { undertow:"✂️", navigator:"🧵", reef:"🌙", villager:"🫒" };
 const PHASE_COPY = {
   lobby:   { name:"The Square",    sub:"Waiting for everyone" },
-  loom:    { name:"The Loom",      sub:"Night falls" },
+  nightfall:    { name:"Nightfall",      sub:"The lanterns go out" },
   decree:  { name:"Forty Seconds", sub:"Someone was told to do something" },
-  agora:   { name:"The Agora",     sub:"Argue out loud, then vote" },
+  gathering:   { name:"The Gathering",     sub:"Argue out loud, then vote" },
   verdict: { name:"The Verdict",   sub:"The island decides" },
   over:    { name:"The End",       sub:"" }
 };
 
+/* Where this client is mounted. It runs at /play/CODE when the backend serves
+   it directly, and at /game/molua/CODE when it sits inside the main site, so
+   the base path is read from the page rather than hardcoded. */
+const BASE_PATH = (window.MOLUA_BASE ||
+  (location.pathname.startsWith("/game/")
+    ? "/" + location.pathname.split("/").slice(1, 3).join("/")
+    : "/play")).replace(/\/$/, "");
+
 // The backend may live on a different host than the page (see config.js).
-const API = (window.ATROPOS_API || location.origin).replace(/\/$/, "");
+const API = (window.MOLUA_API || location.origin).replace(/\/$/, "");
 const WS_API = API.replace(/^http/, "ws");
 
 let state = null, prev = null, net = null, myPid = null;
-let ready = false;          // true once this player has an Eidolon and is in the world
+let ready = false;          // true once this player has an Islander and is in the world
 let clockBase = { remaining:0, duration:1, at:0 };
-let eidolons = {};          // pid -> {face, skin, hair, shirt, faceTexture}
-let myEidolon = null;
+let islanders = {};          // pid -> {face, skin, hair, shirt, faceTexture}
+let myIslander = null;
 let decreePick = 0, decreeOffset = 0;
 let walking = false;
 
 const store = {
-  get(k){ try { return JSON.parse(localStorage.getItem("atropos:"+k) || "null"); } catch(e){ return null; } },
-  set(k,v){ try { localStorage.setItem("atropos:"+k, JSON.stringify(v)); } catch(e){} }
+  get(k){ try { return JSON.parse(localStorage.getItem("undertow:"+k) || "null"); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem("undertow:"+k, JSON.stringify(v)); } catch(e){} }
 };
 
 /* ===========================================================================
-   EIDOLON MAKER
+   ISLANDER MAKER
    =========================================================================== */
 const maker = {
   image: null, zoom: 1.3, offY: 0,
-  hand: Eidolon.randomChoice(),
+  hand: Islander.randomChoice(),
   // The full avatar config - face features, cap and outfit - so the character
   // walking around the island is the one the player built.
   cfg: Avatar.defaults(),
@@ -434,8 +442,8 @@ const maker = {
 
 function paintPreview(){
   const out = maker.mode === "photo" && maker.image
-    ? Eidolon.render(maker.image, { zoom: maker.zoom, offsetY: maker.offY })
-    : Eidolon.drawn("", maker.hand);
+    ? Islander.render(maker.image, { zoom: maker.zoom, offsetY: maker.offY })
+    : Islander.drawn("", maker.hand);
   maker.result = out;
   const ctx = $("preview").getContext("2d");
   ctx.clearRect(0,0,128,128);
@@ -502,9 +510,9 @@ function capRow(){
 }
 
 function setupMaker(){
-  swatchRow($("sw-skin"),  Eidolon.PRESET_SKIN,  "skin");
-  swatchRow($("sw-hair"),  Eidolon.PRESET_HAIR,  "hair");
-  swatchRow($("sw-shirt"), Eidolon.PRESET_SHIRT, "shirt");
+  swatchRow($("sw-skin"),  Islander.PRESET_SKIN,  "skin");
+  swatchRow($("sw-hair"),  Islander.PRESET_HAIR,  "hair");
+  swatchRow($("sw-shirt"), Islander.PRESET_SHIRT, "shirt");
   capRow();
   paintPreview();
 
@@ -518,7 +526,7 @@ function setupMaker(){
   $("pick-btn").onclick = () => $("file-in").click();
   $("draw-btn").onclick = () => {
     maker.mode = "hand";
-    maker.hand = Eidolon.randomChoice();
+    maker.hand = Islander.randomChoice();
     $("photo-tools").style.display = "none";
     $("hand-tools").style.display = "";
     paintPreview();
@@ -528,7 +536,7 @@ function setupMaker(){
     if (!file) return;
     $("maker-err").textContent = "";
     try {
-      maker.image = await Eidolon.load(file);
+      maker.image = await Islander.load(file);
       maker.mode = "photo";
       $("photo-tools").style.display = "";
       $("hand-tools").style.display = "none";
@@ -545,9 +553,9 @@ function setupMaker(){
       ? Object.assign({}, out.colors, { shirt: maker.hand.shirt })
       : maker.hand;
     const colors = Object.assign({}, maker.cfg, base);
-    myEidolon = { face: out.face, colors };
-    store.set("eidolon", myEidolon);
-    net.send({ t:"eidolon", face: out.face, colors });
+    myIslander = { face: out.face, colors };
+    store.set("islander", myIslander);
+    net.send({ t:"islander", face: out.face, colors });
     $("maker").classList.remove("on");
     ready = true;
     showLobbyOrGame();
@@ -695,12 +703,12 @@ function render(s){
   const phase = s.phase;
   const changed = !prev || prev.phase !== phase || prev.round !== s.round;
 
-  Village.sync(s.players, eidolons);
+  Village.sync(s.players, islanders);
   if (myPid) Village.setFollow(myPid);
 
   // Mark who you have voted for with a ring under their feet.
   const marks = {};
-  if (phase === "agora" && m.vote) marks[m.vote] = true;
+  if (phase === "gathering" && m.vote) marks[m.vote] = true;
   Village.setMarkers(marks);
 
   if (changed){
@@ -737,7 +745,7 @@ function render(s){
 }
 
 function faceOf(pid){
-  const e = eidolons[pid];
+  const e = islanders[pid];
   return e && e.face ? e.face : null;
 }
 
@@ -776,16 +784,16 @@ function renderPlay(s, m){
     strip.style.display = "";
     strip.className = m.role + (m.alive ? "" : " dead");
     strip.querySelector(".em").textContent = m.alive ? (ROLE_EMOJI[m.role]||"") : "👻";
-    strip.querySelector(".t").textContent = m.alive ? m.title : "SHADE · " + m.title;
+    strip.querySelector(".t").textContent = m.alive ? m.title : "SPIRIT · " + m.title;
     strip.querySelector(".d").textContent = m.alive ? m.howto
       : "You can see everything now. Spend your one Omen well.";
   } else strip.style.display = "none";
 
   renderChat(s, m);
 
-  if (s.phase === "loom")    return renderLoom(s, m);
+  if (s.phase === "nightfall")    return renderNightfall(s, m);
   if (s.phase === "decree")  return renderDecreeWatch(s, m);
-  if (s.phase === "agora")   return renderAgora(s, m);
+  if (s.phase === "gathering")   return renderGathering(s, m);
   if (s.phase === "verdict") return renderVerdict(s, m);
   if (s.phase === "over")    return renderOver(s, m);
 }
@@ -803,7 +811,7 @@ function buildTargets(list, selected, onPick, tallies, m){
     if (known){
       const t = document.createElement("span");
       t.style.cssText = "font-size:10px;font-weight:900;color:" +
-        (known === "atropos" ? "var(--cut)" : "var(--ink-soft)");
+        (known === "undertow" ? "var(--cut)" : "var(--ink-soft)");
       t.textContent = known.toUpperCase();
       b.appendChild(t);
     }
@@ -817,11 +825,11 @@ function buildTargets(list, selected, onPick, tallies, m){
   });
 }
 
-function renderLoom(s, m){
+function renderNightfall(s, m){
   const others = s.players.filter(p => p.alive && p.pid !== m.pid);
   if (!m.alive){ $("hint").textContent = "The island is asleep. You are not."; return; }
 
-  if (m.role === "atropos"){
+  if (m.role === "undertow"){
     $("hint").textContent = m.cut ? "Chosen. You can still change your mind."
                                   : "Pick who to cut, and an order they must obey.";
     buildTargets(others, m.cut, (pid) =>
@@ -846,10 +854,10 @@ function renderLoom(s, m){
     return;
   }
 
-  if (m.role === "lachesis"){
+  if (m.role === "navigator"){
     if (m.measured){
       const f = m.findings[m.findings.length-1];
-      $("hint").innerHTML = f.atropos
+      $("hint").innerHTML = f.undertow
         ? `<b style="color:var(--cut)">${escapeHtml(f.name)} HOLDS THE SHEARS.</b>`
         : `${escapeHtml(f.name)} is clean.`;
     } else {
@@ -859,14 +867,14 @@ function renderLoom(s, m){
     (m.findings||[]).forEach(f => {
       const c = document.createElement("div");
       c.className = "chip";
-      c.style.color = f.atropos ? "var(--cut)" : "";
-      c.textContent = `${f.name} · ${f.atropos ? "ATROPOS" : "clean"}`;
+      c.style.color = f.undertow ? "var(--cut)" : "";
+      c.textContent = `${f.name} · ${f.undertow ? "UNDERTOW" : "clean"}`;
       $("options").appendChild(c);
     });
     return;
   }
 
-  if (m.role === "nyx"){
+  if (m.role === "reef"){
     const names = s.players.filter(p => (m.knows||[]).includes(p.pid)).map(p => p.name);
     $("hint").innerHTML = `Sleep. You already know: <b style="color:var(--cut)">${escapeHtml(names.join(", "))}</b>`;
     return;
@@ -882,7 +890,7 @@ function renderDecreeWatch(s, m){
   $("hint").textContent = m.alive ? "Say nothing. Watch who moves." : "You know who it is.";
 }
 
-function renderAgora(s, m){
+function renderGathering(s, m){
   const living = s.players.filter(p => p.alive);
   const tallies = {};
   Object.values(s.votes || {}).forEach(p => { tallies[p] = (tallies[p]||0)+1; });
@@ -904,7 +912,7 @@ function renderAgora(s, m){
     if (!m.omenSpent){
       (s.omens||[]).forEach((text,i) => {
         const b = document.createElement("button");
-        b.className = "chip shade"; b.textContent = text;
+        b.className = "chip spirit"; b.textContent = text;
         b.onclick = () => net.send({ t:"omen", index:i });
         $("actions").appendChild(b);
       });
@@ -924,9 +932,9 @@ function renderVerdict(s, m){
 }
 
 function renderOver(s, m){
-  const won = s.winner === "atropos";
+  const won = s.winner === "undertow";
   $("reveal").innerHTML = `
-    <div class="big">${won ? "Atropos wins." : "The island wins."}</div>
+    <div class="big">${won ? "The Undertow wins." : "Molua wins."}</div>
     <div class="finals">${s.players.map(p =>
       `<div class="final ${p.role}">${escapeHtml(p.name)} · ${escapeHtml(p.title||"")}</div>`).join("")}</div>`;
   $("hint").textContent = "";
@@ -941,13 +949,13 @@ function renderOver(s, m){
 /* The chat transcript. Everything worth reading lives in the server log
    already, so the panel renders that rather than keeping its own copy - which
    also means a reconnecting player sees the backlog. */
-const CHAT_KINDS = { chat:"", shade:"shade", system:"sys", cut:"cut",
+const CHAT_KINDS = { chat:"", spirit:"spirit", system:"sys", cut:"cut",
                      verdict:"verdict", omen:"omen", call:"" };
 
 function renderChat(s, m){
   const panel = $("chat");
-  // The living are silent at night; Shades can always talk to each other.
-  const canTalk = !m.alive || ["lobby","agora","over"].includes(s.phase);
+  // The living are silent at night; Spirits can always talk to each other.
+  const canTalk = !m.alive || ["lobby","gathering","over"].includes(s.phase);
   panel.classList.add("on");
 
   const log = $("chat-log");
@@ -969,7 +977,7 @@ function renderChat(s, m){
   $("chat-in").disabled = !canTalk;
   $("chat-send").disabled = !canTalk;
   $("chat-in").placeholder = canTalk
-    ? (m.alive ? "Say something…" : "Shades only…")
+    ? (m.alive ? "Say something…" : "Spirits only…")
     : "Quiet until morning…";
 }
 
@@ -1007,8 +1015,8 @@ class Net {
           const mine = msg.players.find(p => p[0] === myPid);
           if (mine){ me.x = mine[1]; me.z = mine[2]; me.angle = mine[3]; this.spawned = true; }
         }
-      } else if (msg.t === "eidolons"){
-        await adoptEidolons(msg.map);
+      } else if (msg.t === "islanders"){
+        await adoptIslanders(msg.map);
         // Only redraw once the player is actually in the world - otherwise a
         // face arriving mid-build pops the lobby over the top of the maker.
         if (state && ready) render(state);
@@ -1024,18 +1032,18 @@ class Net {
 }
 
 /* Faces arrive as data URLs; decode each once into a texture and cache it. */
-async function adoptEidolons(map){
+async function adoptIslanders(map){
   const jobs = [];
   Object.keys(map || {}).forEach(pid => {
     const incoming = map[pid];
     if (!incoming || !incoming.face) return;
-    const existing = eidolons[pid];
+    const existing = islanders[pid];
     if (existing && existing.face === incoming.face){
       Object.assign(existing, incoming, { faceTexture: existing.faceTexture });
       return;
     }
     jobs.push(Village.faceTextureFor(incoming.face).then(tex => {
-      eidolons[pid] = Object.assign({}, incoming, { faceTexture: tex });
+      islanders[pid] = Object.assign({}, incoming, { faceTexture: tex });
     }));
   });
   await Promise.all(jobs);
@@ -1054,7 +1062,7 @@ async function openIsland(){
     const res = await fetch(API + "/api/v1/game/rooms", { method:"POST" });
     if (!res.ok) throw new Error();
     const room = await res.json();
-    history.replaceState(null, "", "/play/" + room.code);
+    history.replaceState(null, "", BASE_PATH + "/" + room.code);
     connect(room.code, name);
   } catch(e){ gateError("Could not make an island"); }
 }
@@ -1074,13 +1082,13 @@ function connect(code, name){
   gateError("");
   net = new Net(code, name, saved && saved.secret, (s) => {
     $("gate").classList.remove("on");
-    if (!myEidolon){
+    if (!myIslander){
       // Straight into the maker the first time; returning players skip it.
-      const remembered = store.get("eidolon");
+      const remembered = store.get("islander");
       if (remembered){
-        myEidolon = remembered;
+        myIslander = remembered;
         ready = true;
-        net.send({ t:"eidolon", face: remembered.face, colors: remembered.colors });
+        net.send({ t:"islander", face: remembered.face, colors: remembered.colors });
       } else {
         $("maker").classList.add("on");
         state = s;
@@ -1102,8 +1110,8 @@ function connect(code, name){
 function showLobbyOrGame(){ if (state) render(state); }
 
 async function share(){
-  const url = location.origin + "/play/" + state.code;
-  const payload = { title:"Atropos Island", text:`Come to my island. Code ${state.code}.`, url };
+  const url = location.origin + BASE_PATH + "/" + state.code;
+  const payload = { title:"Molua Island", text:`Come to Molua. Island code ${state.code}.`, url };
   try {
     if (navigator.share){ await navigator.share(payload); return; }
     await navigator.clipboard.writeText(url); flashShare("Link copied!");
@@ -1158,10 +1166,18 @@ $("scene").addEventListener("dblclick", () => {
 try {
   Village.init($("scene"));
 } catch (err){
-  console.warn("Atropos: 3D unavailable, running flat.", err);
+  console.warn("Undertow: 3D unavailable, running flat.", err);
   $("scene").style.display = "none";
   document.body.style.background = "linear-gradient(180deg,#8ED0EE,#CFEAF6 60%,#E9D5A0)";
-  const KEEP = { separation: () => [0, 0], heading: () => 0, VILLAGE_RADIUS: Village.VILLAGE_RADIUS };
+  // Any stub whose return value gets used needs a usable shape, not undefined.
+  // faceTextureFor is awaited, so a bare no-op throws on .then.
+  const KEEP = {
+    separation: () => [0, 0],
+    heading: () => 0,
+    selfRig: () => null,
+    faceTextureFor: () => Promise.resolve(null),
+    VILLAGE_RADIUS: Village.VILLAGE_RADIUS
+  };
   for (const k of Object.keys(Village)){
     if (typeof Village[k] === "function") Village[k] = KEEP[k] || (() => {});
   }
@@ -1171,12 +1187,12 @@ setupControls();
 
 const savedName = store.get("name");
 if (savedName) $("name-in").value = savedName;
-myEidolon = store.get("eidolon");
+myIslander = store.get("islander");
 
 (function boot(){
-  const fromUrl = (location.pathname.match(/\/play\/([A-Z0-9]{5})/i) || [])[1];
-  if (!fromUrl) return;
-  const code = fromUrl.toUpperCase();
+  const last = location.pathname.split("/").filter(Boolean).pop() || "";
+  if (!/^[A-Za-z0-9]{5}$/.test(last)) return;
+  const code = last.toUpperCase();
   $("code-in").value = code;
   $("join-btn").textContent = "Join island " + code;
   if (store.get(code) && savedName) connect(code, savedName);

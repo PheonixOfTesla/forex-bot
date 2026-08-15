@@ -1,8 +1,8 @@
 "use strict";
 /* ===========================================================================
-   EIDOLON - turning a photo into a character
+   ISLANDER - turning a photo into a character
 
-   Greek "eidolon": a likeness, an image of a person. You give it a photo and
+   Greek "islander": a likeness, an image of a person. You give it a photo and
    it gives you back a cartoon of yourself - a cel-shaded face plus the three
    colours that dress the rest of the body.
 
@@ -11,7 +11,7 @@
    the other players need in order to recognise you does.
    =========================================================================== */
 
-const Eidolon = (() => {
+const Islander = (() => {
 
   const FACE_SIZE = 128;      // what everyone else receives
   const WORK_SIZE = 256;      // what we style at, before downscaling

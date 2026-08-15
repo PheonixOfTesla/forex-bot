@@ -189,7 +189,7 @@ const Village = (() => {
     scene.add(g);
   }
 
-  /* The loom monument in the middle of the square - the game's namesake,
+  /* The nightfall monument in the middle of the square - the game's namesake,
      and the thing everyone gathers around to vote. */
   function buildMonument(){
     const g = new THREE.Group();
@@ -298,10 +298,10 @@ const Village = (() => {
     return tex;
   }
 
-  /* One Eidolon in the world: the shared avatar rig, plus the things only the
+  /* One Islander in the world: the shared avatar rig, plus the things only the
      island needs - a painted shadow, a name tag and a vote marker. */
-  function buildRig(player, eidolon){
-    const cfg = Object.assign(Avatar.defaults(), eidolon || {});
+  function buildRig(player, islander){
+    const cfg = Object.assign(Avatar.defaults(), islander || {});
     cfg.hat = cfg.hat !== false;
 
     const a = Avatar.build(cfg);
@@ -381,13 +381,13 @@ const Village = (() => {
     renderer.setSize(innerWidth, innerHeight, false);
   }
 
-  /* Rebuild the cast when the roster or somebody's Eidolon changes. */
-  function sync(players, eidolonMap){
+  /* Rebuild the cast when the roster or somebody's Islander changes. */
+  function sync(players, islanderMap){
     const seen = new Set();
     players.forEach(p => {
       seen.add(p.pid);
       let rig = avatars.get(p.pid);
-      const raw = eidolonMap && eidolonMap[p.pid];
+      const raw = islanderMap && islanderMap[p.pid];
       // Include the colours, not just the face: changing only a shirt would
       // otherwise leave the old rig standing.
       const stamp = raw ? JSON.stringify(raw) : "none";
@@ -565,7 +565,7 @@ const Village = (() => {
       rig.armL.rotation.z = rig.armR.rotation.z = 0;
     }
 
-    // The dead drift as translucent shades, and stop casting a shadow.
+    // The dead drift as translucent spirits, and stop casting a shadow.
     const wantGhost = !rig.alive;
     if (wantGhost !== rig.ghost){
       rig.ghost = wantGhost;

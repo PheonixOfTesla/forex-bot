@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 """
-ATROPOS - Multiplayer Social Deduction Engine
+UNDERTOW - Multiplayer Social Deduction Engine
 
 Named for the eldest Moira: the Fate who chooses the manner of an ending and
 cuts the thread. A mafia variant built for a room full of people holding phones
 - summer camp, dorm lounge, family table.
 
 Roles
-    ATROPOS   - cuts one thread each Loom. Wins with NYX.
-    LACHESIS  - measures one thread each Loom, learns ATROPOS / NOT ATROPOS.
-    NYX       - knows Atropos, holds no shears, wins with Atropos.
-    MORTAL    - no power but judgement. Wins by casting every Atropos out.
+    UNDERTOW   - pulls one islander under each Nightfall. Wins with REEF.
+    NAVIGATOR  - measures one thread each Nightfall, learns UNDERTOW / NOT UNDERTOW.
+    REEF       - knows the Undertow, cannot pull, wins with the Undertow.
+    VILLAGER    - no power but judgement. Wins by casting every Undertow out.
 
-ATROPOS is a mantle, not a person - whoever draws it wears the name, the same
+UNDERTOW is a mantle, not a person - whoever draws it wears the name, the same
 way "Kira" was an alias rather than a body. All copy stays neutral.
 
 Phase loop
-    LOBBY -> LOOM -> DECREE -> AGORA -> VERDICT -> (LOOM | OVER)
+    LOBBY -> NIGHTFALL -> DECREE -> GATHERING -> VERDICT -> (NIGHTFALL | OVER)
 
 The DECREE phase is what makes this a party game rather than a browser game.
 The cut player is told privately that they have forty seconds, and is handed an
@@ -25,7 +25,7 @@ instruction to carry out loud, in the actual room. The instruction is published
 to every screen with no name attached, so everyone watches to see who obeys.
 Then the thread snaps and the identity lands.
 
-Dying is not an exit. Shades see every role and get one anonymous Omen to spend
+Dying is not an exit. Spirits see every role and get one anonymous Omen to spend
 on the living, which keeps eliminated players louder than the survivors.
 
 Design constraints for a mixed-age camp audience:
@@ -75,9 +75,9 @@ MAX_LOG_ENTRIES = 160
 CHAT_MIN_INTERVAL = 1.1
 
 # Phase durations in seconds. Tuned so a whole game runs about seven minutes.
-LOOM_SECONDS = 40
+NIGHTFALL_SECONDS = 40
 DECREE_SECONDS = 40
-AGORA_SECONDS = 105
+GATHERING_SECONDS = 105
 VERDICT_SECONDS = 10
 OVER_SECONDS = 90
 
@@ -86,27 +86,27 @@ ROOM_IDLE_TIMEOUT = 3600
 
 # Every ending is mythic and bloodless. Nothing here needs a content warning.
 MANNERS = [
-    "the thread ran out",
+    "the tide took them",
+    "went out too far",
+    "the current",
     "a long sleep",
-    "the sea took them",
-    "the ground opened",
-    "a fever, sudden",
-    "a door that would not open",
+    "the reef",
+    "a storm, sudden",
+    "the sand gave way",
     "the wind, and nothing else",
-    "a star fell on them",
 ]
 
 # Decrees are performed out loud, in the room. That is the entire point of them.
 # Fixed list: nothing a player types can ever reach another player's screen.
 DECREES = [
     "Stand up and accuse someone.",
-    "Say 'I am not Atropos' three times.",
+    "Say 'I am not Undertow' three times.",
     "Compliment the person you suspect most.",
     "Laugh out loud at nothing.",
     "Swap seats with someone.",
     "Whisper to the person on your left.",
     "Point at someone. Say nothing.",
-    "Stay silent for the whole Agora.",
+    "Stay silent for the whole Gathering.",
     "Do your best evil laugh.",
     "Speak only in questions this round.",
     "Clap three times, slowly.",
@@ -125,7 +125,7 @@ CALLS = [
     "Nobody move.",
 ]
 
-# A Shade's one anonymous message to the living.
+# A Spirit's one anonymous message to the living.
 OMENS = [
     "One of you is lying right now.",
     "You are looking the wrong way.",
@@ -144,15 +144,15 @@ VILLAGE_RADIUS = 26.0
 SPAWN_RADIUS = 7.0
 
 # A face thumbnail is relayed to every player, so it is hard-capped. The client
-# sends roughly a 128px cel-shaded JPEG, which lands near 6 KB.
-MAX_EIDOLON_BYTES = 24000
+# sends roughly a 128px cel-spiritd JPEG, which lands near 6 KB.
+MAX_ISLANDER_BYTES = 24000
 
-# The shape of an Eidolon, mirroring web/atropos/avatar.js. Kept as explicit
+# The shape of an Islander, mirroring web/undertow/avatar.js. Kept as explicit
 # whitelists so a client cannot inject arbitrary strings into other players'
 # renderers.
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
-EIDOLON_COLOR_KEYS = ("skin", "hair", "shirt", "pants", "shoes", "hatColor")
-EIDOLON_STYLE_KEYS = {
+ISLANDER_COLOR_KEYS = ("skin", "hair", "shirt", "pants", "shoes", "hatColor")
+ISLANDER_STYLE_KEYS = {
     "hairStyle": {"crop", "buzz", "bob", "long", "ponytail", "curls", "bun", "topknot"},
     "eyes": {"round", "almond", "wide", "happy", "sleepy", "wink"},
     "brows": {"soft", "flat", "arched", "thick"},
@@ -163,40 +163,40 @@ EIDOLON_STYLE_KEYS = {
 
 class Phase(str, Enum):
     LOBBY = "lobby"
-    LOOM = "loom"
+    NIGHTFALL = "nightfall"
     DECREE = "decree"
-    AGORA = "agora"
+    GATHERING = "gathering"
     VERDICT = "verdict"
     OVER = "over"
 
 
 class Role(str, Enum):
-    ATROPOS = "atropos"
-    LACHESIS = "lachesis"
-    NYX = "nyx"
-    MORTAL = "mortal"
+    UNDERTOW = "undertow"
+    NAVIGATOR = "navigator"
+    REEF = "reef"
+    VILLAGER = "villager"
 
 
 ROLE_TITLES = {
-    Role.ATROPOS: "ATROPOS",
-    Role.LACHESIS: "LACHESIS",
-    Role.NYX: "NYX",
-    Role.MORTAL: "MORTAL",
+    Role.UNDERTOW: "UNDERTOW",
+    Role.NAVIGATOR: "NAVIGATOR",
+    Role.REEF: "REEF",
+    Role.VILLAGER: "VILLAGER",
 }
 
 # Flavour first, then the plain-language version an eight-year-old can act on.
 ROLE_BLURBS = {
-    Role.ATROPOS: "You hold the shears.",
-    Role.LACHESIS: "You measure what others only guess at.",
-    Role.NYX: "You are the dark they work under.",
-    Role.MORTAL: "You have no gift. Only the room.",
+    Role.UNDERTOW: "You are the Undertow.",
+    Role.NAVIGATOR: "You measure what others only guess at.",
+    Role.REEF: "You are the dark they work under.",
+    Role.VILLAGER: "You have no gift. Only the room.",
 }
 
 ROLE_HOWTO = {
-    Role.ATROPOS: "Each night, pick one player to cut and an order for them to obey. Don't get caught.",
-    Role.LACHESIS: "Each night, pick one player. You'll be told if they are Atropos. Nobody else finds out.",
-    Role.NYX: "You already know who Atropos is. You can't cut anyone. Lie for them and stay alive.",
-    Role.MORTAL: "You have no night action. Listen, argue out loud, and vote for who you think is Atropos.",
+    Role.UNDERTOW: "Each night, pick one player to cut and an order for them to obey. Don't get caught.",
+    Role.NAVIGATOR: "Each night, pick one player. You'll be told if they are Undertow. Nobody else finds out.",
+    Role.REEF: "You already know who Undertow is. You can't cut anyone. Lie for them and stay alive.",
+    Role.VILLAGER: "You have no night action. Listen, argue out loud, and vote for who you think is Undertow.",
 }
 
 
@@ -239,7 +239,7 @@ class Player:
     name: str
     seat: int
     is_host: bool = False
-    role: Role = Role.MORTAL
+    role: Role = Role.VILLAGER
     alive: bool = True
     connected: bool = True
 
@@ -255,10 +255,10 @@ class Player:
     moving: bool = False
     emote: Optional[str] = None
 
-    # Their Eidolon: a cel-shaded face thumbnail plus the colours pulled from it.
-    eidolon: Optional[Dict[str, Any]] = None
+    # Their Islander: a cel-spiritd face thumbnail plus the colours pulled from it.
+    islander: Optional[Dict[str, Any]] = None
 
-    # Lachesis findings: round -> {"pid", "name", "atropos"}
+    # Navigator findings: round -> {"pid", "name", "undertow"}
     findings: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     # One anonymous message from beyond, per game.
@@ -273,8 +273,8 @@ class Player:
     cast_out: bool = False
 
     @property
-    def with_atropos(self) -> bool:
-        return self.role in (Role.ATROPOS, Role.NYX)
+    def with_undertow(self) -> bool:
+        return self.role in (Role.UNDERTOW, Role.REEF)
 
 
 # =============================================================================
@@ -297,7 +297,7 @@ class Room:
         self.created_at: float = time.time()
         self.last_seen: float = time.time()
 
-        # Loom bookkeeping.
+        # Nightfall bookkeeping.
         self.cut: Optional[str] = None
         self.cut_manner: Optional[str] = None
         self.cut_decree: Optional[str] = None
@@ -375,17 +375,17 @@ class Room:
     def start(self) -> None:
         count = len(self.players)
         if count < MIN_PLAYERS:
-            raise ValueError(f"Atropos needs at least {MIN_PLAYERS} threads.")
+            raise ValueError(f"Molua needs at least {MIN_PLAYERS} threads.")
 
         pool = list(self.players.values())
         random.shuffle(pool)
 
-        shears = 2 if count >= 11 else 1
-        assignments: List[Role] = [Role.ATROPOS] * shears
-        assignments.append(Role.LACHESIS)
+        pullers = 2 if count >= 11 else 1
+        assignments: List[Role] = [Role.UNDERTOW] * pullers
+        assignments.append(Role.NAVIGATOR)
         if count >= 7:
-            assignments.append(Role.NYX)
-        assignments += [Role.MORTAL] * (count - len(assignments))
+            assignments.append(Role.REEF)
+        assignments += [Role.VILLAGER] * (count - len(assignments))
 
         for player, role in zip(pool, assignments):
             player.role = role
@@ -401,13 +401,13 @@ class Room:
         self.winner = None
         self.log = []
         self.spawn_positions()
-        self.write_log("system", "The shears have found a hand. Nobody knows whose.")
-        self.begin_loom()
+        self.write_log("system", "Something is in the water tonight. Nobody knows what.")
+        self.begin_nightfall()
 
-    def begin_loom(self) -> None:
+    def begin_nightfall(self) -> None:
         self.round += 1
-        self.phase = Phase.LOOM
-        self.phase_ends_at = time.time() + LOOM_SECONDS
+        self.phase = Phase.NIGHTFALL
+        self.phase_ends_at = time.time() + NIGHTFALL_SECONDS
         self.cut = None
         self.cut_manner = None
         self.cut_decree = None
@@ -418,21 +418,21 @@ class Room:
             player.vote = None
             player.obeyed = False
             player.reaction = None
-        self.write_log("phase", f"Loom {self.round}. The lights go down.")
+        self.write_log("phase", f"Nightfall {self.round}. The lanterns go out.")
 
     def begin_decree(self) -> None:
         self.phase = Phase.DECREE
         self.phase_ends_at = time.time() + DECREE_SECONDS
-        self.write_log("phase", "A thread is held. Forty seconds.")
+        self.write_log("phase", "Someone is being pulled under. Forty seconds.")
         if self.cut_decree:
             self.write_log("decree", self.cut_decree, anonymous=True)
 
-    def begin_agora(self) -> None:
-        self.phase = Phase.AGORA
-        self.phase_ends_at = time.time() + AGORA_SECONDS
+    def begin_gathering(self) -> None:
+        self.phase = Phase.GATHERING
+        self.phase_ends_at = time.time() + GATHERING_SECONDS
         for player in self.players.values():
             player.vote = None
-        self.write_log("phase", f"Agora {self.round}. Speak, and be counted.")
+        self.write_log("phase", f"Gathering {self.round}. Speak, and be counted.")
 
     def begin_verdict(self) -> None:
         self.phase = Phase.VERDICT
@@ -442,15 +442,15 @@ class Room:
         self.phase = Phase.OVER
         self.winner = winner
         self.phase_ends_at = time.time() + OVER_SECONDS
-        if winner == "atropos":
-            self.write_log("system", "The room is quiet. The shears are kept.")
+        if winner == "undertow":
+            self.write_log("system", "The island is quiet. The water keeps its own.")
         else:
-            self.write_log("system", "The shears are broken. The thread runs on.")
+            self.write_log("system", "The water is still. Molua sleeps easy.")
 
     # -- actions ------------------------------------------------------------
 
     def act_cut(self, actor: Player, target_pid: str, manner_index: Any, decree_index: Any) -> None:
-        if self.phase is not Phase.LOOM or actor.role is not Role.ATROPOS or not actor.alive:
+        if self.phase is not Phase.NIGHTFALL or actor.role is not Role.UNDERTOW or not actor.alive:
             return
         target = self.players.get(target_pid)
         if not target or not target.alive or target.pid == actor.pid:
@@ -460,7 +460,7 @@ class Room:
         self.cut_decree = pick(DECREES, decree_index)
 
     def act_measure(self, actor: Player, target_pid: str) -> None:
-        if self.phase is not Phase.LOOM or actor.role is not Role.LACHESIS or not actor.alive:
+        if self.phase is not Phase.NIGHTFALL or actor.role is not Role.NAVIGATOR or not actor.alive:
             return
         if str(self.round) in actor.findings:
             return
@@ -470,7 +470,7 @@ class Room:
         actor.findings[str(self.round)] = {
             "pid": target.pid,
             "name": target.name,
-            "atropos": target.role is Role.ATROPOS,
+            "undertow": target.role is Role.UNDERTOW,
         }
 
     def act_obey(self, actor: Player) -> None:
@@ -486,7 +486,7 @@ class Room:
 
         Rate limited and length capped, because this is the one place a player
         can put arbitrary text on everyone else's screen. The living and the
-        dead are separate rooms: a Shade knows every role, so letting them talk
+        dead are separate rooms: a Spirit knows every role, so letting them talk
         to the living would hand the game away.
         """
         message = clean_text(text, MAX_CHAT_LENGTH)
@@ -499,23 +499,23 @@ class Room:
         actor.last_said = now
 
         if not actor.alive:
-            self.write_log("shade", message, who=actor.name, seat=actor.seat)
-        elif self.phase in (Phase.LOBBY, Phase.AGORA, Phase.OVER):
+            self.write_log("spirit", message, who=actor.name, seat=actor.seat)
+        elif self.phase in (Phase.LOBBY, Phase.GATHERING, Phase.OVER):
             self.write_log("chat", message, who=actor.name, seat=actor.seat)
-        # During the Loom and the forty seconds the living stay quiet.
+        # During the Nightfall and the forty seconds the living stay quiet.
 
     def act_call(self, actor: Player, index: Any) -> None:
         """A fixed table call, so a quiet player can still join the argument."""
         if not isinstance(index, int) or not 0 <= index < len(CALLS):
             return
         if not actor.alive:
-            self.write_log("shade", CALLS[index], who=actor.name, seat=actor.seat)
-        elif self.phase in (Phase.AGORA, Phase.LOBBY, Phase.OVER):
+            self.write_log("spirit", CALLS[index], who=actor.name, seat=actor.seat)
+        elif self.phase in (Phase.GATHERING, Phase.LOBBY, Phase.OVER):
             self.write_log("call", CALLS[index], who=actor.name, seat=actor.seat)
 
     def act_omen(self, actor: Player, index: Any) -> None:
-        """One anonymous message from a Shade to the living, once per game."""
-        if actor.alive or actor.omen_spent or self.phase is not Phase.AGORA:
+        """One anonymous message from a Spirit to the living, once per game."""
+        if actor.alive or actor.omen_spent or self.phase is not Phase.GATHERING:
             return
         if not isinstance(index, int) or not 0 <= index < len(OMENS):
             return
@@ -523,7 +523,7 @@ class Room:
         self.write_log("omen", OMENS[index], anonymous=True)
 
     def act_vote(self, actor: Player, target_pid: str) -> None:
-        if self.phase is not Phase.AGORA or not actor.alive:
+        if self.phase is not Phase.GATHERING or not actor.alive:
             return
         if not target_pid:
             actor.vote = None
@@ -556,9 +556,9 @@ class Room:
     def act_emote(self, actor: Player, name: Any) -> None:
         actor.emote = name if name in EMOTES else None
 
-    def act_eidolon(self, actor: Player, face: Any, colors: Any) -> None:
+    def act_islander(self, actor: Player, face: Any, colors: Any) -> None:
         """
-        Store a player's Eidolon.
+        Store a player's Islander.
 
         Everything here is relayed to every other player, so nothing is trusted:
         colours must match a hex pattern, every style must be one of a known
@@ -568,15 +568,15 @@ class Room:
         """
         safe: Dict[str, Any] = {}
 
-        if isinstance(face, str) and face.startswith("data:image/") and len(face) <= MAX_EIDOLON_BYTES:
+        if isinstance(face, str) and face.startswith("data:image/") and len(face) <= MAX_ISLANDER_BYTES:
             safe["face"] = face
 
         if isinstance(colors, dict):
-            for key in EIDOLON_COLOR_KEYS:
+            for key in ISLANDER_COLOR_KEYS:
                 value = colors.get(key)
                 if isinstance(value, str) and HEX_COLOR.fullmatch(value):
                     safe[key] = value
-            for key, allowed in EIDOLON_STYLE_KEYS.items():
+            for key, allowed in ISLANDER_STYLE_KEYS.items():
                 value = colors.get(key)
                 if isinstance(value, str) and value in allowed:
                     safe[key] = value
@@ -585,7 +585,7 @@ class Room:
 
         # A record with nothing valid in it is not worth relaying.
         if safe:
-            actor.eidolon = safe
+            actor.islander = safe
 
     def spawn_positions(self) -> None:
         """Stand everyone in a ring in the square, facing the middle."""
@@ -606,17 +606,17 @@ class Room:
             for p in self.seated
         ]
 
-    def eidolons(self) -> Dict[str, Any]:
-        return {p.pid: p.eidolon for p in self.seated if p.eidolon}
+    def islanders(self) -> Dict[str, Any]:
+        return {p.pid: p.islander for p in self.seated if p.islander}
 
     # -- resolution ---------------------------------------------------------
 
-    def resolve_loom(self) -> None:
+    def resolve_nightfall(self) -> None:
         if self.cut:
             self.begin_decree()
         else:
-            self.write_log("system", "No thread was taken tonight.")
-            self.begin_agora()
+            self.write_log("system", "The water was still tonight.")
+            self.begin_gathering()
 
     def resolve_decree(self) -> None:
         victim = self.players.get(self.cut or "")
@@ -640,7 +640,7 @@ class Room:
                 seat=victim.seat,
             )
         if not self.check_winner():
-            self.begin_agora()
+            self.begin_gathering()
 
     def tally(self) -> Dict[str, int]:
         counts: Dict[str, int] = {}
@@ -649,7 +649,7 @@ class Room:
                 counts[player.vote] = counts.get(player.vote, 0) + 1
         return counts
 
-    def resolve_agora(self) -> None:
+    def resolve_gathering(self) -> None:
         counts = self.tally()
         chosen: Optional[Player] = None
         if counts:
@@ -662,7 +662,7 @@ class Room:
         if chosen:
             chosen.alive = False
             chosen.cast_out = True
-            chosen.manner = "cast out by the Agora"
+            chosen.manner = "cast out by the Gathering"
             chosen.death_round = self.round
             self.last_verdict = {
                 "pid": chosen.pid,
@@ -671,7 +671,7 @@ class Room:
                 "role": chosen.role.value,
                 "title": ROLE_TITLES[chosen.role],
                 "votes": counts.get(chosen.pid, 0),
-                "correct": chosen.role is Role.ATROPOS,
+                "correct": chosen.role is Role.UNDERTOW,
             }
             self.write_log(
                 "verdict",
@@ -681,44 +681,44 @@ class Room:
             )
         else:
             self.last_verdict = None
-            self.write_log("system", "No majority. The Agora breaks with nothing.")
+            self.write_log("system", "No majority. The Gathering breaks with nothing.")
 
         self.begin_verdict()
 
     @staticmethod
     def role_reveal(player: Player) -> str:
-        if player.role is Role.ATROPOS:
-            return "The shears fall from their hand."
-        if player.role is Role.NYX:
-            return "They kept the dark for the shears."
-        if player.role is Role.LACHESIS:
+        if player.role is Role.UNDERTOW:
+            return "The water lets them go."
+        if player.role is Role.REEF:
+            return "They kept the water dark."
+        if player.role is Role.NAVIGATOR:
             return "They were the one who measured."
         return "Their hands were empty."
 
     def check_winner(self) -> bool:
         living = self.living
-        shears = [p for p in living if p.role is Role.ATROPOS]
-        theirs = [p for p in living if p.with_atropos]
-        ours = [p for p in living if not p.with_atropos]
-        if not shears:
-            self.finish("mortals")
+        pullers = [p for p in living if p.role is Role.UNDERTOW]
+        theirs = [p for p in living if p.with_undertow]
+        ours = [p for p in living if not p.with_undertow]
+        if not pullers:
+            self.finish("villagers")
             return True
         if len(theirs) >= len(ours):
-            self.finish("atropos")
+            self.finish("undertow")
             return True
         return False
 
     def advance(self) -> None:
         """Called when the phase clock expires or every action is in."""
-        if self.phase is Phase.LOOM:
-            self.resolve_loom()
+        if self.phase is Phase.NIGHTFALL:
+            self.resolve_nightfall()
         elif self.phase is Phase.DECREE:
             self.resolve_decree()
-        elif self.phase is Phase.AGORA:
-            self.resolve_agora()
+        elif self.phase is Phase.GATHERING:
+            self.resolve_gathering()
         elif self.phase is Phase.VERDICT:
             if not self.check_winner():
-                self.begin_loom()
+                self.begin_nightfall()
         elif self.phase is Phase.OVER:
             self.reset_to_lobby()
 
@@ -732,27 +732,27 @@ class Room:
         self.log = []
         for player in self.players.values():
             player.alive = True
-            player.role = Role.MORTAL
+            player.role = Role.VILLAGER
             player.vote = None
             player.manner = None
             player.cast_out = False
             player.reaction = None
             player.findings = {}
             player.omen_spent = False
-        self.write_log("system", "New thread. Same shears.")
+        self.write_log("system", "New morning. Same water.")
 
     def everyone_acted(self) -> bool:
         """Lets a phase end early once there is nothing left to wait for."""
-        if self.phase is Phase.LOOM:
-            shears_done = self.cut is not None or not any(
-                p.alive and p.role is Role.ATROPOS for p in self.players.values()
+        if self.phase is Phase.NIGHTFALL:
+            pull_done = self.cut is not None or not any(
+                p.alive and p.role is Role.UNDERTOW for p in self.players.values()
             )
-            measurer = next((p for p in self.living if p.role is Role.LACHESIS), None)
+            measurer = next((p for p in self.living if p.role is Role.NAVIGATOR), None)
             measure_done = measurer is None or str(self.round) in measurer.findings
-            return shears_done and measure_done
+            return pull_done and measure_done
         if self.phase is Phase.DECREE:
             return self.decree_done
-        if self.phase is Phase.AGORA:
+        if self.phase is Phase.GATHERING:
             living = self.living
             return bool(living) and all(p.vote for p in living)
         return False
@@ -772,7 +772,7 @@ class Room:
                 "manner": p.manner,
                 "castOut": p.cast_out,
                 "reaction": p.reaction,
-                "hasEidolon": p.eidolon is not None,
+                "hasIslander": p.islander is not None,
                 # Roles become public only when the game is over.
                 "role": p.role.value if over else None,
                 "title": ROLE_TITLES[p.role] if over else None,
@@ -786,9 +786,9 @@ class Room:
         if self.phase is not Phase.LOBBY:
             remaining = max(0.0, self.phase_ends_at - time.time())
 
-        # Shades read the shade channel; the living never receive it.
-        as_shade = viewer is not None and not viewer.alive and self.phase is not Phase.LOBBY
-        visible_log = [e for e in self.log[-70:] if e["kind"] != "shade" or as_shade]
+        # Spirits read the spirit channel; the living never receive it.
+        as_spirit = viewer is not None and not viewer.alive and self.phase is not Phase.LOBBY
+        visible_log = [e for e in self.log[-70:] if e["kind"] != "spirit" or as_spirit]
 
         state: Dict[str, Any] = {
             "t": "state",
@@ -810,7 +810,7 @@ class Room:
             "log": visible_log,
         }
 
-        if self.phase is Phase.AGORA:
+        if self.phase is Phase.GATHERING:
             # Votes are public as they land - the pile-on is half the fun.
             state["votes"] = {p.pid: p.vote for p in self.living if p.vote}
 
@@ -832,17 +832,17 @@ class Room:
         }
 
         if playing:
-            if viewer.role is Role.ATROPOS and viewer.alive:
+            if viewer.role is Role.UNDERTOW and viewer.alive:
                 me["cut"] = self.cut
                 me["manner"] = self.cut_manner
                 me["decree"] = self.cut_decree
-            if viewer.role is Role.LACHESIS:
+            if viewer.role is Role.NAVIGATOR:
                 me["findings"] = [
                     {"round": rnd, **data} for rnd, data in sorted(viewer.findings.items())
                 ]
                 me["measured"] = str(self.round) in viewer.findings
-            if viewer.role is Role.NYX:
-                me["knows"] = [p.pid for p in self.seated if p.role is Role.ATROPOS]
+            if viewer.role is Role.REEF:
+                me["knows"] = [p.pid for p in self.seated if p.role is Role.UNDERTOW]
             if not viewer.alive:
                 # Dying buys you the truth. It is the whole compensation.
                 me["revealed"] = {p.pid: p.role.value for p in self.seated}
@@ -861,9 +861,9 @@ class Room:
 
     def phase_duration(self) -> int:
         return {
-            Phase.LOOM: LOOM_SECONDS,
+            Phase.NIGHTFALL: NIGHTFALL_SECONDS,
             Phase.DECREE: DECREE_SECONDS,
-            Phase.AGORA: AGORA_SECONDS,
+            Phase.GATHERING: GATHERING_SECONDS,
             Phase.VERDICT: VERDICT_SECONDS,
             Phase.OVER: OVER_SECONDS,
         }.get(self.phase, 0)
@@ -885,7 +885,7 @@ class Registry:
             if code not in self.rooms:
                 room = Room(code)
                 self.rooms[code] = room
-                logger.info("atropos: room %s opened", code)
+                logger.info("undertow: room %s opened", code)
                 return room
         raise RuntimeError("Could not allocate a room code.")
 
@@ -903,7 +903,7 @@ class Registry:
             room = self.rooms.pop(code, None)
             if room and room.task:
                 room.task.cancel()
-            logger.info("atropos: room %s reaped", code)
+            logger.info("undertow: room %s reaped", code)
 
 
 registry = Registry()

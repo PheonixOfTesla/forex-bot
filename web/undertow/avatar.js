@@ -1,6 +1,6 @@
 "use strict";
 /* ===========================================================================
-   EIDOLON - the avatar system
+   ISLANDER - the avatar system
 
    A component library rather than a single procedural blob: sculpted hair
    styles, drawn facial features, layered outfits, and a toon outline pass.
@@ -138,7 +138,7 @@ const Avatar = (() => {
     if (cfg.brows === "flat")   tilt = 0;
     else if (cfg.brows === "soft") tilt = 0.09;
 
-    g.strokeStyle = shade(cfg.hair, -0.18);
+    g.strokeStyle = spirit(cfg.hair, -0.18);
     g.lineWidth = thickness; g.lineCap = "round";
     [-1, 1].forEach(side => {
       const x = S/2 + side * dx;
@@ -223,7 +223,7 @@ const Avatar = (() => {
   }
 
   /* Lighten or darken a hex colour. */
-  function shade(hex, amount){
+  function spirit(hex, amount){
     const n = parseInt(String(hex).slice(1), 16);
     let r = (n>>16)&255, g = (n>>8)&255, b = n&255;
     const t = amount < 0 ? 0 : 255;
@@ -404,11 +404,11 @@ const Avatar = (() => {
 
     // Band around the base of the crown.
     const band = wrap(new THREE.CylinderGeometry(R*1.065, R*1.065, R*0.20, 24),
-                      toon(shade(cloth, -0.14)), 0.05);
+                      toon(spirit(cloth, -0.14)), 0.05);
     band.position.y = R * 0.22;
     g.add(band);
 
-    const button = wrap(new THREE.SphereGeometry(R*0.09, 10, 8), toon(shade(cloth, 0.25)), 0.09);
+    const button = wrap(new THREE.SphereGeometry(R*0.09, 10, 8), toon(spirit(cloth, 0.25)), 0.09);
     button.position.y = R * 0.95;
     g.add(button);
 
@@ -553,7 +553,7 @@ const Avatar = (() => {
       return pivot;
     }
 
-    const sleeveMat = toon(shade(cfg.shirt, -0.14));
+    const sleeveMat = toon(spirit(cfg.shirt, -0.14));
     const armL = limb(-0.415, 1.33, 0.34, 0.36, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.092);
     const armR = limb( 0.415, 1.33, 0.34, 0.36, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.092);
     const legL = limb(-0.155, 0.56, 0.34, 0.32, pantMat, pantMat, shoeMat, [1.2, 0.75, 1.6], 0.115);
@@ -567,7 +567,7 @@ const Avatar = (() => {
   }
 
   return {
-    build, faceTexture, defaults, toon, gradientMap, shade,
+    build, faceTexture, defaults, toon, gradientMap, spirit,
     SKIN, HAIR, CLOTH, PANTS, SHOES, HAT_COLORS,
     HAIR_STYLES, HAT_STYLES, EYE_STYLES, BROW_STYLES, MOUTH_STYLES
   };
