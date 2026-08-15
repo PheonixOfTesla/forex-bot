@@ -17,7 +17,7 @@ DEST="${1:-/workspace/clockwork-landing-page/games/molua}"
 VER="$(git -C "$SRC" rev-parse --short HEAD)"
 
 mkdir -p "$DEST"
-for f in index.html village.js avatar.js islander.js voice.js sound.js config.js og.html turnaround.html scene-test.html SPEC.md; do
+for f in index.html village.js avatar.js islander.js voice.js sound.js config.js og.html turnaround.html scene-test.html GLTFLoader.js SPEC.md; do
   [ -f "$SRC/$f" ] || continue
   sed "s#/undertow/#/games/molua/#g" "$SRC/$f" > "$DEST/$f"
 done
