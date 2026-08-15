@@ -279,6 +279,18 @@ button{background:none;border:none;cursor:pointer}
   display:none;place-items:center;box-shadow:0 3px 10px rgba(43,36,56,.22);
 }
 #who-btn.on{display:grid}
+#begin-float{
+  /* Top centre, not bottom. The bottom of the screen is the stick on one side
+     and the emote column on the other, and a wide button across the middle of
+     them lands on both. The phase pill that normally lives up here is hidden
+     while the room is still a lobby, so this space is free and it is the
+     first place the eye goes. */
+  position:fixed;left:50%;transform:translateX(-50%);
+  top:calc(var(--safe-t) + 14px);z-index:6;display:none;
+  width:min(300px,70vw);box-shadow:0 6px 22px rgba(43,36,56,.34);
+}
+#begin-float.on{display:block}
+#begin-float:disabled{opacity:.72}
 #who{position:fixed;inset:0;z-index:9;display:none;place-items:center;
   background:rgba(12,10,22,.72);padding:22px}
 #who.on{display:grid}
@@ -681,6 +693,13 @@ button{background:none;border:none;cursor:pointer}
      used to exist only on the lobby card, so the moment a match started
      nobody could see who they were playing with. -->
 <button id="who-btn" aria-label="Who is here" title="Who is here"><svg class="ic" width="20" height="20" aria-hidden="true"><use href="#i-people"/></svg></button>
+<!-- Begin, in the world.
+
+     The host taps "Walk around while you wait", the lobby card goes away, and
+     the only way to start the game went with it - you are standing on an
+     island next to your own avatar with no way to play. This is the same
+     button, out here, for the host, while the room is still in its lobby. -->
+<button id="begin-float" class="btn">Begin</button>
 <div id="who" aria-hidden="true">
   <div class="who-card">
     <div class="who-title">On the island</div>
@@ -802,6 +821,7 @@ button{background:none;border:none;cursor:pointer}
     <button id="start-btn" class="btn" disabled>Begin</button>
     <button id="howto-btn" class="btn ghost">How do we play?</button>
     <button id="walk-btn" class="btn ghost">Walk around while you wait</button>
+    <div id="lobby-build" style="text-align:center;margin-top:10px;font:11px/1.4 ui-monospace,Menlo,monospace;color:rgba(80,70,60,.5);letter-spacing:.04em"></div>
   </div>
 </section>
 
@@ -1149,6 +1169,48 @@ function openWheel(){
   $("wheel").classList.add("on");
 }
 function closeWheel(){ $("wheel").classList.remove("on"); }
+
+/* Never be served by somebody else's service worker.
+
+   The site registers a service worker at scope "/", so it intercepts this
+   page too - and its strategy is network-first with a cache fallback, which
+   means one flaky moment on a phone and a player is running a build from
+   hours ago with no way to tell. That is most of the ghost bugs in this
+   project: a fix ships, the screenshot comes back showing the old behaviour,
+   and an hour goes into chasing something already fixed.
+
+   The worker itself now skips this path, but that only helps a browser that
+   has already picked up the new worker. A browser still holding the old one
+   keeps serving cache regardless. So the game defends itself: if anything is
+   controlling this page, drop it, bin any cached copy of the game, and
+   reload once. The guard makes it once per tab and never a loop.
+
+   Costs nothing when there is no worker, which is the common case. */
+(async function shedServiceWorker(){
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    if (window.caches){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(async (k) => {
+        const cache = await caches.open(k);
+        const reqs = await cache.keys();
+        await Promise.all(reqs
+          .filter(r => r.url.includes("/games/molua") || r.url.includes("/undertow/"))
+          .map(r => cache.delete(r)));
+      }));
+    }
+    const regs = await navigator.serviceWorker.getRegistrations();
+    if (!regs.length) return;
+    await Promise.all(regs.map(r => r.unregister()));
+    // Only reload if one was actually driving this page, and only once.
+    if (navigator.serviceWorker.controller && !sessionStorage.getItem("molua-sw-shed")){
+      sessionStorage.setItem("molua-sw-shed", "1");
+      location.reload();
+    }
+  } catch (e){
+    // A browser that will not let us do this is no worse off than before.
+  }
+})();
 
 /* Which build this is.
 
@@ -1546,6 +1608,7 @@ function render(s){
     renderLobby(s, m);
   } else {
     $("lobby").classList.remove("on");
+    $("begin-float").classList.remove("on");
     $("top").classList.remove("hidden");
     $("hud").classList.remove("hidden");
     // Walking controls and the floating chat would sit on top of the card, so
@@ -1563,6 +1626,15 @@ function faceOf(pid){
 
 function renderLobby(s, m){
   if (!walking) $("lobby").classList.add("on");
+
+  /* The host can start the game from out in the world, not only from the
+     card. Tapping "walk around while you wait" used to hide the only Begin
+     button there was. */
+  const enoughNow = s.players.length >= s.minPlayers;
+  const bf = $("begin-float");
+  bf.classList.toggle("on", !!(m.host && walking));
+  bf.disabled = !enoughNow;
+  bf.textContent = enoughNow ? "Begin" : `Begin — need ${s.minPlayers - s.players.length} more`;
   $("top").classList.add("hidden");
   $("hud").classList.add("hidden");
   $("stick").classList.toggle("on", walking);
@@ -1606,6 +1678,11 @@ function renderLobby(s, m){
     pbtn.textContent = open ? "Anyone can find this island" : "Invite only — link or code";
     pbtn.onclick = () => { Sound.tap(); net.send({ t:"public", on: !open }); };
   }
+
+  // The build, where a host will see it. A screenshot of a bug is worth far
+  // more when it says which version it came from.
+  const lb = $("lobby-build");
+  if (lb) lb.textContent = "build " + buildId();
 
   const start = $("start-btn");
   start.style.display = m.host ? "" : "none";
@@ -2292,6 +2369,7 @@ function renderWho(){
   });
 }
 
+$("begin-float").onclick = () => { net && net.send({ t:"start" }); Sound.confirm(); };
 $("who-btn").onclick = () => { renderWho(); $("who").classList.add("on"); Sound.tap(); };
 $("who-close").onclick = () => { $("who").classList.remove("on"); Sound.tap(); };
 $("who").addEventListener("click", (e) => {
@@ -2326,6 +2404,10 @@ $("walk-btn").onclick = () => {
   $("lobby").classList.remove("on");
   $("stick").classList.add("on");
   $("emotes").classList.add("on");
+  // Re-render, or the floating Begin will not appear until the next state
+  // frame happens to arrive - which is how the host ended up standing on an
+  // island with no way to start the game.
+  if (state) render(state);
 };
 $("code-in").addEventListener("keydown", e => { if (e.key === "Enter") joinIsland(); });
 $("name-in").addEventListener("keydown", e => { if (e.key === "Enter") $("code-in").focus(); });
