@@ -294,6 +294,34 @@ button{background:none;border:none;cursor:pointer}
 #crawl .ln.cut{color:#FFB3A6}
 #crawl .ln.verdict{color:#FFE08A}
 
+#reveal-seq{
+  position:fixed;inset:0;z-index:9;display:none;place-items:center;
+  background:radial-gradient(120% 90% at 50% 40%,rgba(20,14,32,.82),rgba(8,6,16,.96));
+  backdrop-filter:blur(3px);padding:26px;text-align:center;
+}
+#reveal-seq.on{display:grid}
+.rv-inner{max-width:460px}
+.rv-eyebrow{font-size:12px;letter-spacing:.28em;color:#C9B6F0;font-weight:800;margin-bottom:10px}
+.rv-line{font-size:clamp(24px,7vw,36px);font-weight:900;color:#fff;line-height:1.15}
+.rv-dots i{opacity:0;animation:rvd 1.2s infinite}
+.rv-dots i:nth-child(2){animation-delay:.2s}
+.rv-dots i:nth-child(3){animation-delay:.4s}
+@keyframes rvd{0%,60%,100%{opacity:0}30%{opacity:1}}
+.rv-sub{margin-top:12px;font-size:15px;color:#D8CDEA;line-height:1.5}
+.rv-card{display:none;margin-top:22px;background:rgba(255,252,244,.97);border-radius:20px;padding:20px 18px}
+.rv-card.on{display:block}
+.rv-role{font-size:clamp(26px,8vw,38px);font-weight:900;letter-spacing:.04em}
+.rv-how{margin-top:8px;font-size:15px;line-height:1.5;color:#3A3348}
+#howto{position:fixed;inset:0;z-index:9;display:none;place-items:center;
+  background:rgba(12,10,22,.72);padding:22px}
+#howto.on{display:grid}
+.ht-card{background:#FFFCF4;border-radius:22px;padding:22px 20px;max-width:440px;
+  max-height:86vh;overflow-y:auto}
+.ht-title{font-size:24px;font-weight:900;margin-bottom:12px}
+.ht-lead{font-size:15px;line-height:1.55;margin:0 0 10px}
+.ht-steps{margin:14px 0 12px;padding-left:20px;font-size:14px;line-height:1.55}
+.ht-steps li{margin-bottom:8px}
+
 /* A single say bar along the bottom, always reachable while walking. */
 #say-bar{
   position:fixed;left:var(--sp);right:calc(var(--sp) + 66px);
@@ -563,6 +591,48 @@ button{background:none;border:none;cursor:pointer}
 <button id="mic" aria-label="Microphone" title="Microphone"><svg class="ic" width="24" height="24" aria-hidden="true"><use href="#i-mic"/></svg></button>
 <div id="voice-note" role="status"></div>
 <div id="crawl" aria-live="polite"></div>
+
+<!-- The moment the game starts.
+
+     A game that begins by silently handing you a role card has no beginning.
+     Every version of this played around a table has one - the bit where
+     somebody says "everyone close your eyes" and the room goes quiet. This is
+     that, and it is the same three seconds on every screen at once. -->
+<div id="reveal-seq" aria-live="assertive">
+  <div class="rv-inner">
+    <div class="rv-eyebrow">NIGHTFALL IS COMING</div>
+    <div class="rv-line" id="rv-line">Choosing the Undertow<span class="rv-dots"><i>.</i><i>.</i><i>.</i></span></div>
+    <div class="rv-sub" id="rv-sub">One of you is about to become the tide.</div>
+    <div class="rv-card" id="rv-card">
+      <div class="rv-role" id="rv-role"></div>
+      <div class="rv-how" id="rv-how"></div>
+    </div>
+    <button class="btn" id="rv-go" style="display:none;margin-top:18px">I understand</button>
+  </div>
+</div>
+
+<!-- How the game works, in one screen. -->
+<div id="howto" aria-hidden="true">
+  <div class="ht-card">
+    <div class="ht-title">How Molua works</div>
+    <p class="ht-lead">One player is secretly chosen as the <b>Undertow</b>.
+      They can eliminate you simply by selecting you.</p>
+    <p class="ht-lead">Everyone else is the <b>village</b>, and the village has
+      one job: work out who the Undertow is &mdash; <b>without eliminating
+      their own people.</b></p>
+    <ol class="ht-steps">
+      <li><b>Nightfall.</b> Everyone waits. The Undertow chooses someone, and
+        an order for them to obey.</li>
+      <li><b>Forty Seconds.</b> The chosen player performs that order out loud,
+        in the room, before they go. Watch how they do it.</li>
+      <li><b>The Gathering.</b> Argue. Accuse. Defend yourself.</li>
+      <li><b>The Verdict.</b> Most votes is out. Then it starts again.</li>
+    </ol>
+    <p class="ht-lead" style="margin-bottom:0">The village wins by finding the
+      Undertow. The Undertow wins by outlasting the village.</p>
+    <button class="btn" id="ht-close" style="margin-top:16px">Got it</button>
+  </div>
+</div>
 <form id="say-bar" autocomplete="off">
   <input id="say-in" maxlength="160" placeholder="Say something…" />
   <button id="say-send" type="submit" aria-label="Send"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-send"/></svg></button>
@@ -680,6 +750,7 @@ button{background:none;border:none;cursor:pointer}
               style="flex:0 0 56px;width:56px;font-size:18px;padding:0">&minus;</button>
     </div>
     <button id="start-btn" class="btn" disabled>Start the game</button>
+    <button id="howto-btn" class="btn ghost">How do we play?</button>
     <button id="walk-btn" class="btn ghost">Walk around while you wait</button>
   </div>
 </section>
@@ -1044,6 +1115,77 @@ function buildId(){
   if (el) el.textContent = "build " + buildId();
 })();
 
+/* ===========================================================================
+   THE OPENING
+
+   The host presses Begin and, for three seconds, every screen in the room
+   says the same thing: someone here is being chosen. Then each player - and
+   only that player - is told what they are.
+
+   It is theatre, and the theatre is the point. Around a table this is the
+   moment somebody says "everyone close your eyes", and the room going quiet
+   is what turns a set of rules into a game. A version that silently hands you
+   a role card has no beginning at all.
+
+   Nothing here decides anything. The server has already assigned every role
+   before this runs; this only controls when a player is allowed to see
+   theirs, which is why it can be pure presentation and cannot go wrong. */
+let revealShown = false;
+
+const ROLE_LINE = {
+  undertow:  "You are the Undertow",
+  navigator: "You are the Navigator",
+  reef:      "You are the Reef",
+  villager:  "You are a Villager"
+};
+const ROLE_TINT = {
+  undertow:  "#B3392B",
+  navigator: "#2E6FA8",
+  reef:      "#7A5CC4",
+  villager:  "#3F6B33"
+};
+
+function runReveal(m){
+  const seq = $("reveal-seq");
+  if (!seq || !m || !m.role) return;
+  const card = $("rv-card"), go = $("rv-go");
+  card.classList.remove("on");
+  go.style.display = "none";
+  $("rv-line").innerHTML =
+    'Choosing the Undertow<span class="rv-dots"><i>.</i><i>.</i><i>.</i></span>';
+  $("rv-sub").textContent = "One of you is about to become the tide.";
+  seq.classList.add("on");
+  Sound.nightfall && Sound.nightfall();
+
+  // Nothing can dismiss it until the role is on screen. Bound inside the
+  // timeout rather than outside it, because a handler attached up front can
+  // catch the tail of the very tap that started the game and skip the whole
+  // reveal - which it did.
+  seq.onclick = null;
+  go.onclick = null;
+
+  setTimeout(() => {
+    $("rv-line").textContent = "It is decided.";
+    $("rv-sub").textContent = "Only you can see what you are.";
+    $("rv-role").textContent = ROLE_LINE[m.role] || m.role;
+    $("rv-role").style.color = ROLE_TINT[m.role] || "#2B2438";
+    $("rv-how").textContent = m.howto || "";
+    card.classList.add("on");
+    go.style.display = "";
+    if (navigator.vibrate){ try { navigator.vibrate([40, 80, 40]); } catch(e){} }
+
+    /* Tap anywhere, not just the button. A full-screen card with one small
+       target is a trap on a phone, and stranding a room of children on a
+       black screen is the worst thing this could do. */
+    const dismiss = () => { seq.classList.remove("on"); };
+    go.onclick = dismiss;
+    seq.onclick = dismiss;
+  }, 3000);
+
+  // And a hard limit, whatever else goes wrong.
+  setTimeout(() => seq.classList.remove("on"), 25000);
+}
+
 function setupControls(){
   $("wheel").addEventListener("click", closeWheel);
   addEventListener("keydown", (e) => { if (e.key === "Escape") closeWheel(); });
@@ -1313,6 +1455,12 @@ function render(s){
   const marks = {};
   if (phase === "gathering" && m.vote) marks[m.vote] = true;
   Village.setMarkers(marks);
+
+  // The very first Nightfall is the start of the game, and it gets a moment.
+  if (changed && phase === "nightfall" && s.round <= 1 && !revealShown){
+    revealShown = true;
+    runReveal(m);
+  }
 
   if (changed){
     if (phase === "nightfall") Sound.nightfall();
@@ -2057,6 +2205,11 @@ $("fold").onclick = () => {
   $("fold").textContent = folded ? "▴ show" : "▾ hide";
   syncWorldChrome();
 };
+$("howto-btn").onclick = () => { $("howto").classList.add("on"); Sound.tap(); };
+$("ht-close").onclick = () => { $("howto").classList.remove("on"); Sound.tap(); };
+$("howto").addEventListener("click", (e) => {
+  if (e.target.id === "howto") $("howto").classList.remove("on");
+});
 $("bot-btn").onclick = () => { net && net.send({ t:"bot" }); Sound.tap(); };
 $("unbot-btn").onclick = () => { net && net.send({ t:"unbot" }); Sound.tap(); };
 $("walk-btn").onclick = () => {

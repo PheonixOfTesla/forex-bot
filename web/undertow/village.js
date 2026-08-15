@@ -1896,6 +1896,20 @@ const Village = (() => {
     });
   }
 
+  /* Put back anything an emote bent, or the pose sticks after it ends. */
+  function clearEmote(rig){
+    if (!rig) return;
+    rig.emote = ""; rig.emoteT = 0;
+    if (rig.torso) rig.torso.rotation.set(0, 0, 0);
+    if (rig.head) rig.head.rotation.set(0, 0, 0);
+    [rig.armL, rig.armR, rig.legL, rig.legR].forEach(limb => {
+      if (!limb) return;
+      limb.rotation.set(0, 0, 0);
+      const knee = limb.userData && limb.userData.knee;
+      if (knee) knee.rotation.set(0, 0, 0);
+    });
+  }
+
   /* The movement frame: [pid, x, z, angle, moving, alive, emote] */
   let adoptedSpawn = false;
   let onSpawn = null;
@@ -1920,14 +1934,14 @@ const Village = (() => {
         // could see your dance except you - the one person who chose it.
         rig.alive = !!alive;
         if (emote && emote !== rig.emote){ rig.emote = emote; rig.emoteT = 0; }
-        if (!emote) rig.emote = "";
+        if (!emote && rig.emote) clearEmote(rig);
         return;
       }
       rig.tx = x; rig.tz = z; rig.ta = a;
       rig.moving = !!m;
       rig.alive = !!alive;
       if (emote && emote !== rig.emote){ rig.emote = emote; rig.emoteT = 0; }
-      if (!emote) rig.emote = "";
+      if (!emote && rig.emote) clearEmote(rig);
     });
   }
 
@@ -2189,14 +2203,16 @@ const Village = (() => {
         rig.head.rotation.z = Math.sin(e * 2) * 0.1;
       }
 
-      if (e > 3.4){
-        rig.emote = "";
-        // Put back anything an emote bent, or the pose sticks.
-        rig.torso.rotation.set(0, 0, 0);
-        rig.head.rotation.set(0, 0, 0);
-        kneeL.rotation.x = kneeR.rotation.x = 0;
-        elbowL.rotation.x = elbowR.rotation.x = 0;
-      }
+      /* No self-clearing here.
+
+         This used to end the emote itself after 3.4 seconds by blanking
+         rig.emote - and then the very next position frame still carried the
+         name from the server, which no longer matched, so it counted as a new
+         emote and started over. One tap danced forever.
+
+         The server owns the four seconds now. The client animates until it is
+         told to stop, and holds the final frame if it gets there first, which
+         is what clearEmote below is for. */
     } else {
       rig.armL.rotation.z = rig.armR.rotation.z = 0;
     }
