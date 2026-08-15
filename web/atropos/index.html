@@ -142,6 +142,15 @@ button{background:none;border:none;cursor:pointer}
 #role-strip.dead{background:#EFE9F7}
 
 #hint{font-weight:700;font-size:14px;text-align:center;color:var(--ink)}
+/* The card and the walking controls fight for the bottom of the screen, so the
+   card folds away and the stick only appears when there is room for it. */
+#fold{
+  display:block;margin:-6px auto 6px;padding:4px 14px;border-radius:10px;
+  background:var(--paper-2);font-size:11px;font-weight:800;color:var(--ink-soft);
+  letter-spacing:.08em;text-transform:uppercase;
+}
+#hud.min .card > *:not(#fold):not(#hint){display:none!important}
+#hud.min #hint{margin-top:2px}
 .targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
 .target{
   padding:11px 8px;border-radius:15px;background:var(--paper-2);border:2px solid transparent;
@@ -242,6 +251,7 @@ button{background:none;border:none;cursor:pointer}
       <div><div class="t"></div><div class="d"></div></div>
     </div>
     <div class="card">
+      <button id="fold" aria-label="Collapse panel">▾ hide</button>
       <div id="hint"></div>
       <div id="reveal" class="reveal"></div>
       <div id="targets" class="targets" style="margin-top:10px"></div>
@@ -637,8 +647,11 @@ function render(s){
     $("lobby").classList.remove("on");
     $("top").classList.remove("hidden");
     $("hud").classList.remove("hidden");
-    $("stick").classList.add("on");
-    $("emotes").classList.add("on");
+    // Walking controls would sit on top of the card's buttons, so they only
+    // appear once the card is folded away.
+    const folded = $("hud").classList.contains("min");
+    $("stick").classList.toggle("on", folded);
+    $("emotes").classList.toggle("on", folded);
     renderPlay(s, m);
   }
   renderCondemned(s, m);
@@ -997,6 +1010,13 @@ $("join-btn").onclick = joinIsland;
 $("share-btn").onclick = share;
 $("start-btn").onclick = () => net.send({ t:"start" });
 $("obey-btn").onclick = () => net.send({ t:"obey" });
+$("fold").onclick = () => {
+  const hud = $("hud");
+  const folded = hud.classList.toggle("min");
+  $("fold").textContent = folded ? "▴ show" : "▾ hide";
+  $("stick").classList.toggle("on", folded);
+  $("emotes").classList.toggle("on", folded);
+};
 $("walk-btn").onclick = () => {
   walking = true;
   $("lobby").classList.remove("on");

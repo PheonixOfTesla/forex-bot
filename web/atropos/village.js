@@ -379,7 +379,7 @@ const Village = (() => {
     tag.scale.set(1.7, 0.43, 1);
     // Stagger the height per player so tags on bunched-up characters do not
     // land exactly on top of each other.
-    tag.position.y = 2.66 + ((player.seat || 0) % 3) * 0.26;
+    tag.position.y = 2.62 + ((player.seat || 0) % 4) * 0.32;
     rig.add(tag);
 
     // A ring under the feet, used to mark who you have voted for.
@@ -505,15 +505,17 @@ const Village = (() => {
      Returns a small nudge rather than hard collision, so crowds stay soft. */
   function separation(pid, x, z){
     let px = 0, pz = 0;
-    const MIN = 1.15;
+    // Heads are wide, so this has to be comfortably bigger than a body radius
+    // or a crowd still reads as one pile with overlapping name tags.
+    const MIN = 1.9;
     avatars.forEach((rig, other) => {
       if (other === pid) return;
       const dx = x - rig.x, dz = z - rig.z;
       const d = Math.hypot(dx, dz);
       if (d > 0.0001 && d < MIN){
         const push = (MIN - d) / MIN;
-        px += (dx/d) * push * 0.5;
-        pz += (dz/d) * push * 0.5;
+        px += (dx/d) * push;
+        pz += (dz/d) * push;
       }
     });
     return [px, pz];
