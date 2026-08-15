@@ -673,13 +673,32 @@ const PHASE_COPY = {
   over:    { name:"The End",       sub:"" }
 };
 
-/* Where this client is mounted. It runs at /play/CODE when the backend serves
-   it directly, and at /game/molua/CODE when it sits inside the main site, so
-   the base path is read from the page rather than hardcoded. */
-const BASE_PATH = (window.MOLUA_BASE ||
-  (location.pathname.startsWith("/game/")
-    ? "/" + location.pathname.split("/").slice(1, 3).join("/")
-    : "/play")).replace(/\/$/, "");
+/* Where this client is mounted.
+
+   It runs at /play/CODE when the backend serves it directly, and at
+   /games/molua/CODE inside the main site. This used to test for a "/game/"
+   prefix - singular - and the route has been /games/ for a long time, so on
+   the real site it silently fell through to "/play". The host then shared
+   theclockworkhub.com/play/CODE, which does not exist there. The share link
+   is the entire way this game spreads, so it was the worst thing to get
+   wrong and the easiest to miss: everything else worked.
+
+   So: no hardcoded prefix. Take the path, drop a trailing room code if there
+   is one, and whatever remains is where we are mounted. That is true wherever
+   the client is put and does not rot the next time a route is renamed.
+
+   The code test has to be strict, or it eats the slug: room codes are exactly
+   five characters from the server's alphabet and always upper case, while a
+   slug like "molua" is lower case - otherwise /games/molua would be read as
+   /games plus a room called MOLUA. */
+const ROOM_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$/;
+const BASE_PATH = (window.MOLUA_BASE || (() => {
+  const parts = location.pathname.replace(/\/+$/, "").split("/");
+  let last = parts[parts.length - 1] || "";
+  if (/\.html?$/i.test(last)){ parts.pop(); last = parts[parts.length - 1] || ""; }
+  if (ROOM_CODE_RE.test(last) && parts.length > 2) parts.pop();
+  return parts.join("/") || "/play";
+})()).replace(/\/$/, "");
 
 // The backend may live on a different host than the page (see config.js).
 const API = (window.MOLUA_API || location.origin).replace(/\/$/, "");
