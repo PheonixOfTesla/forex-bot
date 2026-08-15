@@ -574,6 +574,7 @@ button{background:none;border:none;cursor:pointer}
     <button id="join-btn" class="btn">Join island</button>
     <button id="open-btn" class="btn ghost">Make a new island</button>
     <div id="gate-error" style="color:var(--cut);font-weight:700;font-size:13px;min-height:16px;text-align:center"></div>
+    <div id="gate-down" style="display:none;background:#FFF3D6;border:2px solid #E8A33D;border-radius:14px;padding:13px 15px;margin-top:10px;font-size:13px;line-height:1.45;color:#5A4526"><strong style="display:block;margin-bottom:4px">The island server is asleep</strong><span id="gate-down-why">Molua needs a small server to hold the room while you play. It is not answering right now, so a game cannot be opened.</span></div>
   </div>
 </section>
 
@@ -1556,6 +1557,31 @@ async function adoptIslanders(map){
    =========================================================================== */
 function gateError(msg){ $("gate-error").textContent = msg || ""; }
 
+/* Is there a server to play on?
+
+   Everything up to this point is static files, so the world, the character
+   maker and the whole front end load happily with no backend at all - and
+   then the one button that matters fails with a shrug. Ask up front, and say
+   plainly what is wrong, rather than letting someone name themselves, build a
+   character and hit a wall. */
+let backendUp = null;
+async function probeBackend(){
+  const down = $("gate-down");
+  try {
+    const res = await fetch(API + "/health", { method: "GET" });
+    backendUp = res.ok;
+  } catch(e){
+    backendUp = false;
+  }
+  if (down) down.style.display = backendUp ? "none" : "";
+  // Joining a code is just as doomed as opening one, so both say so.
+  ["open-btn", "join-btn"].forEach(id => {
+    const b = $(id);
+    if (b){ b.disabled = !backendUp; b.style.opacity = backendUp ? "" : "0.5"; }
+  });
+  return backendUp;
+}
+
 async function openIsland(){
   const name = $("name-in").value.trim();
   if (!name) return gateError("Pick a name first");
@@ -1566,7 +1592,10 @@ async function openIsland(){
     const room = await res.json();
     history.replaceState(null, "", BASE_PATH + "/" + room.code);
     connect(room.code, name);
-  } catch(e){ gateError("Could not make an island"); }
+  } catch(e){
+    gateError("Could not reach the island server");
+    probeBackend();          // surface the explanation, not just the failure
+  }
 }
 
 function joinIsland(){
@@ -1711,6 +1740,7 @@ try {
   }
 }
 setupMaker();
+probeBackend();
 setupControls();
 
 const savedName = store.get("name");
