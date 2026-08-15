@@ -2201,6 +2201,9 @@ const Village = (() => {
   // rather than general collision the camera simply never comes closer to the
   // centre than its steps.
   const PLAZA_KEEPOUT = 3.6;
+  // How long the character has been off frame, and who to tell if it happens.
+  let driftFor = 0;
+  let onDrift = null;
   /* What the camera is allowed to be blocked by.
 
      Raycasting the world was the obvious version and wrong twice over. A
@@ -2337,6 +2340,39 @@ const Village = (() => {
     camera.position.x += (Math.random()-0.5) * s * 0.5;
     camera.position.y += (Math.random()-0.5) * s * 0.5;
     camera.lookAt(target);
+
+    /* The watchdog.
+
+       lookAt puts the target dead centre, so arithmetically the player cannot
+       drift off frame - and yet a player sent a screenshot of themselves in
+       the bottom right corner with the camera pointed at empty paving. I could
+       not reproduce it: the same build, driven the same way, measures 50/50
+       idle and walking. Which means the cause is something I have not thought
+       of, and a fix aimed at a cause I cannot name would be a guess.
+
+       So this checks the outcome instead. Where the character actually lands
+       on screen is measurable every frame; if it sits more than a quarter of
+       the screen off centre for three quarters of a second, something has gone
+       wrong whatever it was, and the camera snaps back to where it belongs.
+       Half a second of drift beats a game that has quietly lost you. */
+    if (me && me.group){
+      camera.updateMatrixWorld();
+      const p = new THREE.Vector3(target.x, target.y, target.z).project(camera);
+      const off = Math.max(Math.abs(p.x), Math.abs(p.y));
+      // Behind the camera projects to nonsense, and that counts as lost too.
+      const behind = p.z > 1;
+      if (off > 0.5 || behind){
+        driftFor += dt;
+        if (driftFor > 0.75){
+          camera.position.copy(want);
+          camera.lookAt(target);
+          driftFor = 0;
+          if (onDrift) onDrift(off, behind);
+        }
+      } else {
+        driftFor = 0;
+      }
+    }
 
     // Follow the action with the shadow frustum, or distant players lose theirs.
     if (sun){
@@ -2529,6 +2565,10 @@ const Village = (() => {
     renderer: () => renderer, // for draw-call and frame-time budgets
     rigs: () => avatars,      // for checking who has a speech bubble up
     faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking, say,
+    // Every third-person game has one, and it is the answer to any framing
+    // problem the player hits that nobody has diagnosed yet.
+    recentre(){ camPitch = 0.44; camDist = 9.0; driftFor = 0; },
+    onDrift(fn){ onDrift = fn; },
     applyMap, currentMap,
     // Exposed for the tile inspector: judging a repeating texture from a
     // screenshot of a field is guesswork, and the tile itself is the evidence.

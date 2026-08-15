@@ -588,6 +588,13 @@ button{background:none;border:none;cursor:pointer}
     </div>
     <div id="browse-list"></div>
   </div>
+
+  <!-- The build, on screen.
+
+       A player sent a screenshot of a framing bug I could not reproduce, and
+       the first question - which build is that - had no answer, because
+       nothing in the picture said. Now every screenshot carries it. -->
+  <div id="build-stamp" style="text-align:center;margin-top:14px;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:rgba(80,70,60,.55);letter-spacing:.04em"></div>
 </section>
 
 <!-- ISLANDER MAKER -->
@@ -1000,6 +1007,21 @@ function openWheel(){
 }
 function closeWheel(){ $("wheel").classList.remove("on"); }
 
+/* Which build this is.
+
+   Read off the version stamp the sync script puts on the script tags, so it
+   cannot drift out of step with what is actually loaded - there is nothing to
+   remember to bump. */
+function buildId(){
+  const tag = [...document.scripts].map(s => s.src).find(s => /[?&]v=/.test(s));
+  const m = tag && tag.match(/[?&]v=([^&]+)/);
+  return m ? m[1] : "dev";
+}
+(function stampBuild(){
+  const el = $("build-stamp");
+  if (el) el.textContent = "build " + buildId();
+})();
+
 function setupControls(){
   $("wheel").addEventListener("click", closeWheel);
   addEventListener("keydown", (e) => { if (e.key === "Escape") closeWheel(); });
@@ -1044,7 +1066,27 @@ function setupControls(){
   addEventListener("pointerup", (e) => { if (e.pointerId === cid) cid = null; });
   addEventListener("wheel", (e) => Village.zoom(e.deltaY * 0.01), { passive:true });
 
+  /* Recentre.
+
+     Every third-person game has one, and it is the honest answer to any
+     framing problem a player hits that has not been diagnosed yet: rather
+     than being stuck with a view that has gone wrong, they fix it themselves
+     in one tap. Double-tap the world on a phone, C on a keyboard.
+
+     The camera also recentres itself if it notices the character has left the
+     frame - this is the manual version of the same thing. */
+  let lastTap = 0;
+  $("scene").addEventListener("pointerup", () => {
+    const t = performance.now();
+    if (t - lastTap < 320){ Village.recentre(); Sound.tap(); lastTap = 0; }
+    else lastTap = t;
+  });
+  Village.onDrift && Village.onDrift(() => {
+    showVoiceNote("Camera recentred", 1600);
+  });
+
   addEventListener("keydown", (e) => { input.keys[e.key.toLowerCase()] = true; });
+  addEventListener("keydown", (e) => { if (e.key.toLowerCase() === "c") Village.recentre(); });
   addEventListener("keyup",   (e) => { input.keys[e.key.toLowerCase()] = false; });
 
     // Voice rides the room socket for signalling; the audio itself is peer to peer.
