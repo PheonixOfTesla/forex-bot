@@ -288,6 +288,10 @@ async def handle(room: Room, player: Any, message: Dict[str, Any], websocket: We
         room.act_vote(player, target)
         return True
 
+    if kind == "say":
+        room.act_say(player, message.get("text"))
+        return True
+
     if kind == "call":
         room.act_call(player, message.get("index"))
         return True

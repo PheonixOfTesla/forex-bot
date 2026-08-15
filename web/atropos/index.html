@@ -144,6 +144,32 @@ button{background:none;border:none;cursor:pointer}
 #role-strip.dead{background:#EFE9F7}
 
 #hint{font-weight:700;font-size:14px;text-align:center;color:var(--ink)}
+#chat{display:none}
+#chat.on{display:block}
+#chat-log{
+  max-height:22vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px;
+  margin-bottom:8px;-webkit-overflow-scrolling:touch;
+}
+#chat-log:empty{display:none}
+.msg{font-size:14px;line-height:1.35;font-weight:600;color:var(--ink);
+  word-break:break-word;text-align:left}
+.msg b{font-weight:900;color:var(--ink-soft);margin-right:5px}
+.msg.shade{color:var(--shade)} .msg.shade b{color:var(--shade)}
+.msg.sys{color:var(--ink-soft);font-style:italic;font-weight:700}
+.msg.cut{color:var(--cut);font-weight:800}
+.msg.verdict{color:#A9741A;font-weight:800}
+.msg.omen{color:var(--shade);font-style:italic;font-weight:800}
+#chat-form{display:flex;gap:7px}
+#chat-in{
+  flex:1;min-width:0;padding:11px 14px;border-radius:14px;border:2px solid var(--line);
+  background:var(--paper-2);font-weight:700;font-size:15px;
+}
+#chat-in:focus{outline:none;border-color:var(--gold);background:#fff}
+#chat-send{
+  flex:none;width:46px;border-radius:14px;background:var(--gold);color:#3A2708;
+  font-weight:900;font-size:16px;box-shadow:0 4px 0 var(--gold-deep);
+}
+#chat-send:active{transform:translateY(3px);box-shadow:0 1px 0 var(--gold-deep)}
 /* The card and the walking controls fight for the bottom of the screen, so the
    card folds away and the stick only appears when there is room for it. */
 #fold{
@@ -257,6 +283,15 @@ button{background:none;border:none;cursor:pointer}
       <div id="hint"></div>
       <div id="reveal" class="reveal"></div>
       <div id="targets" class="targets" style="margin-top:10px"></div>
+      <!-- Chat sits above the preset calls: buried under them it needed a
+           scroll on every single message. -->
+      <div id="chat" style="margin-top:10px">
+        <div id="chat-log"></div>
+        <form id="chat-form" autocomplete="off">
+          <input id="chat-in" maxlength="160" placeholder="Say something…" />
+          <button id="chat-send" type="submit" aria-label="Send">➤</button>
+        </form>
+      </div>
       <div id="options" class="chips" style="margin-top:10px"></div>
       <div id="actions" class="stack" style="margin-top:10px"></div>
     </div>
@@ -746,6 +781,8 @@ function renderPlay(s, m){
       : "You can see everything now. Spend your one Omen well.";
   } else strip.style.display = "none";
 
+  renderChat(s, m);
+
   if (s.phase === "loom")    return renderLoom(s, m);
   if (s.phase === "decree")  return renderDecreeWatch(s, m);
   if (s.phase === "agora")   return renderAgora(s, m);
@@ -901,6 +938,41 @@ function renderOver(s, m){
   }
 }
 
+/* The chat transcript. Everything worth reading lives in the server log
+   already, so the panel renders that rather than keeping its own copy - which
+   also means a reconnecting player sees the backlog. */
+const CHAT_KINDS = { chat:"", shade:"shade", system:"sys", cut:"cut",
+                     verdict:"verdict", omen:"omen", call:"" };
+
+function renderChat(s, m){
+  const panel = $("chat");
+  // The living are silent at night; Shades can always talk to each other.
+  const canTalk = !m.alive || ["lobby","agora","over"].includes(s.phase);
+  panel.classList.add("on");
+
+  const log = $("chat-log");
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.innerHTML = "";
+  s.log.slice(-40).forEach(e => {
+    if (!(e.kind in CHAT_KINDS)) return;
+    const el = document.createElement("div");
+    el.className = "msg " + CHAT_KINDS[e.kind];
+    if (e.who && !e.anonymous){
+      el.innerHTML = `<b>${escapeHtml(e.who)}</b>${escapeHtml(e.text)}`;
+    } else {
+      el.textContent = e.text;
+    }
+    log.appendChild(el);
+  });
+  if (atBottom) log.scrollTop = log.scrollHeight;
+
+  $("chat-in").disabled = !canTalk;
+  $("chat-send").disabled = !canTalk;
+  $("chat-in").placeholder = canTalk
+    ? (m.alive ? "Say something…" : "Shades only…")
+    : "Quiet until morning…";
+}
+
 function renderCondemned(s, m){
   const on = s.phase === "decree" && m.condemned && !m.condemned.obeyed;
   $("condemned").classList.toggle("on", !!on);
@@ -1053,6 +1125,14 @@ $("join-btn").onclick = joinIsland;
 $("share-btn").onclick = share;
 $("start-btn").onclick = () => net.send({ t:"start" });
 $("obey-btn").onclick = () => net.send({ t:"obey" });
+$("chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("chat-in");
+  const text = input.value.trim();
+  if (!text || !net) return;
+  net.send({ t:"say", text });
+  input.value = "";
+});
 $("fold").onclick = () => {
   const hud = $("hud");
   const folded = hud.classList.toggle("min");

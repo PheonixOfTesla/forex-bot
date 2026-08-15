@@ -29,9 +29,12 @@ Dying is not an exit. Shades see every role and get one anonymous Omen to spend
 on the living, which keeps eliminated players louder than the survivors.
 
 Design constraints for a mixed-age camp audience:
-  - No free-text chat. Discussion happens out loud in the room; the phone
-    carries only secret actions, votes, and a fixed list of table calls. Nothing
-    unmoderated can reach another player's screen.
+  - Chat exists, but it is the one place a player can put arbitrary text on
+    another player's screen, so it is rate limited, length capped, and split
+    into two rooms - the living cannot hear the dead, who know every role.
+    Fixed table calls remain for players who would rather not type. For a
+    commercial deployment to minors this is the surface that needs moderation;
+    nothing here filters what people write.
   - Every manner of death is mythic and bloodless.
   - Every screen carries a plain-language instruction next to the flavour.
 
@@ -64,7 +67,12 @@ CODE_LENGTH = 5
 MIN_PLAYERS = 4
 MAX_PLAYERS = 16
 MAX_NAME_LENGTH = 14
+MAX_CHAT_LENGTH = 160
 MAX_LOG_ENTRIES = 160
+
+# One message every this many seconds, per player. Chat is the only place a
+# player can put arbitrary text on everyone else's screen.
+CHAT_MIN_INTERVAL = 1.1
 
 # Phase durations in seconds. Tuned so a whole game runs about seven minutes.
 LOOM_SECONDS = 40
@@ -204,6 +212,14 @@ def clean_name(value: Any) -> str:
     return " ".join(kept.split())[:MAX_NAME_LENGTH].upper()
 
 
+def clean_text(value: Any, limit: int) -> str:
+    """Collapse whitespace, drop control characters, clamp length."""
+    if not isinstance(value, str):
+        return ""
+    kept = "".join(ch for ch in value if ch.isprintable())
+    return " ".join(kept.split())[:limit]
+
+
 def pick(options: List[str], index: Any) -> str:
     """Resolve a client-supplied index into a fixed list. Falls back to random."""
     if isinstance(index, int) and 0 <= index < len(options):
@@ -247,6 +263,9 @@ class Player:
 
     # One anonymous message from beyond, per game.
     omen_spent: bool = False
+
+    # Chat rate limiting.
+    last_said: float = 0.0
 
     # How they went, once they have.
     manner: Optional[str] = None
@@ -460,6 +479,30 @@ class Room:
             return
         actor.obeyed = True
         self.decree_done = True
+
+    def act_say(self, actor: Player, text: Any) -> None:
+        """
+        Free-text chat.
+
+        Rate limited and length capped, because this is the one place a player
+        can put arbitrary text on everyone else's screen. The living and the
+        dead are separate rooms: a Shade knows every role, so letting them talk
+        to the living would hand the game away.
+        """
+        message = clean_text(text, MAX_CHAT_LENGTH)
+        if not message:
+            return
+
+        now = time.time()
+        if now - actor.last_said < CHAT_MIN_INTERVAL:
+            return
+        actor.last_said = now
+
+        if not actor.alive:
+            self.write_log("shade", message, who=actor.name, seat=actor.seat)
+        elif self.phase in (Phase.LOBBY, Phase.AGORA, Phase.OVER):
+            self.write_log("chat", message, who=actor.name, seat=actor.seat)
+        # During the Loom and the forty seconds the living stay quiet.
 
     def act_call(self, actor: Player, index: Any) -> None:
         """A fixed table call, so a quiet player can still join the argument."""
