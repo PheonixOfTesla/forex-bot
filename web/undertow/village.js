@@ -151,11 +151,14 @@ const Village = (() => {
 
   function makeTex(key, draw, repeat, bump){
     if (texCache[key]) return texCache[key];
-    const size = 256;
+    // 512, not 256. Measured budget was 31k triangles and 18 textures for a
+    // whole village, so the resolution was a habit rather than a limit.
+    const size = 512;
     const c = document.createElement("canvas");
     c.width = c.height = size;
     draw(c.getContext("2d"), size);
     const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding;     // colour, not data
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     // Smooth filtering both ways, and anisotropy so ground textures stay
     // legible at a grazing angle instead of smearing into mush.
@@ -1002,6 +1005,26 @@ const Village = (() => {
     // part of 1998 nobody misses.
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    /* Colour, which is most of why this looked like a WebGL demo rather than
+       a game.
+
+       Lighting maths is linear; a screen is not. Without sRGB output every
+       shaded value is written straight to an sRGB display, so midtones come
+       out pale and washed and nothing has any depth to it. And with no tone
+       mapping, bright surfaces clip flat to white instead of rolling off.
+
+       ACES is the filmic curve film and every modern engine use: highlights
+       roll off, saturation holds up under a strong sun, and shadows keep
+       colour instead of going grey. It costs nothing - it is a curve applied
+       in the shader that was already running.
+
+       Any texture used as COLOUR has to be tagged sRGB to match, or it gets
+       decoded twice and goes washed out the other way. Data textures - normal
+       maps - must stay linear. */
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;   // ACES darkens midtones; take it back
     renderer.setSize(innerWidth, innerHeight, false);
     renderer.setClearColor(0xC2D6DE, 1);
 
@@ -1541,6 +1564,7 @@ const Village = (() => {
     init, sync, applyPositions, setSelf, setFollow, selfRig, setMarkers,
     onSpawn(fn){ onSpawn = fn; },
     camera: () => camera,     // for framing checks
+    renderer: () => renderer, // for draw-call and frame-time budgets
     faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking, say,
     applyMap, currentMap,
     // Exposed for the tile inspector: judging a repeating texture from a
