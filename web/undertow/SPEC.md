@@ -34,7 +34,7 @@ Nintendo, not "web game". Concretely:
 - **S1.3** No dead ends: every screen says what to do next in plain words — DONE
 - **S1.4** Nothing is pixelated or blurry. Sharp at full resolution — DONE
 - **S1.5** Warm, sunlit, friendly. Never grim — DONE
-- **S1.6** Sound on every meaningful beat — TODO
+- **S1.6** Sound on every meaningful beat — DONE
 - **S1.7** A title screen that looks like a game, not a form — PARTIAL
 
 ## 2. Graphics — Ocarina art direction, modern clarity
@@ -84,6 +84,14 @@ Nintendo, not "web game". Concretely:
 - **S7.3** Spirits see every role and get one anonymous Omen — DONE
 - **S7.4** Secrecy enforced server side, never in the client — DONE
 - **S7.5** An opening sequence that sets the scene before round one — TODO
+
+## 9. The games index
+
+- **S9.1** `/games` lists every game — DONE
+- **S9.2** Search by name, theme or what the game is — DONE
+- **S9.3** Pasting a room code offers to join, and a five-letter search word
+  is not mistaken for one — DONE
+- **S9.4** Each game has its own slug, so names cannot collide — DONE
 
 ## 8. Shipping
 

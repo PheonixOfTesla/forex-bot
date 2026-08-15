@@ -13,6 +13,7 @@
 <script src="/undertow/avatar.js"></script>
 <script src="/undertow/village.js"></script>
 <script src="/undertow/voice.js"></script>
+<script src="/undertow/sound.js"></script>
 <style>
 /* ===========================================================================
    UNDERTOW ISLAND
@@ -228,6 +229,13 @@ button{background:none;border:none;cursor:pointer}
   border:3px solid transparent;
 }
 #mic.on{display:grid}
+#sound-btn{
+  position:fixed;right:var(--sp);top:calc(var(--safe-t) + 136px);z-index:7;
+  width:40px;height:40px;border-radius:50%;background:rgba(255,253,247,.94);
+  font-size:16px;display:none;place-items:center;box-shadow:0 3px 10px rgba(43,36,56,.22);
+}
+#sound-btn.on{display:grid}
+#sound-btn.off{opacity:.5}
 #mic.live{border-color:var(--grass);background:#EAF6EC}
 #mic.muted{border-color:var(--cut);background:#FDECEA}
 #mic.talking{border-color:var(--grass);box-shadow:0 0 0 6px rgba(111,147,80,.28),0 3px 12px rgba(43,36,56,.26)}
@@ -323,6 +331,7 @@ button{background:none;border:none;cursor:pointer}
 <div id="stick"><div id="knob"></div></div>
 <button id="mic" aria-label="Microphone" title="Microphone">🎤</button>
 <div id="voice-note" role="status"></div>
+<button id="sound-btn" aria-label="Sound" title="Sound">🔊</button>
 <div id="emotes">
   <button data-e="wave" aria-label="Wave">👋</button>
   <button data-e="dance" aria-label="Dance">🕺</button>
@@ -443,6 +452,8 @@ const WS_API = API.replace(/^http/, "ws");
 let state = null, prev = null, net = null, myPid = null;
 let ready = false;          // true once this player has an Islander and is in the world
 let clockBase = { remaining:0, duration:1, at:0 };
+let lastBeat = -1;
+let lastRoster = null, lastRosterCount = 0;
 let islanders = {};          // pid -> {face, skin, hair, shirt, faceTexture}
 let myIslander = null;
 let decreePick = 0, decreeOffset = 0;
@@ -668,11 +679,12 @@ function setupControls(){
     if (!Voice.enabled){
       const res = await Voice.toggle();
       if (!res.ok) return showVoiceNote(res.reason);
+      Sound.micOn();
       showVoiceNote("Mic on. Tap again to mute.", 2200);
     } else if (!Voice.muted){
-      Voice.setMuted(true); showVoiceNote("Muted. Tap to unmute.", 1600);
+      Voice.setMuted(true); Sound.micOff(); showVoiceNote("Muted. Tap to unmute.", 1600);
     } else {
-      Voice.setMuted(false); showVoiceNote("Unmuted.", 1200);
+      Voice.setMuted(false); Sound.micOn(); showVoiceNote("Unmuted.", 1200);
     }
     paintMic();
   };
@@ -721,6 +733,7 @@ function stepMovement(dt){
   }
 
   Village.setSelf(myPid, me.x, me.z, me.angle, me.moving);
+  if (me.moving) Sound.step();
 
   const now = performance.now();
   if (now - lastSent > 100){          // ~10 a second, matched to the server frame
@@ -755,7 +768,12 @@ function tickClock(){
   const left = clockLeft(), secs = Math.ceil(left);
   $("clock-pill").textContent = secs;
   $("clock-pill").classList.toggle("urgent", left <= 10);
-  if ($("condemned").classList.contains("on")) $("big-count").textContent = secs;
+  if ($("condemned").classList.contains("on")){
+    $("big-count").textContent = secs;
+    // A beat per second, quickening under ten.
+    const slot = left <= 10 ? Math.floor(left * 2) : Math.floor(left);
+    if (slot !== lastBeat){ lastBeat = slot; Sound.heart(left / 40); }
+  }
 }
 
 /* ===========================================================================
@@ -770,6 +788,13 @@ function render(s){
   if (s.map) Village.applyMap(s.map);
   Village.sync(s.players, islanders);
   $("mic").classList.add("on");
+  $("sound-btn").classList.add("on");
+  // Someone arriving or leaving should be audible, not just visible.
+  const names = s.players.map(p => p.pid).join(",");
+  if (lastRoster !== null && names !== lastRoster){
+    s.players.length > lastRosterCount ? Sound.join() : Sound.leave();
+  }
+  lastRoster = names; lastRosterCount = s.players.length;
   Voice.setPid(myPid);
   Voice.sync(s.players);
   paintMic();
@@ -781,12 +806,17 @@ function render(s){
   Village.setMarkers(marks);
 
   if (changed){
+    if (phase === "nightfall") Sound.nightfall();
+    if (phase === "gathering") Sound.gathering();
+    if (phase === "verdict") Sound.verdict();
+    if (phase === "over") Sound.win(s.winner === "villagers");
     if (phase === "decree") Village.flash(0xE04B3C, 0.5);
     if (phase === "verdict") Village.flash(0xE8A33D, 0.4);
     if (navigator.vibrate && phase === "decree") { try { navigator.vibrate([30,60,30]); } catch(e){} }
   }
   const newCut = s.lastCut && (!prev || !prev.lastCut || prev.lastCut.pid !== s.lastCut.pid);
   if (newCut){
+    Sound.cut();
     Village.flash(0xE04B3C, 0.9);
     if (navigator.vibrate) { try { navigator.vibrate([0,90,50,140]); } catch(e){} }
   }
@@ -979,7 +1009,7 @@ function renderGathering(s, m){
   if (m.alive){
     $("hint").textContent = "Argue out loud. Tap a face to vote, tap again to undo.";
     buildTargets(living.filter(p => p.pid !== m.pid), m.vote,
-      (pid) => net.send({ t:"vote", target:pid }), tallies, m);
+      (pid) => { Sound.vote(); net.send({ t:"vote", target:pid }); }, tallies, m);
     (s.calls||[]).slice(0,4).forEach((text,i) => {
       const b = document.createElement("button");
       b.className = "chip"; b.textContent = text;
@@ -1224,6 +1254,23 @@ $("chat-form").addEventListener("submit", (e) => {
   net.send({ t:"say", text });
   input.value = "";
 });
+addEventListener("pointerdown", () => Sound.unlock(), { once:true });
+addEventListener("keydown", () => Sound.unlock(), { once:true });
+$("sound-btn").onclick = () => {
+  const isOn = Sound.toggle();
+  $("sound-btn").textContent = isOn ? "🔊" : "🔈";
+  $("sound-btn").classList.toggle("off", !isOn);
+};
+
+// Every press answers. This is most of what makes an interface feel built.
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("button");
+  if (!el || el.disabled) return;
+  if (el.id === "sound-btn") return;
+  if (el.classList.contains("btn")) Sound.confirm();
+  else Sound.tap();
+}, true);
+
 $("fold").onclick = () => {
   const hud = $("hud");
   const folded = hud.classList.toggle("min");
