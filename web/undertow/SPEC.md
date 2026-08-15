@@ -58,12 +58,37 @@ Nintendo, not "web game". Concretely:
 - **S2.6** Real shadows under characters and props — DONE
 - **S2.7** Warm directional sun with cool sky bounce — DONE
 - **S2.8** Grass and prop variation, not a flat plane — DONE
+- **S2.9** Terrain with shape — DONE
+  - The island was a flat disc, and no texture fixes that: Ocarina's fields
+    read the way they do because the ground has form to walk over and behind
+  - One pure height function of x and z with fixed constants, so every device
+    raises identical hills and the server never mentions height. Ground mesh,
+    props, players and camera all sample that one function
+  - Dead flat inside the plaza on purpose. The Gathering is an argument
+    between people looking at each other; it must not matter that one of them
+    is standing in a dip
+  - Biased so the field only rises. Centred on zero it cut troughs below the
+    sea plane and the island filled with water in every dip
+  - Per-map relief: the grove rolls, the bay is nearly flat
+- **S2.10** Ridged horizon, not cardboard — DONE
+  - Two or three overlapping peaks per bearing. A single cone is a cut-out;
+    the overlap of one shoulder passing behind another is what reads as land
+  - Haze comes from the map's fog, so the rock keeps its own colour instead
+    of being painted pale up front
+- **S2.11** Buildings, not boxes — DONE
+  - Doors and windows are recesses with frames, not planes painted on a wall.
+    A flat decal has no thickness and no shadow at any angle but straight on
+  - Roof overhang, eaves, a plinth and a doorstep, so a house meets the
+    ground instead of being dropped onto it
 
 ## 3. Maps
 
 - **S3.1** More than one map — DONE
 - **S3.2** Host picks the map in the lobby, everyone sees it — DONE
 - **S3.3** Each map is visually distinct at a glance — DONE
+  - Each map's declared ground material is actually used. It had been in the
+    map definitions from the start and never read, so Halehua Bay — a bay —
+    was a green field with palm trees standing in it
 - **S3.4** Same rules on every map — DONE
 - **S3.5** Maps are seeded, so every device builds the identical world — DONE
 

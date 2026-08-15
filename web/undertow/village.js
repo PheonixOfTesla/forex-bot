@@ -34,7 +34,7 @@ const Village = (() => {
       fog:  [0xC2D6DE, 34, 112],
       sun:  [0xFFF0CC, 1.0, [14, 22, 9]],
       sky_light: [0xBBD6EA, 0xB0A06A, 0.72],
-      ground: "grass", ring: "dirt",
+      ground: "grass", ring: "dirt", relief: 1.0,
       houses: 14, trees: 26, palms: 0, rocks: 4, ferns: 0
     },
     grove: {
@@ -43,7 +43,7 @@ const Village = (() => {
       fog:  [0x9FB894, 22, 78],          // closer fog: you cannot see far in a grove
       sun:  [0xE8F0C0, 0.82, [10, 24, -6]],
       sky_light: [0xA8C8B0, 0x6E7A46, 0.66],
-      ground: "grass", ring: "dirt",
+      ground: "grass", ring: "dirt", relief: 1.35,
       houses: 4, trees: 60, palms: 6, rocks: 12, ferns: 40
     },
     bay: {
@@ -52,7 +52,7 @@ const Village = (() => {
       fog:  [0xD8E6E4, 46, 140],         // open water, long sightlines
       sun:  [0xFFF6DA, 1.12, [18, 20, 14]],
       sky_light: [0xCFE8F2, 0xC8B482, 0.86],
-      ground: "sand", ring: "sand",
+      ground: "sand", ring: "sand", relief: 0.55,
       houses: 8, trees: 6, palms: 22, rocks: 8, ferns: 0
     }
   };
@@ -218,7 +218,7 @@ const Village = (() => {
     /* Trodden earth: compacted patches, loose clods, small stones. */
     dirt: () => makeTex("dirt", (g, S) => {
       g.fillStyle = "#B39B63"; g.fillRect(0, 0, S, S);
-      patches(g, S, ["#A28C57", "#C4AC73"], 6, S * 0.30, 0.55);
+      patches(g, S, ["#A28C57", "#C4AC73"], 4, S * 0.26, 0.30);
       for (let i = 0; i < 130; i++){
         const x = Math.random() * S, y = Math.random() * S;
         const r = 1.5 + Math.random() * 4;
@@ -393,6 +393,62 @@ const Village = (() => {
 
   function currentMap(){ return MAP.name; }
 
+  /* ------------------------------------------------------------------
+     Terrain
+
+     The island was a flat disc, and no amount of texture fixes that: Hyrule
+     Field reads the way it does because the ground has shape, and shape is
+     what gives you something to walk over, behind, and out of sight of.
+
+     One pure function of x and z, with fixed constants, so every device
+     raises the same hills without the server ever mentioning height. Ground
+     mesh, props, players and camera all sample this and nothing else.
+
+     Dead flat inside the plaza on purpose. The Gathering is an argument
+     between people looking at each other, and it should not matter that one
+     of them happens to be standing in a dip.
+     ------------------------------------------------------------------ */
+  const FLAT_TO   = 12.5;                 // the square, and a margin
+  const COAST_AT  = ISLAND_RADIUS + 2;
+
+  function terrainH(x, z){
+    const d = Math.sqrt(x * x + z * z);
+    const t = Math.max(0, Math.min(1, (d - FLAT_TO) / (COAST_AT - FLAT_TO)));
+    // Zero at the plaza edge, zero again at the water: hills in between and
+    // no cliff where the grass meets the sand.
+    const ease = Math.sin(Math.PI * t);
+    const h = Math.sin(x * 0.17 + 1.3) * Math.cos(z * 0.14 - 0.7) * 1.50
+            + Math.sin(x * 0.31 - 2.1) * Math.cos(z * 0.29 + 1.9) * 0.60
+            + Math.sin((x + z) * 0.085) * 0.85;
+    // Biased so the field only ever rises. Centred on zero it cut troughs
+    // three units deep, which is below the sea plane - the island filled with
+    // water in every dip and you could see straight through the grass to it.
+    return (h * 0.5 + 1.5) * ease * (MAP.relief === undefined ? 1 : MAP.relief);
+  }
+
+  /* A disc whose vertices follow the height field.
+
+     RingGeometry rather than CircleGeometry: a circle is a triangle fan with
+     a single ring of rim vertices, so there is nothing in between to lift.
+     A ring takes a radial subdivision count, and its UVs are planar, so the
+     textures tile exactly as they did on the flat version. */
+  function groundDisc(radius, mat, baseY, rings){
+    const geo = new THREE.RingGeometry(0.02, radius, 72, rings || 26);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++){
+      // The mesh gets rotated -90 about X, which sends local (x,y,z) to world
+      // (x, z, -y). So world z is -local y, and local z is the height.
+      pos.setZ(i, terrainH(pos.getX(i), -pos.getY(i)));
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();          // or the hills light as if still flat
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = baseY;
+    m.receiveShadow = true;
+    return m;
+  }
+
   function buildSky(){
     const geo = new THREE.SphereGeometry(180, 24, 16);
     const mat = new THREE.ShaderMaterial({
@@ -445,20 +501,19 @@ const Village = (() => {
     sea.position.y = -0.85;
     worldGroup.add(sea);
 
-    // Beach, then grass, then the paved square in the middle.
-    const beach = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS + 3.5, 56), surf(TEX.sand));
-    beach.receiveShadow = true;
-    beach.rotation.x = -Math.PI/2;
-    beach.position.y = -0.34;
-    worldGroup.add(beach);
+    // Beach, then grass, then the paved square in the middle. The first two
+    // follow the height field; the square stays flat because the field is
+    // flat under it.
+    worldGroup.add(groundDisc(ISLAND_RADIUS + 3.5, surf(TEX.sand), -0.34, 22));
+    // MAP.ground, not a hardcoded grass. Every map has declared its own ground
+    // material since the maps were written and nothing ever read it, so
+    // Halehua Bay - a bay - has been a green field with palm trees on it.
+    const groundTex = TEX[MAP.ground] || TEX.grass;
+    worldGroup.add(groundDisc(ISLAND_RADIUS - 1.5, surf(groundTex), -0.12, 30));
 
-    const grass = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS - 1.5, 56), surf(TEX.grass));
-    grass.receiveShadow = true;
-    grass.rotation.x = -Math.PI/2;
-    grass.position.y = -0.12;
-    worldGroup.add(grass);
-
-    const plaza = new THREE.Mesh(new THREE.CircleGeometry(11, 40), surf(TEX.dirt));
+    // Paving. Dirt put its clod-and-pebble blotches right where everyone
+    // stands and argues, and at plaza scale they read as mud.
+    const plaza = new THREE.Mesh(new THREE.CircleGeometry(11, 40), surf(TEX.stone, PLAZA));
     plaza.receiveShadow = true;
     plaza.rotation.x = -Math.PI/2;
     plaza.position.y = -0.05;
@@ -495,21 +550,59 @@ const Village = (() => {
       dome.position.y = h;
       g.add(dome);
     } else {
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.78, 1.15, 4), surf(TEX.roof));
-      roof.position.y = h + 0.55;
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.92, 1.25, 4), surf(TEX.roof));
+      roof.position.y = h + 0.58;
       roof.rotation.y = Math.PI/4;
+      roof.castShadow = true;
       g.add(roof);
+      // The overhang is the point: it throws a shadow line along the top of
+      // the wall, which is most of what tells you a roof is a roof.
+      const eave = new THREE.Mesh(new THREE.BoxGeometry(w + 0.34, 0.12, d + 0.34),
+                                  toon(0x8E4B33));
+      eave.position.y = h + 0.03;
+      eave.castShadow = true;
+      g.add(eave);
     }
 
-    // A door and a window, so the scale reads as a building.
-    const door = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 1.15), toon(0x4A6FA0));
-    door.position.set(0, 0.58, d/2 + 0.01);
-    g.add(door);
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), toon(0x7FB4D8));
-    win.position.set(w * 0.28, h * 0.66, d/2 + 0.01);
-    g.add(win);
+    /* Openings with depth. A door painted on a wall as a flat plane is a
+       sticker: at any angle other than straight on it has no thickness, no
+       shadow, and the wall reads as a box again. A recess set back into the
+       surface catches the sun on one jamb and not the other, which is what
+       makes a building look built. */
+    const opening = (ow, oh, ox, oy, glass) => {
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(ow + 0.16, oh + 0.16, 0.10),
+                                   toon(0xEFE7D6));
+      frame.position.set(ox, oy, d/2 + 0.02);
+      frame.castShadow = true;
+      g.add(frame);
+      const hole = new THREE.Mesh(new THREE.BoxGeometry(ow, oh, 0.30),
+                                  toon(glass ? 0x6FA6CE : 0x35455C));
+      hole.position.set(ox, oy, d/2 - 0.15);      // set back into the wall
+      g.add(hole);
+      if (glass){
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(ow + 0.02, 0.05, 0.12),
+                                   toon(0xEFE7D6));
+        bar.position.set(ox, oy, d/2 + 0.03);
+        g.add(bar);
+      }
+    };
+    opening(0.62, 1.20, 0, 0.60, false);
+    opening(0.52, 0.52, w * 0.30, h * 0.64, true);
+    if (w > 3.4) opening(0.52, 0.52, -w * 0.30, h * 0.64, true);
 
-    g.position.set(x, 0, z);
+    // A step at the door and a base course, so the house meets the ground
+    // instead of being dropped onto it.
+    const step = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.14, 0.55), toon(0xCFC6B0));
+    step.position.set(0, 0.07, d/2 + 0.24);
+    step.receiveShadow = true;
+    g.add(step);
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(w + 0.14, 0.28, d + 0.14),
+                                  surf(TEX.stone));
+    plinth.position.y = 0.14;
+    plinth.castShadow = true; plinth.receiveShadow = true;
+    g.add(plinth);
+
+    g.position.set(x, terrainH(x, z), z);
     g.rotation.y = rand() * Math.PI * 2;
     worldGroup.add(g);
   }
@@ -530,7 +623,7 @@ const Village = (() => {
       blob.castShadow = true;
       g.add(blob);
     }
-    g.position.set(x, 0, z);
+    g.position.set(x, terrainH(x, z), z);
     worldGroup.add(g);
   }
 
@@ -541,17 +634,33 @@ const Village = (() => {
      used to make a small world feel like a big one. */
   function buildHorizon(){
     const rand = seeded(90210);
-    for (let i = 0; i < 22; i++){
-      const a = (i / 22) * Math.PI * 2 + rand() * 0.18;
-      const dist = 78 + rand() * 26;
-      const h = 9 + rand() * 16;
-      const hill = new THREE.Mesh(
-        new THREE.ConeGeometry(11 + rand() * 13, h, 9),
-        new THREE.MeshStandardMaterial({ color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0xBFD0B4), 0.45), roughness: 1.0 })
-      );
-      hill.position.set(Math.cos(a) * dist, h * 0.5 - 3, Math.sin(a) * dist);
-      hill.rotation.y = rand() * Math.PI;
-      worldGroup.add(hill);
+    // A single cone per bearing is a cardboard triangle. Ridges are two or
+    // three peaks of different heights overlapping, and it is the overlap -
+    // one shoulder crossing behind another - that reads as land rather than
+    // as a cut-out standing on the water.
+    for (let i = 0; i < 20; i++){
+      const a = (i / 20) * Math.PI * 2 + rand() * 0.2;
+      const dist = 76 + rand() * 30;
+      const peaks = 2 + ((rand() * 2) | 0);
+      for (let k = 0; k < peaks; k++){
+        const off = (k - (peaks - 1) / 2) * (12 + rand() * 9);
+        const h = (k === 0 ? 13 : 8) + rand() * 14;
+        const rr = 10 + rand() * 12;
+        // Haze comes from the map's fog, so the rock keeps its own colour and
+        // gets greyed by distance instead of being painted pale up front.
+        const hill = new THREE.Mesh(
+          new THREE.ConeGeometry(rr, h, 10),
+          new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0x8FA5A0), 0.22 + rand() * 0.16),
+            roughness: 1.0, flatShading: true })
+        );
+        hill.position.set(Math.cos(a) * dist - Math.sin(a) * off,
+                          h * 0.5 - 3.5,
+                          Math.sin(a) * dist + Math.cos(a) * off);
+        hill.rotation.y = rand() * Math.PI;
+        hill.scale.set(1, 1, 0.8 + rand() * 0.5);
+        worldGroup.add(hill);
+      }
     }
   }
 
@@ -573,7 +682,7 @@ const Village = (() => {
       frond.castShadow = true;
       g.add(frond);
     }
-    g.position.set(x, 0, z);
+    g.position.set(x, terrainH(x, z), z);
     worldGroup.add(g);
   }
 
@@ -597,7 +706,7 @@ const Village = (() => {
       blade.rotation.x = -Math.sin(a) * 0.5;
       g.add(blade);
     }
-    g.position.set(x, 0, z);
+    g.position.set(x, terrainH(x, z), z);
     worldGroup.add(g);
   }
 
@@ -1072,7 +1181,7 @@ const Village = (() => {
     let da = ((rig.ta - rig.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
     rig.angle += da * Math.min(1, dt * 12);
 
-    rig.group.position.set(rig.x, 0, rig.z);
+    rig.group.position.set(rig.x, terrainH(rig.x, rig.z), rig.z);
     rig.group.rotation.y = rig.angle;
 
     const speed = rig.moving ? 1 : 0;
@@ -1084,7 +1193,9 @@ const Village = (() => {
     rig.legR.rotation.x = -swing * 0.85 * speed;
     rig.armL.rotation.x = -swing * 0.7 * speed;
     rig.armR.rotation.x =  swing * 0.7 * speed;
-    rig.group.position.y = Math.abs(Math.sin(rig.phase)) * 0.07 * speed;
+    // The walk bob rides on top of the ground height, not instead of it.
+    rig.group.position.y = terrainH(rig.x, rig.z)
+                         + Math.abs(Math.sin(rig.phase)) * 0.07 * speed;
     rig.body.rotation.x = speed * 0.09;
 
     // Idle: gentle breathing and a slow head sway.
@@ -1246,7 +1357,7 @@ const Village = (() => {
   function updateCamera(dt){
     const me = avatars.get(followPid);
     const target = me
-      ? new THREE.Vector3(me.x, 1.9, me.z)
+      ? new THREE.Vector3(me.x, terrainH(me.x, me.z) + 1.9, me.z)
       : new THREE.Vector3(0, 2.2, 0);
 
     if (!me){
@@ -1262,7 +1373,8 @@ const Village = (() => {
       target.z + Math.cos(camYaw) * Math.cos(p) * d
     );
     // Never let the camera drop below the ground.
-    want.y = Math.max(1.1, want.y);
+    // Never let the camera drop through a hill.
+    want.y = Math.max(terrainH(want.x, want.z) + 1.4, want.y);
 
     camera.position.lerp(want, 1 - Math.pow(0.0005, dt));
     const s = shakeAmount * shakeAmount;
