@@ -268,6 +268,9 @@ class Player:
     # Chat rate limiting.
     last_said: float = 0.0
 
+    # Voice: whether this player's mic is live.
+    voice: bool = False
+
     # How they went, once they have.
     manner: Optional[str] = None
     death_round: Optional[int] = None
@@ -535,6 +538,10 @@ class Room:
         # Tapping the same player again takes the vote back.
         actor.vote = None if actor.vote == target.pid else target.pid
 
+    def act_voice(self, actor: Player, on: Any) -> None:
+        """Flip a player's mic flag so everyone knows who to dial."""
+        actor.voice = bool(on)
+
     def act_react(self, actor: Player, symbol: str) -> None:
         if symbol in REACTIONS:
             actor.reaction = symbol
@@ -774,6 +781,7 @@ class Room:
                 "castOut": p.cast_out,
                 "reaction": p.reaction,
                 "hasIslander": p.islander is not None,
+                "voice": p.voice,
                 # Roles become public only when the game is over.
                 "role": p.role.value if over else None,
                 "title": ROLE_TITLES[p.role] if over else None,

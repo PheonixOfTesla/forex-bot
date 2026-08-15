@@ -12,6 +12,7 @@
 <script src="/undertow/islander.js"></script>
 <script src="/undertow/avatar.js"></script>
 <script src="/undertow/village.js"></script>
+<script src="/undertow/voice.js"></script>
 <style>
 /* ===========================================================================
    UNDERTOW ISLAND
@@ -216,6 +217,27 @@ button{background:none;border:none;cursor:pointer}
   position:fixed;right:var(--sp);bottom:calc(var(--safe-b) + 108px);z-index:3;
   display:none;flex-direction:column;gap:7px;
 }
+/* The mic sits above the emotes and stays visible whether or not the walking
+   controls are up - you want to mute yourself mid-argument. */
+#mic{
+  /* Top right, under the clock, and above the panels: you want to mute
+     yourself from the lobby and mid-argument alike, not only while walking. */
+  position:fixed;right:var(--sp);top:calc(var(--safe-t) + 76px);z-index:7;
+  width:52px;height:52px;border-radius:50%;background:rgba(255,253,247,.94);
+  font-size:22px;display:none;place-items:center;box-shadow:0 3px 12px rgba(43,36,56,.26);
+  border:3px solid transparent;
+}
+#mic.on{display:grid}
+#mic.live{border-color:var(--grass);background:#EAF6EC}
+#mic.muted{border-color:var(--cut);background:#FDECEA}
+#mic.talking{border-color:var(--grass);box-shadow:0 0 0 6px rgba(111,147,80,.28),0 3px 12px rgba(43,36,56,.26)}
+#voice-note{
+  position:fixed;right:var(--sp);top:calc(var(--safe-t) + 136px);z-index:7;
+  max-width:230px;background:rgba(255,253,247,.97);border-radius:12px;padding:9px 12px;
+  font-size:12px;font-weight:700;color:var(--ink);box-shadow:0 3px 12px rgba(43,36,56,.26);
+  display:none;line-height:1.4;
+}
+#voice-note.on{display:block}
 #emotes.on{display:flex}
 #emotes button{
   width:46px;height:46px;border-radius:50%;background:rgba(255,253,247,.94);
@@ -299,6 +321,8 @@ button{background:none;border:none;cursor:pointer}
 </div>
 
 <div id="stick"><div id="knob"></div></div>
+<button id="mic" aria-label="Microphone" title="Microphone">🎤</button>
+<div id="voice-note" role="status"></div>
 <div id="emotes">
   <button data-e="wave" aria-label="Wave">👋</button>
   <button data-e="dance" aria-label="Dance">🕺</button>
@@ -569,6 +593,25 @@ const me = { x:0, z:0, angle:0, vx:0, vz:0, moving:false };
 const input = { mx:0, my:0, keys:{} };
 let lastSent = 0;
 
+let voiceNoteTimer = null;
+function showVoiceNote(text, ms){
+  const el = $("voice-note");
+  el.textContent = text;
+  el.classList.add("on");
+  clearTimeout(voiceNoteTimer);
+  if (ms) voiceNoteTimer = setTimeout(() => el.classList.remove("on"), ms);
+}
+
+function paintMic(){
+  const b = $("mic");
+  b.classList.toggle("live", Voice.enabled && !Voice.muted);
+  b.classList.toggle("muted", Voice.enabled && Voice.muted);
+  b.textContent = Voice.enabled && Voice.muted ? "🔇" : "🎤";
+  const talking = Voice.speakingSet();
+  b.classList.toggle("talking", !!talking[myPid]);
+  if (state) Village.setSpeaking(talking);
+}
+
 function setupControls(){
   // Virtual stick.
   const stick = $("stick"), knob = $("knob");
@@ -612,6 +655,25 @@ function setupControls(){
 
   addEventListener("keydown", (e) => { input.keys[e.key.toLowerCase()] = true; });
   addEventListener("keyup",   (e) => { input.keys[e.key.toLowerCase()] = false; });
+
+    // Voice rides the room socket for signalling; the audio itself is peer to peer.
+  Voice.init({
+    send: (m) => net && net.send(m),
+    pid: myPid,
+    onChange: () => paintMic()
+  });
+  $("mic").onclick = async () => {
+    if (!Voice.enabled){
+      const res = await Voice.toggle();
+      if (!res.ok) return showVoiceNote(res.reason);
+      showVoiceNote("Mic on. Tap again to mute.", 2200);
+    } else if (!Voice.muted){
+      Voice.setMuted(true); showVoiceNote("Muted. Tap to unmute.", 1600);
+    } else {
+      Voice.setMuted(false); showVoiceNote("Unmuted.", 1200);
+    }
+    paintMic();
+  };
 
   document.querySelectorAll("#emotes button").forEach(b => {
     b.onclick = () => net && net.send({ t:"emote", name: b.dataset.e });
@@ -704,6 +766,10 @@ function render(s){
   const changed = !prev || prev.phase !== phase || prev.round !== s.round;
 
   Village.sync(s.players, islanders);
+  $("mic").classList.add("on");
+  Voice.setPid(myPid);
+  Voice.sync(s.players);
+  paintMic();
   if (myPid) Village.setFollow(myPid);
 
   // Mark who you have voted for with a ring under their feet.
@@ -1015,6 +1081,8 @@ class Net {
           const mine = msg.players.find(p => p[0] === myPid);
           if (mine){ me.x = mine[1]; me.z = mine[2]; me.angle = mine[3]; this.spawned = true; }
         }
+      } else if (msg.t === "rtc"){
+        Voice.signal(msg.from, msg.kind, msg.data);
       } else if (msg.t === "islanders"){
         await adoptIslanders(msg.map);
         // Only redraw once the player is actually in the world - otherwise a

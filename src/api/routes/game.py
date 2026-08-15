@@ -288,6 +288,29 @@ async def handle(room: Room, player: Any, message: Dict[str, Any], websocket: We
         room.act_vote(player, target)
         return True
 
+    # --- voice ------------------------------------------------------------
+    # WebRTC needs a signalling path, not a media server: the audio itself
+    # goes peer to peer. The room socket is already open and already knows
+    # who is in the room, so it carries the handshake and nothing new has to
+    # be deployed. Payloads are relayed untouched to exactly one recipient.
+    if kind == "rtc":
+        target = room.sockets.get(message.get("to") or "")
+        if target is not None:
+            try:
+                await target.send_json({
+                    "t": "rtc",
+                    "from": player.pid,
+                    "kind": message.get("kind"),
+                    "data": message.get("data"),
+                })
+            except Exception:
+                pass
+        return False
+
+    if kind == "voice":
+        room.act_voice(player, message.get("on"))
+        return True
+
     if kind == "say":
         room.act_say(player, message.get("text"))
         return True

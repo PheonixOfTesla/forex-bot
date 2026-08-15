@@ -56,17 +56,21 @@ const Village = (() => {
      which is exactly what the hardware did.
      ------------------------------------------------------------------ */
   const texCache = {};
+  let maxAniso = 4;
 
   function makeTex(key, draw, repeat){
     if (texCache[key]) return texCache[key];
-    const size = 64;
+    const size = 256;
     const c = document.createElement("canvas");
     c.width = c.height = size;
     draw(c.getContext("2d"), size);
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.magFilter = THREE.NearestFilter;              // point sampling, like the N64
-    t.minFilter = THREE.LinearMipmapLinearFilter;   // but mipmapped into the distance
+    // Smooth filtering both ways, and anisotropy so ground textures stay
+    // legible at a grazing angle instead of smearing into mush.
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.anisotropy = maxAniso;
     t.repeat.set(repeat || 1, repeat || 1);
     texCache[key] = t;
     return t;
@@ -86,34 +90,34 @@ const Village = (() => {
   }
 
   const TEX = {
-    grass: () => makeTex("grass", speckle("#6E8F3C", ["#7FA349","#5D7B33","#87AC55","#4F6B2C"], 900), 28),
-    dirt:  () => makeTex("dirt",  speckle("#B39B63", ["#C4AC73","#9C8452","#CBB682"], 700), 10),
-    sand:  () => makeTex("sand",  speckle("#D9C88C", ["#E4D69F","#C8B478"], 600), 22),
-    stone: () => makeTex("stone", speckle("#C6BFAC", ["#D3CCBA","#AFA792","#DAD4C4"], 500), 6),
-    plaster: () => makeTex("plaster", speckle("#DCD3BE", ["#E6DECB","#CFC5AE"], 300), 2),
+    grass: () => makeTex("grass", speckle("#6E8F3C", ["#7FA349","#5D7B33","#87AC55","#4F6B2C"], 4200), 28),
+    dirt:  () => makeTex("dirt",  speckle("#B39B63", ["#C4AC73","#9C8452","#CBB682"], 3200), 10),
+    sand:  () => makeTex("sand",  speckle("#D9C88C", ["#E4D69F","#C8B478"], 2800), 22),
+    stone: () => makeTex("stone", speckle("#C6BFAC", ["#D3CCBA","#AFA792","#DAD4C4"], 2400), 6),
+    plaster: () => makeTex("plaster", speckle("#DCD3BE", ["#E6DECB","#CFC5AE"], 1400), 2),
     roof: () => makeTex("roof", (g,S)=>{
       g.fillStyle = "#B4573A"; g.fillRect(0,0,S,S);
       // overlapping tile courses
-      for (let y = 0; y < S; y += 8){
+      for (let y = 0; y < S; y += 26){
         g.fillStyle = "#9C4830"; g.fillRect(0, y, S, 1);
-        for (let x = (y/8 % 2) * 6; x < S; x += 12){
-          g.fillStyle = "#C4634A"; g.fillRect(x, y + 1, 10, 6);
+        for (let x = (y/26 % 2) * 20; x < S; x += 40){
+          g.fillStyle = "#C4634A"; g.fillRect(x, y + 3, 34, 20);
         }
       }
     }, 3),
     bark: () => makeTex("bark", (g,S)=>{
       g.fillStyle = "#6E4E30"; g.fillRect(0,0,S,S);
-      for (let i = 0; i < 40; i++){
+      for (let i = 0; i < 150; i++){
         g.fillStyle = ["#5B3F26","#7E5B39","#4E3520"][(Math.random()*3)|0];
-        g.fillRect(Math.random()*S, 0, 1 + Math.random()*2, S);   // vertical grain
+        g.fillRect(Math.random()*S, 0, 2 + Math.random()*6, S);   // vertical grain
       }
     }, 2),
-    leaf: () => makeTex("leaf", speckle("#4F7A33", ["#5E8C3E","#42682A","#6B9A48"], 700), 3),
+    leaf: () => makeTex("leaf", speckle("#4F7A33", ["#5E8C3E","#42682A","#6B9A48"], 3200), 3),
     water: () => makeTex("water", (g,S)=>{
       g.fillStyle = "#3F7FA8"; g.fillRect(0,0,S,S);
-      for (let y = 0; y < S; y += 5){
-        g.fillStyle = y % 10 ? "#4E8FB8" : "#356E93";
-        g.fillRect(0, y, S, 2);
+      for (let y = 0; y < S; y += 18){
+        g.fillStyle = (y/18) % 2 ? "#4E8FB8" : "#356E93";
+        g.fillRect(0, y, S, 7);
       }
     }, 40)
   };
@@ -271,13 +275,13 @@ const Village = (() => {
   function buildTree(rand, x, z){
     const g = new THREE.Group();
     const th = 1.5 + rand() * 1.0;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, th, 7), surf(TEX.bark));
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, th, 10), surf(TEX.bark));
     trunk.position.y = th/2;
     g.add(trunk);
     // A few overlapping blobs make a nicer canopy than one sphere.
     for (let i = 0; i < 3; i++){
       const r = 0.85 + rand() * 0.55;
-      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), surf(TEX.leaf));
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), surf(TEX.leaf));
       blob.position.set((rand()-0.5) * 1.1, th + 0.25 + rand() * 0.6, (rand()-0.5) * 1.1);
       blob.scale.y = 0.82;
       g.add(blob);
@@ -298,7 +302,7 @@ const Village = (() => {
       const dist = 78 + rand() * 26;
       const h = 9 + rand() * 16;
       const hill = new THREE.Mesh(
-        new THREE.ConeGeometry(11 + rand() * 13, h, 6),
+        new THREE.ConeGeometry(11 + rand() * 13, h, 9),
         new THREE.MeshLambertMaterial({ color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0xBFD0B4), 0.45) })
       );
       hill.position.set(Math.cos(a) * dist, h * 0.5 - 3, Math.sin(a) * dist);
@@ -465,13 +469,16 @@ const Village = (() => {
      Public surface
      ------------------------------------------------------------------ */
   function init(canvas){
-    // No antialiasing and pixelRatio 1: the console never had either, and the
-    // hard pixel edges are most of what makes this read as N64.
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false });
-    renderer.setPixelRatio(1);
+    // Sharp. The look we want from Ocarina is its art direction - green
+    // fields, blue sky, warm low-poly shapes - not the console's resolution.
+    // Rendering through a small buffer reproduced the blur, which is the one
+    // part of 1998 nobody misses.
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(innerWidth, innerHeight, false);
     renderer.setClearColor(0xC2D6DE, 1);
-    buildLowRes();
+
+    maxAniso = renderer.capabilities.getMaxAnisotropy();
 
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xC2D6DE, 34, 112);
@@ -493,44 +500,11 @@ const Village = (() => {
     renderer.setAnimationLoop(frame);
   }
 
-  /* The console rendered around 320x240 and let the display stretch it. We do
-     the same: draw the world into a small buffer, then blow it up with nearest
-     filtering so the pixels stay square and chunky. It is also much cheaper,
-     which is why the island holds framerate on a cheap phone. */
-  const N64_HEIGHT = 360;
-  let lowRT = null, blitScene = null, blitCam = null, blitMesh = null;
-
-  function buildLowRes(){
-    const h = N64_HEIGHT;
-    const w = Math.max(160, Math.round(h * (innerWidth / innerHeight)));
-    if (lowRT) lowRT.dispose();
-    // Linear on the way back up, not nearest: the console's output went
-    // through a CRT, which softened it. Hard nearest reads as pixel art
-    // instead of as 1998 hardware.
-    lowRT = new THREE.WebGLRenderTarget(w, h, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      format: THREE.RGBAFormat
-    });
-    if (!blitScene){
-      blitScene = new THREE.Scene();
-      blitCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-      blitMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(2, 2),
-        new THREE.MeshBasicMaterial({ map: null, depthTest: false, depthWrite: false })
-      );
-      blitScene.add(blitMesh);
-    }
-    blitMesh.material.map = lowRT.texture;
-    blitMesh.material.needsUpdate = true;
-  }
-
   function resize(){
     if (!renderer) return;
     camera.aspect = innerWidth/innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight, false);
-    buildLowRes();
   }
 
   /* Rebuild the cast when the roster or somebody's Islander changes. */
@@ -610,6 +584,28 @@ const Village = (() => {
       }
     });
     return [px, pz];
+  }
+
+  /* A green ring under whoever is talking. In a deduction game, knowing who
+     is speaking matters as much as hearing them. */
+  function setSpeaking(map){
+    avatars.forEach((rig, pid) => {
+      const on = map && map[pid];
+      if (!rig.voiceRing){
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(0.72, 0.92, 26),
+          new THREE.MeshBasicMaterial({ color: 0x7ED37E, transparent: true, opacity: 0,
+                                        side: THREE.DoubleSide })
+        );
+        ring.rotation.x = -Math.PI/2;
+        ring.position.y = 0.05;
+        rig.group.add(ring);
+        rig.voiceRing = ring;
+      }
+      const want = on ? 0.9 : 0;
+      rig.voiceRing.material.opacity += (want - rig.voiceRing.material.opacity) * 0.25;
+      if (on) rig.voiceRing.scale.setScalar(1 + Math.sin(clock * 9) * 0.06);
+    });
   }
 
   function setMarkers(map){
@@ -788,17 +784,12 @@ const Village = (() => {
         `rgb(${flashColor.r*255|0},${flashColor.g*255|0},${flashColor.b*255|0})`;
     }
 
-    // World into the small buffer, then upscale it to fill the screen.
-    renderer.setRenderTarget(lowRT);
-    renderer.clear();
     renderer.render(scene, camera);
-    renderer.setRenderTarget(null);
-    renderer.render(blitScene, blitCam);
   }
 
   return {
     init, sync, applyPositions, setSelf, setFollow, selfRig, setMarkers,
-    faceTextureFor, flash, orbit, zoom, heading, separation,
+    faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking,
     VILLAGE_RADIUS
   };
 })();
