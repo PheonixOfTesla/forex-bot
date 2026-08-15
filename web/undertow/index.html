@@ -395,6 +395,8 @@ button{background:none;border:none;cursor:pointer}
     <button id="share-btn" class="btn">Share this island</button>
     <div id="roster"></div>
     <div id="lobby-note" class="label" style="text-align:center"></div>
+    <div class="label" style="text-align:center;margin-top:2px">Where are we playing?</div>
+    <div id="map-pick" class="row" style="flex-wrap:wrap"></div>
     <button id="start-btn" class="btn" disabled>Start the game</button>
     <button id="walk-btn" class="btn ghost">Walk around while you wait</button>
   </div>
@@ -765,6 +767,7 @@ function render(s){
   const phase = s.phase;
   const changed = !prev || prev.phase !== phase || prev.round !== s.round;
 
+  if (s.map) Village.applyMap(s.map);
   Village.sync(s.players, islanders);
   $("mic").classList.add("on");
   Voice.setPid(myPid);
@@ -833,6 +836,18 @@ function renderLobby(s, m){
       + `<span>${escapeHtml(p.name)}${p.host ? " ⭐" : ""}</span>`;
     roster.appendChild(el);
   });
+  const MAP_LABELS = { village:"🏝 Molua Village", grove:"🌴 Kanu Grove", bay:"⛵ Halehua Bay" };
+  const pick = $("map-pick");
+  pick.innerHTML = "";
+  (s.maps || []).forEach(id => {
+    const b = document.createElement("button");
+    b.className = "chip" + (id === s.map ? " sel" : "");
+    b.textContent = MAP_LABELS[id] || id;
+    b.disabled = !m.host;                 // only the host moves everyone
+    b.onclick = () => net.send({ t:"map", name:id });
+    pick.appendChild(b);
+  });
+
   const n = s.players.length, enough = n >= s.minPlayers;
   $("lobby-note").textContent = enough
     ? `${n} of ${s.maxPlayers} here` : `Need ${s.minPlayers - n} more`;
@@ -1232,7 +1247,7 @@ $("scene").addEventListener("dblclick", () => {
 
 /* --- boot ---------------------------------------------------------------- */
 try {
-  Village.init($("scene"));
+  Village.init($("scene"), "village");
 } catch (err){
   console.warn("Undertow: 3D unavailable, running flat.", err);
   $("scene").style.display = "none";

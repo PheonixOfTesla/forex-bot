@@ -24,10 +24,44 @@ const Village = (() => {
   const LEAF      = 0x5E8442;
   const GOLD      = 0xE8A33D;
 
+  /* Three places to play. Same rules everywhere; only the scenery and the
+     light change, so a group can run four games without the island going
+     stale. Each is seeded, so every device builds the identical world. */
+  const MAPS = {
+    village: {
+      name: "Molua Village",
+      sky:  [0x4E9BD4, 0xA6CFE6],
+      fog:  [0xC2D6DE, 34, 112],
+      sun:  [0xFFF0CC, 1.0, [14, 22, 9]],
+      sky_light: [0xBBD6EA, 0xB0A06A, 0.72],
+      ground: "grass", ring: "dirt",
+      houses: 14, trees: 26, palms: 0, rocks: 4, ferns: 0
+    },
+    grove: {
+      name: "Kanu Grove",
+      sky:  [0x2E7FA8, 0x86BFC4],
+      fog:  [0x9FB894, 22, 78],          // closer fog: you cannot see far in a grove
+      sun:  [0xE8F0C0, 0.82, [10, 24, -6]],
+      sky_light: [0xA8C8B0, 0x6E7A46, 0.66],
+      ground: "grass", ring: "dirt",
+      houses: 4, trees: 60, palms: 6, rocks: 12, ferns: 40
+    },
+    bay: {
+      name: "Halehua Bay",
+      sky:  [0x59B4DC, 0xC8E6EE],
+      fog:  [0xD8E6E4, 46, 140],         // open water, long sightlines
+      sun:  [0xFFF6DA, 1.12, [18, 20, 14]],
+      sky_light: [0xCFE8F2, 0xC8B482, 0.86],
+      ground: "sand", ring: "sand",
+      houses: 8, trees: 6, palms: 22, rocks: 8, ferns: 0
+    }
+  };
+  let MAP = MAPS.village;
+
   const ISLAND_RADIUS  = 30;
   const VILLAGE_RADIUS = 26;
 
-  let renderer, scene, camera, sun;
+  let renderer, scene, camera, sun, hemi;
   let toonGradient = null;
   let avatars = new Map();       // pid -> rig
   let clock = 0;
@@ -155,6 +189,40 @@ const Village = (() => {
   /* ------------------------------------------------------------------
      Island
      ------------------------------------------------------------------ */
+  /* Swap the world. Everything scenic lives in worldGroup so a map change is
+     a clear-and-rebuild rather than a page reload, and players keep their
+     socket, their Islander and their place in the lobby. */
+  function applyMap(id){
+    const next = MAPS[id] || MAPS.village;
+    if (MAP === next && worldGroup.children.length) return;
+    MAP = next;
+
+    while (worldGroup.children.length){
+      const child = worldGroup.children.pop();
+      child.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+      });
+      worldGroup.remove(child);
+    }
+
+    scene.fog = new THREE.Fog(MAP.fog[0], MAP.fog[1], MAP.fog[2]);
+    renderer.setClearColor(MAP.fog[0], 1);
+    hemi.color.setHex(MAP.sky_light[0]);
+    hemi.groundColor.setHex(MAP.sky_light[1]);
+    hemi.intensity = MAP.sky_light[2];
+    sun.color.setHex(MAP.sun[0]);
+    sun.intensity = MAP.sun[1];
+    sun.position.set(MAP.sun[2][0], MAP.sun[2][1], MAP.sun[2][2]);
+
+    buildSky();
+    buildIsland();
+    scatter();
+    buildMonument();
+    buildHorizon();
+  }
+
+  function currentMap(){ return MAP.name; }
+
   function buildSky(){
     const geo = new THREE.SphereGeometry(180, 24, 16);
     const mat = new THREE.ShaderMaterial({
@@ -194,7 +262,7 @@ const Village = (() => {
           gl_FragColor = vec4(mix(sky, vec3(0.97, 0.98, 1.0), cloud * 0.85), 1.0);
         }`
     });
-    scene.add(new THREE.Mesh(geo, mat));
+    worldGroup.add(new THREE.Mesh(geo, mat));
   }
 
   function buildIsland(){
@@ -205,23 +273,26 @@ const Village = (() => {
     );
     sea.rotation.x = -Math.PI/2;
     sea.position.y = -0.85;
-    scene.add(sea);
+    worldGroup.add(sea);
 
     // Beach, then grass, then the paved square in the middle.
     const beach = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS + 3.5, 56), surf(TEX.sand));
+    beach.receiveShadow = true;
     beach.rotation.x = -Math.PI/2;
     beach.position.y = -0.34;
-    scene.add(beach);
+    worldGroup.add(beach);
 
     const grass = new THREE.Mesh(new THREE.CircleGeometry(ISLAND_RADIUS - 1.5, 56), surf(TEX.grass));
+    grass.receiveShadow = true;
     grass.rotation.x = -Math.PI/2;
     grass.position.y = -0.12;
-    scene.add(grass);
+    worldGroup.add(grass);
 
     const plaza = new THREE.Mesh(new THREE.CircleGeometry(11, 40), surf(TEX.dirt));
+    plaza.receiveShadow = true;
     plaza.rotation.x = -Math.PI/2;
     plaza.position.y = -0.05;
-    scene.add(plaza);
+    worldGroup.add(plaza);
 
     // A ring of paving detail so the square does not read as a flat disc.
     for (let i = 0; i < 3; i++){
@@ -232,7 +303,7 @@ const Village = (() => {
       );
       ring.rotation.x = -Math.PI/2;
       ring.position.y = -0.04;
-      scene.add(ring);
+      worldGroup.add(ring);
     }
   }
 
@@ -244,6 +315,7 @@ const Village = (() => {
 
     const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), surf(TEX.plaster));
     body.position.y = h/2;
+    body.castShadow = true; body.receiveShadow = true;
     g.add(body);
 
     // Half the houses get the blue dome, the rest a terracotta roof.
@@ -269,7 +341,7 @@ const Village = (() => {
 
     g.position.set(x, 0, z);
     g.rotation.y = rand() * Math.PI * 2;
-    scene.add(g);
+    worldGroup.add(g);
   }
 
   function buildTree(rand, x, z){
@@ -277,6 +349,7 @@ const Village = (() => {
     const th = 1.5 + rand() * 1.0;
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, th, 10), surf(TEX.bark));
     trunk.position.y = th/2;
+    trunk.castShadow = true;
     g.add(trunk);
     // A few overlapping blobs make a nicer canopy than one sphere.
     for (let i = 0; i < 3; i++){
@@ -284,10 +357,11 @@ const Village = (() => {
       const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), surf(TEX.leaf));
       blob.position.set((rand()-0.5) * 1.1, th + 0.25 + rand() * 0.6, (rand()-0.5) * 1.1);
       blob.scale.y = 0.82;
+      blob.castShadow = true;
       g.add(blob);
     }
     g.position.set(x, 0, z);
-    scene.add(g);
+    worldGroup.add(g);
   }
 
   /* The nightfall monument in the middle of the square - the game's namesake,
@@ -307,8 +381,54 @@ const Village = (() => {
       );
       hill.position.set(Math.cos(a) * dist, h * 0.5 - 3, Math.sin(a) * dist);
       hill.rotation.y = rand() * Math.PI;
-      scene.add(hill);
+      worldGroup.add(hill);
     }
+  }
+
+  /* A palm: a leaning trunk with fronds fanned off the top. */
+  function buildPalm(rand, x, z){
+    const g = new THREE.Group();
+    const h = 3.4 + rand() * 2.4;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.22, h, 9), surf(TEX.bark));
+    trunk.position.y = h/2;
+    trunk.rotation.z = (rand() - 0.5) * 0.34;
+    trunk.castShadow = true;
+    g.add(trunk);
+    for (let i = 0; i < 7; i++){
+      const a = (i/7) * Math.PI * 2;
+      const frond = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.5, 4), surf(TEX.leaf));
+      frond.position.set(Math.cos(a) * 1.0, h - 0.2 - Math.abs(Math.sin(a)) * 0.25, Math.sin(a) * 1.0);
+      frond.rotation.z = Math.cos(a) * 1.25;
+      frond.rotation.x = -Math.sin(a) * 1.25;
+      frond.castShadow = true;
+      g.add(frond);
+    }
+    g.position.set(x, 0, z);
+    worldGroup.add(g);
+  }
+
+  function buildRock(rand, x, z){
+    const r = 0.5 + rand() * 1.2;
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), surf(TEX.stone));
+    rock.position.set(x, r * 0.45, z);
+    rock.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+    rock.scale.y = 0.7 + rand() * 0.4;
+    rock.castShadow = true; rock.receiveShadow = true;
+    worldGroup.add(rock);
+  }
+
+  function buildFern(rand, x, z){
+    const g = new THREE.Group();
+    for (let i = 0; i < 5; i++){
+      const a = (i/5) * Math.PI * 2;
+      const blade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.9 + rand()*0.5, 4), surf(TEX.leaf));
+      blade.position.set(Math.cos(a) * 0.16, 0.45, Math.sin(a) * 0.16);
+      blade.rotation.z = Math.cos(a) * 0.5;
+      blade.rotation.x = -Math.sin(a) * 0.5;
+      g.add(blade);
+    }
+    g.position.set(x, 0, z);
+    worldGroup.add(g);
   }
 
   function buildMonument(){
@@ -322,6 +442,7 @@ const Village = (() => {
 
     const column = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 3.4, 18), surf(TEX.stone));
     column.position.y = 2.55;
+    column.castShadow = true;
     g.add(column);
 
     // Flutes down the column.
@@ -341,22 +462,32 @@ const Village = (() => {
     g.add(spindle);
     monumentSpindle = spindle;
 
-    scene.add(g);
+    worldGroup.add(g);
   }
   let monumentSpindle = null;
 
   function scatter(){
     const rand = seeded(20250815);
-    // Houses ring the square, trees fill the gaps out to the beach.
-    for (let i = 0; i < 14; i++){
-      const a = (i / 14) * Math.PI * 2 + rand() * 0.2;
+    for (let i = 0; i < MAP.houses; i++){
+      const a = (i / Math.max(1, MAP.houses)) * Math.PI * 2 + rand() * 0.2;
       const r = 15 + rand() * 8;
       buildHouse(rand, Math.cos(a) * r, Math.sin(a) * r);
     }
-    for (let i = 0; i < 26; i++){
-      const a = rand() * Math.PI * 2;
-      const r = 12.5 + rand() * 15;
+    for (let i = 0; i < MAP.trees; i++){
+      const a = rand() * Math.PI * 2, r = 12.5 + rand() * 15;
       buildTree(rand, Math.cos(a) * r, Math.sin(a) * r);
+    }
+    for (let i = 0; i < MAP.palms; i++){
+      const a = rand() * Math.PI * 2, r = 13 + rand() * 16;
+      buildPalm(rand, Math.cos(a) * r, Math.sin(a) * r);
+    }
+    for (let i = 0; i < MAP.rocks; i++){
+      const a = rand() * Math.PI * 2, r = 12 + rand() * 17;
+      buildRock(rand, Math.cos(a) * r, Math.sin(a) * r);
+    }
+    for (let i = 0; i < MAP.ferns; i++){
+      const a = rand() * Math.PI * 2, r = 12 + rand() * 17;
+      buildFern(rand, Math.cos(a) * r, Math.sin(a) * r);
     }
     // Benches around the plaza edge to make it feel inhabited.
     for (let i = 0; i < 6; i++){
@@ -364,11 +495,11 @@ const Village = (() => {
       const bench = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.24, 0.5), toon(0xB07A4E));
       bench.position.set(Math.cos(a) * 9.6, 0.42, Math.sin(a) * 9.6);
       bench.rotation.y = -a;
-      scene.add(bench);
+      worldGroup.add(bench);
       const legs = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 0.32), toon(0x9A683F));
       legs.position.set(Math.cos(a) * 9.6, 0.2, Math.sin(a) * 9.6);
       legs.rotation.y = -a;
-      scene.add(legs);
+      worldGroup.add(legs);
     }
   }
 
@@ -433,6 +564,7 @@ const Village = (() => {
     );
     shadow.rotation.x = -Math.PI/2;
     shadow.position.y = 0.02;
+    shadow.visible = false;   // real shadows do this job now
     rig.add(shadow);
 
     const tag = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -452,6 +584,7 @@ const Village = (() => {
     marker.position.y = 0.03;
     rig.add(marker);
 
+    rig.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(rig);
     return {
       group: rig, avatar: a, head: a.head, body: a.torso, tag, marker, shadow,
@@ -468,7 +601,9 @@ const Village = (() => {
   /* ------------------------------------------------------------------
      Public surface
      ------------------------------------------------------------------ */
-  function init(canvas){
+  let worldGroup = null;
+
+  function init(canvas, mapId){
     // Sharp. The look we want from Ocarina is its art direction - green
     // fields, blue sky, warm low-poly shapes - not the console's resolution.
     // Rendering through a small buffer reproduced the blur, which is the one
@@ -485,16 +620,29 @@ const Village = (() => {
     camera = new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 400);
 
     // Warm sun from above, cool bounce from the sky and sand.
-    scene.add(new THREE.HemisphereLight(0xBBD6EA, 0xB0A06A, 0.72));
+    hemi = new THREE.HemisphereLight(0xBBD6EA, 0xB0A06A, 0.72);
+    scene.add(hemi);
     sun = new THREE.DirectionalLight(0xFFF0CC, 0.95);
     sun.position.set(14, 22, 9);
-    scene.add(sun);
 
-    buildSky();
-    buildIsland();
-    scatter();
-    buildMonument();
-    buildHorizon();
+    // Real shadows. The reference has them, and without them everything looks
+    // like it is hovering. Kept to a modest map with a tight frustum around
+    // the play area so it stays cheap on a phone.
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    const cam = sun.shadow.camera;
+    cam.left = -34; cam.right = 34; cam.top = 34; cam.bottom = -34;
+    cam.near = 1; cam.far = 90;
+    sun.shadow.bias = -0.0008;
+    sun.shadow.normalBias = 0.02;
+    scene.add(sun);
+    scene.add(sun.target);
+
+    worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+    applyMap(mapId || "village");
 
     addEventListener("resize", resize, { passive: true });
     renderer.setAnimationLoop(frame);
@@ -754,6 +902,13 @@ const Village = (() => {
     camera.position.x += (Math.random()-0.5) * s * 0.5;
     camera.position.y += (Math.random()-0.5) * s * 0.5;
     camera.lookAt(target);
+
+    // Follow the action with the shadow frustum, or distant players lose theirs.
+    if (sun){
+      sun.position.set(target.x + MAP.sun[2][0], MAP.sun[2][1], target.z + MAP.sun[2][2]);
+      sun.target.position.set(target.x, 0, target.z);
+      sun.target.updateMatrixWorld();
+    }
   }
 
   function frame(){
@@ -790,6 +945,7 @@ const Village = (() => {
   return {
     init, sync, applyPositions, setSelf, setFollow, selfRig, setMarkers,
     faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking,
+    applyMap, currentMap,
     VILLAGE_RADIUS
   };
 })();

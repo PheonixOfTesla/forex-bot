@@ -137,6 +137,9 @@ OMENS = [
 
 REACTIONS = ["eye", "flame", "hand", "skull"]
 
+# Where a game is played. Same rules everywhere; only the scenery changes.
+MAPS = ["village", "grove", "bay"]
+
 EMOTES = ["wave", "dance", "point", "sit", "cheer", "shrug"]
 
 # The village players walk around in, in world units.
@@ -291,6 +294,7 @@ class Room:
 
     def __init__(self, code: str):
         self.code = code
+        self.map: str = MAPS[0]
         self.players: Dict[str, Player] = {}
         self.order: List[str] = []  # seating order, stable across the game
         self.phase: Phase = Phase.LOBBY
@@ -537,6 +541,14 @@ class Room:
             return
         # Tapping the same player again takes the vote back.
         actor.vote = None if actor.vote == target.pid else target.pid
+
+    def act_map(self, actor: Player, name: Any) -> None:
+        """Host picks where everyone is playing. Lobby only - swapping the
+        world mid-game would teleport people into scenery."""
+        if not actor.is_host or self.phase is not Phase.LOBBY:
+            return
+        if isinstance(name, str) and name in MAPS:
+            self.map = name
 
     def act_voice(self, actor: Player, on: Any) -> None:
         """Flip a player's mic flag so everyone knows who to dial."""
@@ -802,6 +814,8 @@ class Room:
         state: Dict[str, Any] = {
             "t": "state",
             "code": self.code,
+            "map": self.map,
+            "maps": MAPS,
             "phase": self.phase.value,
             "round": self.round,
             "remaining": round(remaining, 1),
