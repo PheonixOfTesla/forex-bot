@@ -246,6 +246,18 @@ button{background:none;border:none;cursor:pointer}
 #hud.min .card{max-height:none;overflow:visible;padding:10px 12px}
 /* Two lines at most when collapsed. A four-line role explanation behind a
    transcript is two paragraphs on top of each other. */
+#callto{
+  font-size:clamp(17px,5.2vw,22px);font-weight:900;letter-spacing:.02em;
+  text-align:center;margin:2px 0 4px;line-height:1.2;
+}
+#callto .sub{
+  display:block;font-size:12px;font-weight:800;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-soft);margin-top:4px;
+}
+#callto.vote{color:#B3392B}
+#callto.wait{color:var(--ink-soft)}
+#hud.min #callto{font-size:15px;margin:0}
+#hud.min #callto .sub{display:none}
 #hud.min #hint{
   margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;font-size:13px;line-height:1.35;
@@ -714,6 +726,14 @@ body.panel-min #crawl{max-width:min(78vw,420px)}
     </div>
     <div class="card">
       <button id="fold" aria-label="Collapse panel">▾ Hide — use the controls</button>
+      <!-- What to do, right now, in the largest type on the panel.
+
+           Strip this game back and it is: the host begins, a short narration
+           plays, and then everybody votes. Everything else - walking, emotes,
+           arguing - is interaction around that. The instruction for the
+           current phase should therefore be the loudest thing on screen, not
+           a grey line above a grid of faces. -->
+      <div id="callto"></div>
       <div id="hint"></div>
       <div id="reveal" class="reveal"></div>
       <div id="targets" class="targets" style="margin-top:10px"></div>
@@ -1334,6 +1354,21 @@ function closeWheel(){ $("wheel").classList.remove("on"); }
   }
 })();
 
+/* Role names for the screen.
+
+   The server sends the internal role key - 'undertow' is still the id for the
+   one who holds the notebook, because renaming a key ripples through the
+   engine, the bots and every check in between for no gain. What a player
+   reads has to be the new name though, and a spirit looking at the board was
+   still being shown UNDERTOW. */
+const ROLE_NAME = {
+  undertow:  "THE NOTEBOOK",
+  navigator: "NAVIGATOR",
+  reef:      "REEF",
+  villager:  "VILLAGER"
+};
+const roleName = (key) => ROLE_NAME[key] || String(key || "").toUpperCase();
+
 /* Which build this is.
 
    Read off the version stamp the sync script puts on the script tags, so it
@@ -1821,7 +1856,17 @@ function renderLobby(s, m){
   start.textContent = enough ? "Begin" : `Begin — need ${s.minPlayers - s.players.length} more`;
 }
 
+/* The one instruction for right now. Cleared at the top of every render so a
+   phase that does not set it cannot leave the previous phase's words up. */
+function setCallTo(text, sub, tone){
+  const el = $("callto");
+  if (!el) return;
+  el.className = tone || "";
+  el.innerHTML = escapeHtml(text) + (sub ? `<span class="sub">${escapeHtml(sub)}</span>` : "");
+}
+
 function renderPlay(s, m){
+  setCallTo("", "", "");
   const targets = $("targets"), options = $("options"), actions = $("actions"), reveal = $("reveal");
   targets.innerHTML = ""; options.innerHTML = ""; actions.innerHTML = ""; reveal.innerHTML = "";
 
@@ -1859,7 +1904,7 @@ function buildTargets(list, selected, onPick, tallies, m){
       const t = document.createElement("span");
       t.style.cssText = "font-size:10px;font-weight:900;color:" +
         (known === "undertow" ? "var(--cut)" : "var(--ink-soft)");
-      t.textContent = known.toUpperCase();
+      t.textContent = roleName(known);
       b.appendChild(t);
     }
     if (tallies && tallies[p.pid]){
@@ -1874,11 +1919,16 @@ function buildTargets(list, selected, onPick, tallies, m){
 
 function renderNightfall(s, m){
   const others = s.players.filter(p => p.alive && p.pid !== m.pid);
-  if (!m.alive){ $("hint").textContent = "The island is asleep. You are not."; return; }
+  if (!m.alive){
+    setCallTo("Watch", "you are a spirit", "wait");
+    $("hint").textContent = "The island is asleep. You are not."; return;
+  }
 
   if (m.role === "undertow"){
+    setCallTo(m.cut ? "Written. You can still change it" : "Write one name",
+              m.cut ? "and an order they must obey" : "and pick an order", "vote");
     $("hint").textContent = m.cut ? "Chosen. You can still change your mind."
-                                  : "Pick who to cut, and an order they must obey.";
+                                  : "Pick who goes in the notebook, and an order they must obey.";
     buildTargets(others, m.cut, (pid) =>
       net.send({ t:"cut", target:pid, manner:0, decree:decreePick }), null, m);
     const n = (s.decrees||[]).length;
@@ -1905,9 +1955,10 @@ function renderNightfall(s, m){
     if (m.measured){
       const f = m.findings[m.findings.length-1];
       $("hint").innerHTML = f.undertow
-        ? `<b style="color:var(--cut)">${escapeHtml(f.name)} HOLDS THE SHEARS.</b>`
+        ? `<b style="color:var(--cut)">${escapeHtml(f.name)} HAS THE NOTEBOOK.</b>`
         : `${escapeHtml(f.name)} is clean.`;
     } else {
+      setCallTo("Look into one person", "nobody else finds out", "vote");
       $("hint").textContent = "Look into one person. You'll know what they are.";
       buildTargets(others, null, (pid) => net.send({ t:"measure", target:pid }), null, m);
     }
@@ -1915,7 +1966,7 @@ function renderNightfall(s, m){
       const c = document.createElement("div");
       c.className = "chip";
       c.style.color = f.undertow ? "var(--cut)" : "";
-      c.textContent = `${f.name} · ${f.undertow ? "UNDERTOW" : "clean"}`;
+      c.textContent = `${f.name} · ${f.undertow ? "HAS THE NOTEBOOK" : "clean"}`;
       $("options").appendChild(c);
     });
     return;
@@ -1934,6 +1985,7 @@ function renderDecreeWatch(s, m){
   $("reveal").innerHTML = `<div class="label">Someone here was just told</div>
     <div class="big" style="color:var(--cut)">${escapeHtml(d)}</div>
     <div class="who">Watch. Whoever does it is already gone.</div>`;
+  setCallTo("Watch", "forty seconds", "wait");
   $("hint").textContent = m.alive ? "Say nothing. Watch who moves." : "You know who it is.";
 }
 
@@ -1943,16 +1995,18 @@ function renderGathering(s, m){
   Object.values(s.votes || {}).forEach(p => { tallies[p] = (tallies[p]||0)+1; });
 
   if (m.alive){
-    $("hint").textContent = "Argue out loud. Tap a face to vote, tap again to undo.";
+    // How many are still to vote. A room waiting on one person should be able
+    // to see that it is waiting on one person.
+    const cast = living.filter(p => (s.votes || {})[p.pid]).length;
+    setCallTo(m.vote ? "Change your vote, or wait" : "Place your votes",
+              `${cast} of ${living.length} in`, "vote");
+    $("hint").textContent = "Tap a face to vote. Tap it again to undo.";
     buildTargets(living.filter(p => p.pid !== m.pid), m.vote,
       (pid) => { Sound.vote(); net.send({ t:"vote", target:pid }); }, tallies, m);
-    (s.calls||[]).slice(0,4).forEach((text,i) => {
-      const b = document.createElement("button");
-      b.className = "chip"; b.textContent = text;
-      b.onclick = () => net.send({ t:"call", index:i });
-      $("actions").appendChild(b);
-    });
+    // The preset calls live in the talk widget now, with the conversation
+    // they belong to, rather than being duplicated under the vote grid.
   } else {
+    setCallTo("Watch", "you are a spirit", "wait");
     $("hint").textContent = m.omenSpent ? "Your Omen is spent."
       : "Send one Omen to the living. You only get one, all game.";
     buildTargets(living, null, null, tallies, m);
