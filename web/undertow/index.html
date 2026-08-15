@@ -671,6 +671,14 @@ button{background:none;border:none;cursor:pointer}
     <div id="public-row" class="row" style="justify-content:center;display:none">
       <button id="public-btn" class="btn ghost" style="font-size:14px"></button>
     </div>
+    <!-- One person with one phone is still four threads short of a game.
+         Rather than not play, the host fills the rest with robots. -->
+    <div id="bot-row" style="display:flex;gap:8px;align-items:stretch">
+      <button id="bot-btn" class="btn ghost"
+              style="flex:1 1 auto;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">+ Add a robot</button>
+      <button id="unbot-btn" class="btn ghost"
+              style="flex:0 0 56px;width:56px;font-size:18px;padding:0">&minus;</button>
+    </div>
     <button id="start-btn" class="btn" disabled>Start the game</button>
     <button id="walk-btn" class="btn ghost">Walk around while you wait</button>
   </div>
@@ -1382,6 +1390,17 @@ function renderLobby(s, m){
   const start = $("start-btn");
   start.style.display = m.host ? "" : "none";
   start.disabled = !enough;
+
+  // Robots are the host's business, and only worth offering while the room is
+  // short. Once there are enough threads the row gets out of the way rather
+  // than sitting above the start button inviting a tap.
+  const brow = $("bot-row");
+  brow.style.display = m.host ? "flex" : "none";
+  const botCount = s.players.filter(p => p.bot).length;
+  $("bot-btn").textContent = enough
+    ? (botCount ? `+ Add a robot (${botCount})` : "+ Add a robot")
+    : `+ Add a robot — need ${s.minPlayers - s.players.length} more`;
+  $("unbot-btn").style.display = botCount ? "" : "none";
 }
 
 function renderPlay(s, m){
@@ -2024,6 +2043,8 @@ $("fold").onclick = () => {
   $("fold").textContent = folded ? "▴ show" : "▾ hide";
   syncWorldChrome();
 };
+$("bot-btn").onclick = () => { net && net.send({ t:"bot" }); Sound.tap(); };
+$("unbot-btn").onclick = () => { net && net.send({ t:"unbot" }); Sound.tap(); };
 $("walk-btn").onclick = () => {
   walking = true;
   $("lobby").classList.remove("on");
