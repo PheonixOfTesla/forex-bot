@@ -61,7 +61,7 @@ const Village = (() => {
   const ISLAND_RADIUS  = 30;
   const VILLAGE_RADIUS = 26;
 
-  let renderer, scene, camera, sun, hemi;
+  let renderer, scene, camera, sun, hemi, rim;
   let toonGradient = null;
   let avatars = new Map();       // pid -> rig
   let clock = 0;
@@ -176,14 +176,15 @@ const Village = (() => {
      per-vertex is already the model. The toon ramp read as modern cel
      shading; this reads as 1998. */
   function toon(color, opts){
-    return new THREE.MeshLambertMaterial(
-      Object.assign({ color }, opts || {}));
+    return new THREE.MeshStandardMaterial(
+      Object.assign({ color, roughness: 0.94, metalness: 0.0 }, opts || {}));
   }
 
   /* Textured surface. The colour still tints it, so one texture serves several
      materials without redrawing the canvas. */
   function surf(texFn, tint){
-    return new THREE.MeshLambertMaterial({ map: texFn(), color: tint || 0xffffff });
+    return new THREE.MeshStandardMaterial({ map: texFn(), color: tint || 0xffffff,
+                                            roughness: 0.95, metalness: 0.0 });
   }
 
   /* ------------------------------------------------------------------
@@ -377,7 +378,7 @@ const Village = (() => {
       const h = 9 + rand() * 16;
       const hill = new THREE.Mesh(
         new THREE.ConeGeometry(11 + rand() * 13, h, 9),
-        new THREE.MeshLambertMaterial({ color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0xBFD0B4), 0.45) })
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0xBFD0B4), 0.45), roughness: 1.0 })
       );
       hill.position.set(Math.cos(a) * dist, h * 0.5 - 3, Math.sin(a) * dist);
       hill.rotation.y = rand() * Math.PI;
@@ -600,7 +601,7 @@ const Village = (() => {
     sprite.scale.set(scale * (w / 620), scale * (h / 620), 1);
     // Above the name tag, and stepped per seat so two people talking at once
     // do not stack their bubbles on top of each other.
-    sprite.position.y = 3.4 + ((rig.seat || 0) % 3) * 0.42;
+    sprite.position.y = 3.78 + ((rig.seat || 0) % 3) * 0.42;
     sprite.center.set(0.5, 0);             // grow upward from the head
     rig.group.add(sprite);
     rig.bubble = sprite;
@@ -658,7 +659,7 @@ const Village = (() => {
     }));
     tag.scale.set(1.7, 0.43, 1);
     // Staggered per player so tags on bunched-up characters do not overlap.
-    tag.position.y = 2.95 + ((player.seat || 0) % 4) * 0.32;
+    tag.position.y = 3.32 + ((player.seat || 0) % 4) * 0.32;
     rig.add(tag);
 
     const marker = new THREE.Mesh(
@@ -701,6 +702,8 @@ const Village = (() => {
     renderer.setClearColor(0xC2D6DE, 1);
 
     maxAniso = renderer.capabilities.getMaxAnisotropy();
+    // Characters need this before any of them are built.
+    if (window.Avatar && Avatar.environment) Avatar.environment(renderer);
 
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xC2D6DE, 34, 112);
@@ -726,6 +729,12 @@ const Village = (() => {
     sun.shadow.normalBias = 0.02;
     scene.add(sun);
     scene.add(sun.target);
+
+    // A dim, cool light from behind picks out the edge of a character against
+    // the sky. It is what stops a figure sinking into the background.
+    rim = new THREE.DirectionalLight(0xCFE4F5, 0.42);
+    rim.position.set(-12, 9, -14);
+    scene.add(rim);
 
     worldGroup = new THREE.Group();
     scene.add(worldGroup);

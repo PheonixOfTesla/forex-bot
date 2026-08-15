@@ -251,8 +251,42 @@ const Avatar = (() => {
     return ramp;
   }
 
+  /* Lambert is flat paint - it has no highlight, so a character reads as
+     plastic cut-out. Standard with a low roughness and a small environment
+     gives the soft sheen along an arm or a cheek that makes a figure look
+     modelled rather than coloured in. The environment is generated, so this
+     still ships without assets. */
+  let envMap = null;
+  function environment(renderer){
+    if (envMap || !renderer) return envMap;
+    // A vertical sky-to-ground ramp is enough: it puts a bright rim along the
+    // top of every surface and a warm bounce underneath.
+    const c = document.createElement("canvas");
+    c.width = 8; c.height = 128;
+    const g = c.getContext("2d");
+    const grd = g.createLinearGradient(0, 0, 0, 128);
+    grd.addColorStop(0.00, "#DFF1FF");
+    grd.addColorStop(0.45, "#BBD8EC");
+    grd.addColorStop(0.55, "#C7BC9A");
+    grd.addColorStop(1.00, "#8E8467");
+    g.fillStyle = grd; g.fillRect(0, 0, 8, 128);
+    const tex = new THREE.CanvasTexture(c);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileEquirectangularShader();
+    envMap = pmrem.fromEquirectangular(tex).texture;
+    pmrem.dispose(); tex.dispose();
+    return envMap;
+  }
+
   function toon(color){
-    return new THREE.MeshLambertMaterial({ color: new THREE.Color(color) });
+    return new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color),
+      roughness: 0.62,
+      metalness: 0.0,
+      envMap: envMap,
+      envMapIntensity: 0.55
+    });
   }
 
   /* The inverted-hull outline: the single biggest quality jump available
@@ -577,7 +611,7 @@ const Avatar = (() => {
     // Everything hangs off this, lifted so the soles rest on y = 0 rather
     // than sinking the feet through the ground.
     const rig = new THREE.Group();
-    rig.position.y = 0.10;
+    rig.position.y = 0.06;
     root.add(rig);
 
     const skinMat  = toon(cfg.skin);
@@ -586,29 +620,35 @@ const Avatar = (() => {
     const shoeMat  = toon(cfg.shoes);
 
     const wrap = outline ? outlined : (geo, mat) => new THREE.Mesh(geo, mat);
-    const HEAD_R = 0.50;
+    const HEAD_R = 0.42;
 
     /* Torso: a tapered barrel with a collar, so clothing reads as clothing. */
-    const torso = wrap(new THREE.CylinderGeometry(0.27, 0.335, 0.74, 18), shirtMat, 0.075);
-    torso.position.y = 1.06;
+    // Chest wider than waist, with shoulders on top, instead of one barrel.
+    const torso = wrap(new THREE.CylinderGeometry(0.30, 0.245, 0.86, 22), shirtMat, 0.075);
+    torso.position.y = 1.18;
     rig.add(torso);
 
-    const collar = wrap(new THREE.SphereGeometry(0.275, 16, 12), shirtMat, 0.075);
-    collar.position.y = 1.40; collar.scale.set(1, 0.55, 1);
+    const shoulders = wrap(new THREE.SphereGeometry(0.315, 20, 14), shirtMat, 0.06);
+    shoulders.position.y = 1.55;
+    shoulders.scale.set(1.12, 0.52, 0.92);
+    rig.add(shoulders);
+
+    const collar = wrap(new THREE.SphereGeometry(0.20, 18, 12), shirtMat, 0.06);
+    collar.position.y = 1.68; collar.scale.set(1, 0.5, 1);
     rig.add(collar);
 
     // A short neck stops the head reading as a ball balanced on a barrel.
-    const neck = wrap(new THREE.CylinderGeometry(0.115, 0.125, 0.16, 12), skinMat, 0.10);
-    neck.position.y = 1.51;
+    const neck = wrap(new THREE.CylinderGeometry(0.10, 0.115, 0.20, 14), skinMat, 0.08);
+    neck.position.y = 1.76;
     rig.add(neck);
 
-    const hips = wrap(new THREE.CylinderGeometry(0.325, 0.275, 0.20, 16), pantMat, 0.075);
-    hips.position.y = 0.60;
+    const hips = wrap(new THREE.CylinderGeometry(0.275, 0.245, 0.24, 18), pantMat, 0.07);
+    hips.position.y = 0.78;
     rig.add(hips);
 
     /* Head. */
     const head = new THREE.Group();
-    head.position.y = 1.90;
+    head.position.y = 2.06;
     const skull = wrap(new THREE.SphereGeometry(HEAD_R, 26, 20), skinMat, 0.052);
     skull.scale.set(1, 1.07, 0.95);
     head.add(skull);
@@ -627,7 +667,7 @@ const Avatar = (() => {
     // Ears.
     [-1, 1].forEach(s => {
       const ear = wrap(new THREE.SphereGeometry(HEAD_R*0.17, 10, 8), skinMat, 0.06);
-      ear.position.set(s * HEAD_R * 0.96, -HEAD_R*0.06, 0);
+      ear.position.set(s * HEAD_R * 0.97, -HEAD_R*0.04, 0);
       ear.scale.set(0.55, 1, 0.8);
       head.add(ear);
     });
@@ -668,20 +708,22 @@ const Avatar = (() => {
     }
 
     const sleeveMat = toon(spirit(cfg.shirt, -0.14));
-    const armL = limb(-0.415, 1.33, 0.34, 0.36, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.092);
-    const armR = limb( 0.415, 1.33, 0.34, 0.36, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.092);
-    const legL = limb(-0.155, 0.56, 0.34, 0.32, pantMat, pantMat, shoeMat, [1.2, 0.75, 1.6], 0.115);
-    const legR = limb( 0.155, 0.56, 0.34, 0.32, pantMat, pantMat, shoeMat, [1.2, 0.75, 1.6], 0.115);
+    // Longer limbs relative to the body: roughly four and a half heads tall
+    // rather than three, which is the difference between a toy and a figure.
+    const armL = limb(-0.345, 1.52, 0.42, 0.42, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.082);
+    const armR = limb( 0.345, 1.52, 0.42, 0.42, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.082);
+    const legL = limb(-0.145, 0.80, 0.44, 0.42, pantMat, pantMat, shoeMat, [1.25, 0.72, 1.7], 0.105);
+    const legR = limb( 0.145, 0.80, 0.44, 0.42, pantMat, pantMat, shoeMat, [1.25, 0.72, 1.7], 0.105);
 
     return {
       root, rig, head, face, faceMat, torso, collar, hips,
       armL, armR, legL, legR,
-      height: 2.45
+      height: 2.9
     };
   }
 
   return {
-    build, faceTexture, defaults, toon, gradientMap, spirit,
+    build, faceTexture, defaults, toon, gradientMap, spirit, environment,
     SKIN, HAIR, CLOTH, PANTS, SHOES, HAT_COLORS,
     HAIR_STYLES, HAT_STYLES, COSTUMES, EYE_STYLES, BROW_STYLES, MOUTH_STYLES
   };

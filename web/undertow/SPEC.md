@@ -36,6 +36,8 @@ Nintendo, not "web game". Concretely:
 - **S1.5** Warm, sunlit, friendly. Never grim — DONE
 - **S1.6** Sound on every meaningful beat — DONE
 - **S1.7** A title screen that looks like a game, not a form — PARTIAL
+- **S1.8** No emoji anywhere. Inline SVG icons only, stroked on currentColor
+  so a control's state colours its icon — DONE
 
 ## 2. Graphics — Ocarina art direction, modern clarity
 
@@ -62,6 +64,11 @@ Nintendo, not "web game". Concretely:
 - **S4.2** Costumes with personality: bear, scientist, explorer, crown, chef, diver — DONE
 - **S4.3** Photo → cartoon face, on device, never uploaded — PARTIAL (untested on a real photo)
 - **S4.4** Skin, hair, outfit and cap colour customisable — DONE
+- **S4.5** Figures, not toys: roughly four and a half heads tall, shoulders,
+  waist, soft specular from a generated environment, rim light — DONE
+- **S4.6** Hand-modelled character quality (Smash Bros tier) — **NOT
+  ACHIEVABLE PROCEDURALLY.** Needs bought or commissioned art; the system is
+  built so a config swaps the mesh source without touching the game
 
 ## 5. Multiplayer
 

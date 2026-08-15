@@ -6,10 +6,12 @@ const r=new THREE.WebGLRenderer({canvas:c,antialias:false});
 r.setPixelRatio(1); r.setSize(innerWidth,innerHeight); r.setClearColor(0xBFD0B4,1);
 const sc=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,0.1,100);
+Avatar.environment(r);
 sc.add(new THREE.HemisphereLight(0xBBD6EA,0xB0A06A,0.8));
+const rim=new THREE.DirectionalLight(0xCFE4F5,0.45); rim.position.set(-8,6,-10); sc.add(rim);
 const sun=new THREE.DirectionalLight(0xFFF6E2,0.8); sun.position.set(4,8,6); sc.add(sun);
 const floor=new THREE.Mesh(new THREE.CircleGeometry(40,48),
-  new THREE.MeshLambertMaterial({color:0xB8C79E,flatShading:true}));
+  new THREE.MeshStandardMaterial({color:0xB8C79E,roughness:1}));
 floor.rotation.x=-Math.PI/2; sc.add(floor);
 const CFGS = JSON.parse(decodeURIComponent(location.hash.slice(1) || "%5B%5D"));
 const built=[];
@@ -29,7 +31,7 @@ function tick(){
     a.armR.rotation.x=-Math.sin(ph)*0.12-0.06;
     a.head.rotation.y=Math.sin(t*0.7+i)*0.12;
   });
-  cam.position.set(0,1.55,6.4); cam.lookAt(0,1.25,0);
+  cam.position.set(0,1.75,7.4); cam.lookAt(0,1.45,0);
   r.render(sc,cam); requestAnimationFrame(tick);
 }
 tick();

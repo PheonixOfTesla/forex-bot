@@ -155,7 +155,12 @@ button{background:none;border:none;cursor:pointer}
   display:flex;align-items:center;gap:10px;background:rgba(255,253,247,.94);
   border-radius:16px;padding:9px 13px;box-shadow:0 3px 10px rgba(43,36,56,.18);
 }
-#role-strip .em{font-size:20px}
+#role-strip .em{display:grid;place-items:center}
+.ic{display:block;fill:none;stroke:currentColor}
+#emotes button .ic{stroke-width:1.9}
+.chip .ic{display:inline-block;vertical-align:-3px;margin-right:6px}
+.chip{display:inline-flex;align-items:center;gap:0}
+.btn .ic{display:inline-block;vertical-align:-3px;margin-right:8px}
 #role-strip .t{font-weight:900;font-size:13px}
 #role-strip .d{font-size:12px;color:var(--ink-soft);font-weight:600;line-height:1.3}
 #role-strip.undertow{background:#FDECEA}#role-strip.undertow .t{color:#B3392B}
@@ -346,6 +351,104 @@ button{background:none;border:none;cursor:pointer}
 </head>
 <body>
 
+<!-- Icon set. Inline SVG rather than emoji: emoji render differently on every
+     platform, cannot be recoloured, and read as a chat message rather than as
+     a control. These are stroked on currentColor so a button's state colours
+     its icon for free. -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="2" width="6" height="11" rx="3"/>
+    <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8.5 21h7"/>
+  </symbol>
+  <symbol id="i-mic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 5a3 3 0 0 0-6 0v4m0 3a3 3 0 0 0 5.1 2.1"/>
+    <path d="M5 11a7 7 0 0 0 10.9 5.8M19 11a6.9 6.9 0 0 1-.6 2.8M12 18v3M8.5 21h7"/>
+    <path d="M3 3l18 18"/>
+  </symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8.5a5 5 0 0 1 0 7"/>
+  </symbol>
+  <symbol id="i-sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9.5l4 5M21 9.5l-4 5"/>
+  </symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 12l16-8-6 8 6 8-16-8z"/>
+  </symbol>
+  <!-- emotes -->
+  <symbol id="i-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-.5V4.5a1.5 1.5 0 0 1 3 0V10m0-.5V6a1.5 1.5 0 0 1 3 0v7a7 7 0 0 1-7 7 7 7 0 0 1-7-7v-1a1.5 1.5 0 0 1 3 0"/>
+    <path d="M4 4l1.5 1.5M7 2.5l.6 2"/>
+  </symbol>
+  <symbol id="i-dance" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="13" cy="4" r="2"/>
+    <path d="M13 6.5v5m0 0l-3.5 3M13 11.5l3 2.5M9.5 14.5L8 21m8-6.5L17 21"/>
+    <path d="M5 6l1.5 1M4 9.5h2"/>
+  </symbol>
+  <symbol id="i-point" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 11V5.5a1.5 1.5 0 0 1 3 0V11m0-1.5a1.5 1.5 0 0 1 3 0V12m0-1a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4 15.5a1.6 1.6 0 0 1 2.4-2L8 15"/>
+  </symbol>
+  <symbol id="i-cheer" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="5" r="2"/>
+    <path d="M12 7.5V15m0 0l-3 6m3-6l3 6M12 10L7 6M12 10l5-4"/>
+  </symbol>
+  <!-- roles -->
+  <symbol id="i-undertow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 15c2.5 0 2.5-2.5 5-2.5S9.5 15 12 15s2.5-2.5 5-2.5S19.5 15 22 15"/>
+    <path d="M2 19.5c2.5 0 2.5-2.5 5-2.5s2.5 2.5 5 2.5 2.5-2.5 5-2.5 2.5 2.5 5 2.5"/>
+    <path d="M8 9.5C8 6 12 3 12 3s4 3 4 6.5"/>
+  </symbol>
+  <symbol id="i-navigator" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5 5-2z"/>
+  </symbol>
+  <symbol id="i-reef" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z"/>
+  </symbol>
+  <symbol id="i-villager" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+  </symbol>
+  <symbol id="i-spirit" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 20V10a7 7 0 0 1 14 0v10l-2.3-1.8L14.4 20l-2.4-1.8L9.6 20l-2.3-1.8z"/>
+    <path d="M9.5 10h.01M14.5 10h.01"/>
+  </symbol>
+  <!-- maps -->
+  <symbol id="i-village" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 20h18M5 20v-8l4-3 4 3v8M13 20v-6h6v6"/><path d="M8 20v-3h2v3"/>
+  </symbol>
+  <symbol id="i-grove" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 21v-7"/><path d="M12 14c-4 0-6-2.5-6-5s2.5-4 3.5-2.5C10 4 11 3 12 3s2 1 2.5 3.5C15.5 5 18 6.5 18 9s-2 5-6 5z"/>
+  </symbol>
+  <symbol id="i-photo" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 8.5h3.5L8 6h8l1.5 2.5H21v11H3z"/><circle cx="12" cy="13.5" r="3.5"/>
+  </symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/>
+    <path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01"/>
+  </symbol>
+  <symbol id="i-bay" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3v11M12 5l6 9H12M12 8L7 14h5"/>
+    <path d="M3 17.5c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2"/>
+  </symbol>
+</svg>
+
 <canvas id="scene"></canvas>
 <div id="flash"></div>
 
@@ -374,7 +477,7 @@ button{background:none;border:none;cursor:pointer}
         <div id="chat-log"></div>
         <form id="chat-form" autocomplete="off">
           <input id="chat-in" maxlength="160" placeholder="Say something…" />
-          <button id="chat-send" type="submit" aria-label="Send">➤</button>
+          <button id="chat-send" type="submit" aria-label="Send"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-send"/></svg></button>
         </form>
       </div>
       <div id="options" class="chips" style="margin-top:10px"></div>
@@ -384,19 +487,19 @@ button{background:none;border:none;cursor:pointer}
 </div>
 
 <div id="stick"><div id="knob"></div></div>
-<button id="mic" aria-label="Microphone" title="Microphone">🎤</button>
+<button id="mic" aria-label="Microphone" title="Microphone"><svg class="ic" width="24" height="24" aria-hidden="true"><use href="#i-mic"/></svg></button>
 <div id="voice-note" role="status"></div>
 <div id="crawl" aria-live="polite"></div>
 <form id="say-bar" autocomplete="off">
   <input id="say-in" maxlength="160" placeholder="Say something…" />
-  <button id="say-send" type="submit" aria-label="Send">➤</button>
+  <button id="say-send" type="submit" aria-label="Send"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-send"/></svg></button>
 </form>
-<button id="sound-btn" aria-label="Sound" title="Sound">🔊</button>
+<button id="sound-btn" aria-label="Sound" title="Sound"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-sound"/></svg></button>
 <div id="emotes">
-  <button data-e="wave" aria-label="Wave">👋</button>
-  <button data-e="dance" aria-label="Dance">🕺</button>
-  <button data-e="point" aria-label="Point">👉</button>
-  <button data-e="cheer" aria-label="Cheer">🙌</button>
+  <button data-e="wave" aria-label="Wave"><svg class="ic" width="22" height="22" aria-hidden="true"><use href="#i-wave"/></svg></button>
+  <button data-e="dance" aria-label="Dance"><svg class="ic" width="22" height="22" aria-hidden="true"><use href="#i-dance"/></svg></button>
+  <button data-e="point" aria-label="Point"><svg class="ic" width="22" height="22" aria-hidden="true"><use href="#i-point"/></svg></button>
+  <button data-e="cheer" aria-label="Cheer"><svg class="ic" width="22" height="22" aria-hidden="true"><use href="#i-cheer"/></svg></button>
 </div>
 
 <!-- GATE -->
@@ -422,8 +525,8 @@ button{background:none;border:none;cursor:pointer}
     <div id="preview-wrap">
       <canvas id="preview" width="128" height="128"></canvas>
       <div class="stack" style="flex:1">
-        <button id="pick-btn" class="btn ghost" style="padding:12px">📷 Use a photo</button>
-        <button id="draw-btn" class="btn ghost" style="padding:12px">🎲 Surprise me</button>
+        <button id="pick-btn" class="btn ghost" style="padding:12px"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-photo"/></svg><span>Use a photo</span></button>
+        <button id="draw-btn" class="btn ghost" style="padding:12px"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-dice"/></svg><span>Surprise me</span></button>
       </div>
     </div>
     <input id="file-in" type="file" accept="image/*" hidden />
@@ -448,7 +551,7 @@ button{background:none;border:none;cursor:pointer}
     <div class="label" style="margin:10px 0 6px">Cap</div>
     <div class="swatches" id="sw-cap"></div>
     <div class="row" style="margin-top:8px">
-      <button id="reroll-btn" class="btn ghost" style="padding:11px">🎲 Reroll look</button>
+      <button id="reroll-btn" class="btn ghost" style="padding:11px"><svg class="ic" width="17" height="17" aria-hidden="true"><use href="#i-dice"/></svg><span>Reroll look</span></button>
     </div>
 
     <div id="maker-err"></div>
@@ -487,7 +590,7 @@ button{background:none;border:none;cursor:pointer}
    =========================================================================== */
 
 const $ = (id) => document.getElementById(id);
-const ROLE_EMOJI = { undertow:"✂️", navigator:"🧵", reef:"🌙", villager:"🫒" };
+const ROLE_ICON = { undertow:"i-undertow", navigator:"i-navigator", reef:"i-reef", villager:"i-villager" };
 const PHASE_COPY = {
   lobby:   { name:"The Square",    sub:"Waiting for everyone" },
   nightfall:    { name:"Nightfall",      sub:"The lanterns go out" },
@@ -679,7 +782,7 @@ function paintMic(){
   const b = $("mic");
   b.classList.toggle("live", Voice.enabled && !Voice.muted);
   b.classList.toggle("muted", Voice.enabled && Voice.muted);
-  b.textContent = Voice.enabled && Voice.muted ? "🔇" : "🎤";
+  b.innerHTML = `<svg class="ic" width="24" height="24" aria-hidden="true"><use href="#${Voice.enabled && Voice.muted ? "i-mic-off" : "i-mic"}"/></svg>`;
   const talking = Voice.speakingSet();
   b.classList.toggle("talking", !!talking[myPid]);
   if (state) Village.setSpeaking(talking);
@@ -929,13 +1032,15 @@ function renderLobby(s, m){
       + `<span>${escapeHtml(p.name)}${p.host ? " ⭐" : ""}</span>`;
     roster.appendChild(el);
   });
-  const MAP_LABELS = { village:"🏝 Molua Village", grove:"🌴 Kanu Grove", bay:"⛵ Halehua Bay" };
+  const MAP_LABELS = { village:["i-village","Molua Village"], grove:["i-grove","Kanu Grove"], bay:["i-bay","Halehua Bay"] };
   const pick = $("map-pick");
   pick.innerHTML = "";
   (s.maps || []).forEach(id => {
     const b = document.createElement("button");
     b.className = "chip" + (id === s.map ? " sel" : "");
-    b.textContent = MAP_LABELS[id] || id;
+    const lab = MAP_LABELS[id] || ["i-village", id];
+    b.innerHTML = `<svg class="ic" width="16" height="16" aria-hidden="true"><use href="#${lab[0]}"/></svg>`
+                + `<span>${escapeHtml(lab[1])}</span>`;
     b.disabled = !m.host;                 // only the host moves everyone
     b.onclick = () => net.send({ t:"map", name:id });
     pick.appendChild(b);
@@ -957,7 +1062,8 @@ function renderPlay(s, m){
   if (m.role){
     strip.style.display = "";
     strip.className = m.role + (m.alive ? "" : " dead");
-    strip.querySelector(".em").textContent = m.alive ? (ROLE_EMOJI[m.role]||"") : "👻";
+    strip.querySelector(".em").innerHTML =
+    `<svg class="ic" width="22" height="22" aria-hidden="true"><use href="#${m.alive ? (ROLE_ICON[m.role] || "i-villager") : "i-spirit"}"/></svg>`;
     strip.querySelector(".t").textContent = m.alive ? m.title : "SPIRIT · " + m.title;
     strip.querySelector(".d").textContent = m.alive ? m.howto
       : "You can see everything now. Spend your one Omen well.";
@@ -1371,7 +1477,7 @@ addEventListener("pointerdown", () => Sound.unlock(), { once:true });
 addEventListener("keydown", () => Sound.unlock(), { once:true });
 $("sound-btn").onclick = () => {
   const isOn = Sound.toggle();
-  $("sound-btn").textContent = isOn ? "🔊" : "🔈";
+  $("sound-btn").innerHTML = `<svg class="ic" width="18" height="18" aria-hidden="true"><use href="#${isOn ? "i-sound" : "i-sound-off"}"/></svg>`;
   $("sound-btn").classList.toggle("off", !isOn);
 };
 
