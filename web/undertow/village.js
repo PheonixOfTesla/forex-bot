@@ -1407,11 +1407,21 @@ const Village = (() => {
      three-quarter front view, then eases back. camYaw itself is never touched
      - the offset is applied on top - so the shot the player set up by dragging
      is exactly the shot they get back when the emote ends. */
-  const EMOTE_CAM = { blend: 0, dist: 6.4, pitch: 0.20, swing: 0.62 };
-
-  function shortestAngle(from, to){
-    return ((to - from + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-  }
+  // Pull BACK for an emote, not in. Diving closer filled the screen with the
+  // top of a cap and an elbow; the point of a showcase is the whole body, so
+  // it steps back, lifts a little, and aims at mid-height instead of the
+  // chest so head and feet both stay in frame.
+  const EMOTE_CAM = { blend: 0, dist: 9.4, pitch: 0.30, orbit: 0, eye: 1.45 };
+  // Everyone spawns on a ring facing the middle, and the monument is the
+  // middle - so swinging the camera round to a character's front drove it
+  // straight inside the stone. A slow orbit from wherever the camera already
+  // is keeps the same radius from the player and cannot cross the plaza.
+  const EMOTE_ORBIT_RATE = 0.55;   // radians a second
+  const EMOTE_ORBIT_MAX  = 0.95;
+  // The monument is the one thing standing in the middle of the square, so
+  // rather than general collision the camera simply never comes closer to the
+  // centre than its steps.
+  const PLAZA_KEEPOUT = 3.6;
 
   function updateCamera(dt){
     const me = avatars.get(followPid);
@@ -1430,6 +1440,9 @@ const Village = (() => {
     const rate = emoting ? 3.4 : 1.9;
     EMOTE_CAM.blend += ((emoting ? 1 : 0) - EMOTE_CAM.blend) * Math.min(1, dt * rate);
     const k = EMOTE_CAM.blend;
+    EMOTE_CAM.orbit = emoting
+      ? Math.min(EMOTE_ORBIT_MAX, EMOTE_CAM.orbit + dt * EMOTE_ORBIT_RATE)
+      : Math.max(0, EMOTE_CAM.orbit - dt * EMOTE_ORBIT_RATE * 1.6);
 
     let d = me ? camDist : 17;
     let p = me ? camPitch : 0.42;
@@ -1438,11 +1451,8 @@ const Village = (() => {
     if (me && k > 0.001){
       d += (EMOTE_CAM.dist - d) * k;
       p += (EMOTE_CAM.pitch - p) * k;
-      // The rig faces its own angle, so standing the camera at that angle
-      // puts it in front of the character. A little past it reads as three
-      // quarters rather than a passport photo.
-      const front = me.angle + EMOTE_CAM.swing;
-      yaw = camYaw + shortestAngle(camYaw, front) * k;
+      target.y += (terrainH(me.x, me.z) + EMOTE_CAM.eye - target.y) * k;
+      yaw = camYaw + EMOTE_CAM.orbit * k;
     }
 
     // Shift camera and aim point together along the camera's own right, which
@@ -1461,6 +1471,13 @@ const Village = (() => {
     // Never let the camera drop below the ground.
     // Never let the camera drop through a hill.
     want.y = Math.max(terrainH(want.x, want.z) + 1.4, want.y);
+
+    // ...nor stand inside the monument.
+    const fromCentre = Math.hypot(want.x, want.z);
+    if (fromCentre < PLAZA_KEEPOUT && fromCentre > 0.001){
+      const push = PLAZA_KEEPOUT / fromCentre;
+      want.x *= push; want.z *= push;
+    }
 
     camera.position.lerp(want, 1 - Math.pow(0.0005, dt));
     const s = shakeAmount * shakeAmount;
