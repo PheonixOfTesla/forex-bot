@@ -65,6 +65,46 @@ window.__frame = () => {
     dist: +cam.position.distanceTo(rig.group.position).toFixed(2)
   };
 };
+/* Framing guides.
+
+   "Is the character centred" is a measurement, not an opinion, and a
+   screenshot with a crosshair and the thirds on it settles the argument in a
+   way a paragraph cannot. Drawn in the DOM over the canvas so it costs the
+   renderer nothing and never ends up in the game. */
+if (Q.get("guides")){
+  const o = document.createElement("div");
+  o.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9";
+  const line = (css) => {
+    const d = document.createElement("div");
+    d.style.cssText = "position:absolute;" + css;
+    o.appendChild(d);
+  };
+  // Thirds, faint.
+  [33.333, 66.667].forEach(p => {
+    line(`left:${p}%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.30)`);
+    line(`top:${p}%;left:0;right:0;height:1px;background:rgba(255,255,255,.30)`);
+  });
+  // Centre, unmistakable.
+  line("left:50%;top:0;bottom:0;width:2px;background:rgba(255,60,60,.85);transform:translateX(-1px)");
+  line("top:50%;left:0;right:0;height:2px;background:rgba(255,60,60,.85);transform:translateY(-1px)");
+  document.body.appendChild(o);
+  const tag = document.createElement("div");
+  tag.style.cssText = "position:fixed;left:12px;top:12px;z-index:10;font:13px/1.5 ui-monospace,monospace;" +
+    "color:#fff;background:rgba(10,12,20,.72);padding:8px 11px;border-radius:8px;white-space:pre";
+  document.body.appendChild(tag);
+  setInterval(() => {
+    const f = window.__frame && window.__frame();
+    if (!f) return;
+    tag.textContent =
+      `centre x   ${f.xPct}%   (target 50)\n` +
+      `head       ${f.headPct}%\n` +
+      `feet       ${f.feetPct}%\n` +
+      `height     ${f.heightPct}% of screen\n` +
+      `body mid   ${((f.headPct + f.feetPct) / 2).toFixed(1)}%   (target 50)\n` +
+      `camera     ${f.dist} units back, ${f.camY} up`;
+  }, 250);
+}
+
 if (Q.get("zoom")) Village.zoom(+Q.get("zoom"));
 if (Q.get("yaw")) Village.orbit(+Q.get("yaw"), 0);
 

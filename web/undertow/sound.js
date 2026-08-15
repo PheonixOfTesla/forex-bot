@@ -165,12 +165,20 @@ const Sound = (() => {
     leave(){ tone({ freq: 520, dur: 0.16, gain: 0.12, sweep: 330 }); },
 
     /* A soft sandy scuff, alternating pitch so it reads as left then right. */
-    step(){
+    /* Footsteps at the pace you are actually going.
+
+       A fixed interval was fine when there was one speed. Now that the walk
+       accelerates, a stride that does not keep up with the legs is worse than
+       none - so the gap scales with how fast the character is moving, and the
+       step lands a little heavier at a run. */
+    step(speed){
+      const s = Math.max(0.25, Math.min(1, (speed === undefined ? 1 : speed / 6.2)));
+      const gap = 400 - s * 150;
       const now = performance.now();
-      if (now - lastStep < 290) return;
+      if (now - lastStep < gap) return;
       lastStep = now;
-      noise({ dur: 0.09, gain: 0.055, freq: 900 + (Math.random() * 500), q: 0.9,
-              type: "bandpass", dest: ambientGain });
+      noise({ dur: 0.09, gain: 0.035 + s * 0.03, freq: 900 + (Math.random() * 500),
+              q: 0.9, type: "bandpass", dest: ambientGain });
     },
 
     /* --- the game ----------------------------------------------------- */

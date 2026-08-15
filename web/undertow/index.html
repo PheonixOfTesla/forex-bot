@@ -1081,21 +1081,66 @@ function stepMovement(dt){
   if (k.a || k.arrowleft)  ix -= 1;
   if (k.d || k.arrowright) ix += 1;
 
+  /* Movement with weight.
+
+     The old version wrote straight into position: full speed on the frame a
+     key went down, dead stop on the frame it came up, and the character
+     snapping instantly to face any direction. That reads as a cursor being
+     dragged around, not a person walking, and it is why it never felt good to
+     just move about.
+
+     Three changes, all of them things a platformer does:
+
+       acceleration   you lean into a run rather than teleporting into one
+       friction       and you carry a little momentum when you let go
+       turn easing    the body swings round to a new heading over a few
+                      frames, which is what makes a change of direction read
+                      as a turn instead of a snap
+
+     The numbers are the feel. RUN is reached in about a fifth of a second and
+     shed in about a tenth - responsive enough that it never feels like ice,
+     slow enough that there is something there. Analogue sticks keep their
+     magnitude, so a small push on a phone is a walk and a full one is a run;
+     a keyboard is always full. */
+  const RUN     = 6.2;      // top speed, units a second
+  const ACCEL   = 34.0;     // how hard it gets there
+  const FRICTION= 16.0;     // and how hard it stops
+  const TURN    = 12.0;     // radians a second the body swings
+
   const mag = Math.hypot(ix, iz);
-  const SPEED = 5.4;
+  let wx = 0, wz = 0;
   if (mag > 0.08){
+    // Normalise direction but keep magnitude as throttle, capped at 1 so a
+    // diagonal on the keyboard is not faster than a straight line.
+    const throttle = Math.min(1, mag);
     ix /= mag; iz /= mag;
     // Move relative to where the camera is looking, like every 3D game.
     const yaw = Village.heading() || 0;
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
-    const wx = ix * fz - iz * fx;
-    const wz = -ix * fx - iz * fz;
-    me.x += wx * SPEED * dt;
-    me.z += wz * SPEED * dt;
-    me.angle = Math.atan2(wx, wz);
-    me.moving = true;
-  } else {
-    me.moving = false;
+    wx = (ix * fz - iz * fx) * throttle;
+    wz = (-ix * fx - iz * fz) * throttle;
+  }
+
+  const targetVX = wx * RUN, targetVZ = wz * RUN;
+  const rate = (wx || wz) ? ACCEL : FRICTION;
+  const kAcc = 1 - Math.exp(-rate * dt);      // frame-rate independent easing
+  me.vx += (targetVX - me.vx) * kAcc;
+  me.vz += (targetVZ - me.vz) * kAcc;
+  if (Math.hypot(me.vx, me.vz) < 0.05){ me.vx = 0; me.vz = 0; }
+
+  me.x += me.vx * dt;
+  me.z += me.vz * dt;
+
+  const speed = Math.hypot(me.vx, me.vz);
+  me.moving = speed > 0.35;
+  if (me.moving){
+    // Swing towards the direction of travel by the shortest way round, so a
+    // reversal turns through 180 degrees rather than jumping.
+    const want = Math.atan2(me.vx, me.vz);
+    let d = want - me.angle;
+    while (d >  Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    me.angle += d * Math.min(1, TURN * dt);
   }
 
   // Nudge out of anyone we are standing inside, so a crowd spreads instead of
@@ -1111,7 +1156,7 @@ function stepMovement(dt){
   }
 
   Village.setSelf(myPid, me.x, me.z, me.angle, me.moving);
-  if (me.moving) Sound.step();
+  if (me.moving) Sound.step(speed);
 
   const now = performance.now();
   if (now - lastSent > 100){          // ~10 a second, matched to the server frame

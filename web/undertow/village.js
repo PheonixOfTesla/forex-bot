@@ -2387,6 +2387,57 @@ const Village = (() => {
      of orange on the horizon. It travels with you rather than with the world,
      so it costs one light no matter how big the island gets. */
   let selfMark = null;
+
+  /* The diamond.
+
+     A ring on the floor is fine until you are in a crowd, at which point it is
+     under somebody's feet and you cannot tell whose. The Sims put a spinning
+     green diamond in the air above the character you control and never had to
+     explain it to anybody, which is the whole argument for copying it: it sits
+     above the heads, it is the only thing in the world shaped like that, and
+     it moves, so the eye finds it before it has finished reading the scene.
+
+     Two four-sided cones base to base, unlit, drawn last with the depth test
+     off - so it stays visible through a tree or a wall. Losing sight of the
+     marker that tells you where you are is the one thing it must never do. */
+  function buildPlumbob(){
+    const g = new THREE.Group();
+    /* toneMapped false is the important flag.
+
+       An unlit material still goes through the tone curve by default, and
+       this world runs ACES at 0.78 exposure - so a bright green came out a
+       washed sage that vanished against the plaster. The marker is UI that
+       happens to live in the scene; it should be exactly the colour it is
+       set to, whatever the hour of the map. */
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x3CF03C, depthTest: false, depthWrite: false, toneMapped: false
+    });
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.44, 4), mat);
+    top.position.y = 0.22;
+    const bot = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.32, 4), mat);
+    bot.position.y = -0.16; bot.rotation.x = Math.PI;
+    g.add(top); g.add(bot);
+    // A darker copy a hair larger, drawn first: an outline. The diamond has to
+    // hold up against a pale wall as well as a dark tree, and a solid colour
+    // alone can only manage one of those.
+    const edgeMat = new THREE.MeshBasicMaterial({
+      color: 0x0B3D14, side: THREE.BackSide,
+      depthTest: false, depthWrite: false, toneMapped: false
+    });
+    const eTop = new THREE.Mesh(new THREE.ConeGeometry(0.30, 0.50, 4), edgeMat);
+    eTop.position.y = 0.22;
+    const eBot = new THREE.Mesh(new THREE.ConeGeometry(0.30, 0.37, 4), edgeMat);
+    eBot.position.y = -0.17; eBot.rotation.x = Math.PI;
+    g.add(eTop); g.add(eBot);
+    g.renderOrder = 999;
+    g.traverse(o => { o.renderOrder = 999; });
+    // Sized against the character rather than in the abstract: about a fifth
+    // of an Islander's height, which is the proportion the reference uses and
+    // small enough that eight of them on screen is not a hedge of diamonds.
+    g.scale.setScalar(0.72);
+    return g;
+  }
+
   function updateSelfMark(dt){
     const me = avatars.get(followPid) || selfAt;
     if (!selfMark){
@@ -2406,6 +2457,9 @@ const Village = (() => {
       key.position.y = 3.4;
       selfMark.add(key);
       selfMark.userData.key = key;
+      const bob = buildPlumbob();
+      selfMark.add(bob);
+      selfMark.userData.bob = bob;
       scene.add(selfMark);
     }
     selfMark.visible = !!me;
@@ -2414,6 +2468,12 @@ const Village = (() => {
     const r = selfMark.userData.ring;
     r.scale.setScalar(1 + Math.sin(clock * 2.2) * 0.045);
     r.material.opacity = 0.42 + Math.sin(clock * 2.2) * 0.10;
+    // Sits just above the name tag, which is at 3.32 and rises a little per
+    // seat so a crowd's labels do not overlap. Turning slowly and bobbing;
+    // both are there to be caught by peripheral vision rather than looked for.
+    const bob = selfMark.userData.bob;
+    bob.position.y = 4.02 + Math.sin(clock * 1.6) * 0.06;
+    bob.rotation.y = clock * 1.15;
   }
 
   function frame(){
