@@ -259,25 +259,36 @@ const Avatar = (() => {
      modelled rather than coloured in. The environment is generated, so this
      still ships without assets. */
   let envMap = null;
-  function environment(renderer){
-    if (envMap || !renderer) return envMap;
+  // Daylight, as a fallback. The world overrides it per map, because a
+  // character carrying a blue midday sheen on their shoulders at sunset looks
+  // pasted on top of the scene rather than standing in it.
+  const DAY_RAMP = ["#DFF1FF", "#BBD8EC", "#C7BC9A", "#8E8467"];
+
+  function environment(renderer, ramp){
+    if (!renderer) return envMap;
+    if (envMap && !ramp) return envMap;
     // A vertical sky-to-ground ramp is enough: it puts a bright rim along the
     // top of every surface and a warm bounce underneath.
+    const stops = ramp || DAY_RAMP;
     const c = document.createElement("canvas");
     c.width = 8; c.height = 128;
     const g = c.getContext("2d");
     const grd = g.createLinearGradient(0, 0, 0, 128);
-    grd.addColorStop(0.00, "#DFF1FF");
-    grd.addColorStop(0.45, "#BBD8EC");
-    grd.addColorStop(0.55, "#C7BC9A");
-    grd.addColorStop(1.00, "#8E8467");
+    grd.addColorStop(0.00, stops[0]);
+    grd.addColorStop(0.45, stops[1]);
+    grd.addColorStop(0.55, stops[2]);
+    grd.addColorStop(1.00, stops[3]);
     g.fillStyle = grd; g.fillRect(0, 0, 8, 128);
     const tex = new THREE.CanvasTexture(c);
     tex.mapping = THREE.EquirectangularReflectionMapping;
     const pmrem = new THREE.PMREMGenerator(renderer);
     pmrem.compileEquirectangularShader();
-    envMap = pmrem.fromEquirectangular(tex).texture;
+    const next = pmrem.fromEquirectangular(tex).texture;
     pmrem.dispose(); tex.dispose();
+    // Materials hold the texture, not a reference to this variable, so swapping
+    // it only affects things built afterwards. The caller retints what exists.
+    if (envMap && envMap !== next) envMap.dispose();
+    envMap = next;
     return envMap;
   }
 

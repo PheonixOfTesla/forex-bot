@@ -1,0 +1,93 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Scene check</title>
+<!-- A world-only harness: no room, no socket, no UI. It exists so the look of
+     a map and the framing of the camera can be judged and measured without
+     standing up a server and playing a game to get there. Not linked from
+     anywhere; it is a tool, like the turnaround page. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script src="/undertow/three.min.js"></script>
+<script src="/undertow/avatar.js"></script>
+<script src="/undertow/village.js"></script>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#000}
+canvas{display:block;width:100vw;height:100vh}</style>
+</head><body><canvas id="c"></canvas><script>
+const Q = new URLSearchParams(location.search);
+const MAP = Q.get("map") || "village";
+
+Village.init(document.getElementById("c"), MAP);
+
+// A cast standing where a lobby would put them: a ring around the square,
+// facing in, which is also the arrangement that used to fly the camera into
+// the monument.
+const NAMES = ["MAYA","KAI","NOA","LEIA","TANE","ILIMA"];
+const COSTUMES = ["explorer","diver","scholar","chef","ranger","dancer"];
+const players = NAMES.map((n, i) => ({ pid: "p" + i, name: n, alive: true }));
+const isl = {};
+players.forEach((p, i) => {
+  isl[p.pid] = Object.assign({}, Avatar.defaults ? Avatar.defaults() : {}, {
+    costume: COSTUMES[i % COSTUMES.length],
+    female: i % 2 === 1,
+    hair: i % 2 === 1 ? "long" : "short"
+  });
+});
+Village.sync(players, isl);
+
+const R = +(Q.get("r") || 5.2);
+const rows = players.map((p, i) => {
+  const a = (i / players.length) * Math.PI * 2;
+  return [p.pid, Math.cos(a) * R, Math.sin(a) * R,
+          Math.atan2(-Math.cos(a), -Math.sin(a)), 0, 1, ""];
+});
+Village.setFollow("p0");
+Village.applyPositions(rows, "p0");
+const mine = rows[0];
+Village.setSelf("p0", mine[1], mine[2], mine[3], false);
+if (Q.get("emote")) Village.applyPositions(
+  rows.map(r => r[0] === "p0" ? [r[0],r[1],r[2],r[3],0,1,Q.get("emote")] : r), "p0");
+
+// Where the followed character actually lands on screen, in per-cent. This is
+// the number the framing argument is about, so the harness reports it rather
+// than leaving it to be eyeballed off a screenshot.
+window.__frame = () => {
+  const cam = Village.camera();
+  const rig = Village.rigs().get("p0");
+  if (!cam || !rig) return null;
+  cam.updateMatrixWorld();
+  const pt = (y) => {
+    const v = new THREE.Vector3(rig.group.position.x, rig.group.position.y + y,
+                                rig.group.position.z).project(cam);
+    return { x: (v.x * 0.5 + 0.5) * 100, y: (-v.y * 0.5 + 0.5) * 100 };
+  };
+  const feet = pt(0.02), head = pt(2.95);
+  return {
+    xPct: +feet.x.toFixed(1), feetPct: +feet.y.toFixed(1),
+    headPct: +head.y.toFixed(1), heightPct: +(feet.y - head.y).toFixed(1),
+    camY: +cam.position.y.toFixed(2),
+    dist: +cam.position.distanceTo(rig.group.position).toFixed(2)
+  };
+};
+if (Q.get("zoom")) Village.zoom(+Q.get("zoom"));
+if (Q.get("yaw")) Village.orbit(+Q.get("yaw"), 0);
+
+// A flat sheet of every texture the world draws with, so a tile can be judged
+// as a tile instead of guessed at from a wall thirty metres away.
+if (Q.get("tiles")){
+  document.body.innerHTML = "";
+  document.body.style.cssText = "background:#111;display:flex;flex-wrap:wrap;gap:10px;padding:10px;overflow:auto;height:auto";
+  ["grass","dirt","sand","stone","plaster","roof","bark","leaf","water"].forEach(n => {
+    const t = Village.TEXTURE(n);
+    if (!t) return;
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "color:#ccc;font:12px system-ui;text-align:center";
+    const img = document.createElement("canvas");
+    img.width = img.height = 236;
+    // The page stylesheet blows every canvas up to the viewport; this one is a
+    // swatch, so it says so.
+    img.style.cssText = "width:236px;height:236px;display:block";
+    img.getContext("2d").drawImage(t.image, 0, 0, 236, 236);
+    wrap.appendChild(img);
+    wrap.appendChild(Object.assign(document.createElement("div"), { textContent: n }));
+    document.body.appendChild(wrap);
+  });
+}
+window.__ready = true;
+</script></body></html>

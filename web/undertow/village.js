@@ -16,7 +16,11 @@ const Village = (() => {
   const SEA       = 0x3F7FA8;
   const SAND      = 0xD9C88C;
   const GRASS     = 0x9FAA5C;
-  const PLAZA     = 0xC9BE92;
+  // Knocked down from 0xC9BE92. Warm pale stone under a midday sun is a warm
+  // pale stone; under a low orange one it goes to near-white and the square
+  // becomes the brightest thing on the island, which is not where anyone is
+  // meant to be looking.
+  const PLAZA     = 0xA1977A;
   const WHITEWASH = 0xE8E0CE;
   const DOME      = 0x2E6FA8;
   const TERRA     = 0xCF6A47;
@@ -24,34 +28,79 @@ const Village = (() => {
   const LEAF      = 0x5E8442;
   const GOLD      = 0xE8A33D;
 
-  /* Three places to play. Same rules everywhere; only the scenery and the
-     light change, so a group can run four games without the island going
-     stale. Each is seeded, so every device builds the identical world. */
+  /* Three places to play, and no daylight in any of them.
+
+     A social deduction game is about a village after dark. Noon lighting was
+     fighting the premise: flat overhead sun, no shadows worth the name, and
+     nothing on the island that could be described as atmosphere. Each map is
+     now a different hour of the evening, which also does the job the three
+     maps were supposed to do - they no longer look like the same island with
+     the trees moved around.
+
+         village  sunset      low orange sun, shadows raked across the square
+         grove    twilight    blue hour under the canopy, lanterns and fireflies
+         bay      night       moon over the water, stars, no sun at all
+
+     Same rules everywhere; only the scenery and the light change. Each is
+     seeded, so every device builds the identical world. */
   const MAPS = {
     village: {
       name: "Molua Village",
-      sky:  [0x4E9BD4, 0xA6CFE6],
-      fog:  [0xC2D6DE, 34, 112],
-      sun:  [0xFFF0CC, 1.0, [14, 22, 9]],
-      sky_light: [0xBBD6EA, 0xB0A06A, 0.72],
+      hour: "sunset",
+      sky:  [0x27407A, 0xF2874A],        // deep blue overhead, fire at the horizon
+      glow: [0xFFC070, 1.0],             // bloom around the sun's bearing
+      stars: 0.0,
+      cloud: 0xFFC38A,                   // clouds catch the low sun, not white
+      fog:  [0x8A6A72, 30, 104],
+      // Low and warm. y well under x/z is what rakes the shadows out sideways.
+      // Low enough that the shadows rake right across the square. Elevation
+      // is about ten degrees; any higher and it is just a warm afternoon.
+      sun:  [0xFF9440, 1.45, [26, 13, 15]],
+      sky_light: [0x4C5A9C, 0x3A2A22, 0.26],
+      rim:  [0xFF8A4A, 0.42],
+      water: 0x6E5262,
+      // Exposure is the whole difference between an evening and a bright
+      // day with orange fog. ACES rolls the highlights off, so pulling it
+      // down darkens the ground without flattening the sky.
+      exposure: 0.78,
+      lamp: 0.9,                        // how lit the windows and lanterns are
+      fireflies: 0,
       ground: "grass", ring: "dirt", relief: 1.0,
       houses: 14, trees: 26, palms: 0, rocks: 4, ferns: 0
     },
     grove: {
       name: "Kanu Grove",
-      sky:  [0x2E7FA8, 0x86BFC4],
-      fog:  [0x9FB894, 22, 78],          // closer fog: you cannot see far in a grove
-      sun:  [0xE8F0C0, 0.82, [10, 24, -6]],
-      sky_light: [0xA8C8B0, 0x6E7A46, 0.66],
+      hour: "twilight",
+      sky:  [0x141C46, 0x4A4E86],
+      glow: [0x8E7ACC, 0.55],
+      stars: 0.35,
+      cloud: 0x6E6AA0,
+      fog:  [0x2E3358, 18, 70],          // closer fog: you cannot see far in a grove
+      sun:  [0x8FA4E0, 0.40, [12, 14, -22]],
+      sky_light: [0x2E3A72, 0x16121E, 0.26],
+      rim:  [0x8CA8E8, 0.34],
+      water: 0x232C50,
+      exposure: 0.62,
+      lamp: 1.15,
+      fireflies: 90,
       ground: "grass", ring: "dirt", relief: 1.35,
       houses: 4, trees: 60, palms: 6, rocks: 12, ferns: 40
     },
     bay: {
       name: "Halehua Bay",
-      sky:  [0x59B4DC, 0xC8E6EE],
-      fog:  [0xD8E6E4, 46, 140],         // open water, long sightlines
-      sun:  [0xFFF6DA, 1.12, [18, 20, 14]],
-      sky_light: [0xCFE8F2, 0xC8B482, 0.86],
+      hour: "night",
+      sky:  [0x070C24, 0x1B2E52],
+      glow: [0xBFD4F2, 0.85],            // the moon, not the sun
+      stars: 1.0,
+      cloud: 0x35496E,
+      fog:  [0x0E182F, 32, 104],         // open water, but the dark eats it
+      sun:  [0xAFC6F0, 0.38, [22, 24, 20]],
+      sky_light: [0x1C2A55, 0x090C18, 0.24],
+      rim:  [0xBCD2F6, 0.40],
+      water: 0x10203E,
+      exposure: 0.54,
+      lamp: 1.2,
+      fireflies: 0,
       ground: "sand", ring: "sand", relief: 0.55,
       houses: 8, trees: 6, palms: 22, rocks: 8, ferns: 0
     }
@@ -81,22 +130,40 @@ const Village = (() => {
      Five was a face full of the back of your own head; eleven was a drone
      shot. Aiming a little above centre pushes the body down the frame and
      leaves the ground ahead visible, which is what you actually steer by. */
-  /* A Sims camera, not an over-the-shoulder one.
+  /* A Sims angle at a playable distance.
 
-     Over-the-shoulder is a shooter's framing: close, low, and it shows you
-     what your character is pointing at. This is a game about watching a room
-     full of people, so it wants The Sims - up high, angled down, far enough
-     back that the plaza and everybody standing in it are on screen at once.
+     The tilted-down orbit is right - this is a game about watching a room
+     full of people, not about aiming at something. The distance was not.
+     Fourteen units put an Islander at 19% of screen height, which is a wide
+     establishing shot of an island with a person somewhere in it, and the
+     first thing anybody said about it was that they could not find
+     themselves.
 
-         distance 14, pitch 0.52   ->  character 19% of screen height,
-                                       camera 8.4 units up, looking down ~30 deg
+     Distance is arithmetic. An Islander is 2.95 units tall and the lens is 58
+     degrees vertical, so the visible height at distance D is
+     2*D*tan(29 deg) = 1.109*D:
 
-     The shoulder offset goes with it. Off-centring the subject is how you
-     leave room for what a character is aiming at; when the subject is the
-     room, centre is correct. */
-  let camYaw = 0, camPitch = 0.52, camDist = 14.0;
+         9.0  ->  character 30% of screen height   (third-person standard)
+         14.0 ->  19%                              (what it was)
+
+     Thirty per cent is where Fortnite, Fall Guys and every other third-person
+     game of this shape sit, and it still shows the whole square. Zooming out
+     to the old framing is one scroll away; the default should not need one.
+
+     The aim point matters as much as the distance. lookAt puts the target
+     dead centre, so aiming at 1.45 - half of 2.95 - centres the body rather
+     than the feet. And the shoulder offset stays at zero: off-centring the
+     subject is how you leave room for what a character is aiming at, and this
+     character is not aiming at anything. */
+  /* Pitch came down with the distance. At 0.52 the camera is looking at the
+     ground: the frame is nine parts paving to one part anything else, and on
+     an island whose whole point is now the colour of its sky, none of that
+     sky was ever on screen. 0.44 still reads as looking down on a square and
+     puts the horizon in the top third where it belongs. */
+  let camYaw = 0, camPitch = 0.44, camDist = 9.0;
   const SHOULDER = 0.0;
-  const EYE_HEIGHT = 1.40;    // mid-height, because we are looking down at it
+  const ISLANDER_H = 2.95;
+  const EYE_HEIGHT = ISLANDER_H * 0.49;   // mid-body, so the figure sits centred
   let followPid = null;
   let shakeAmount = 0, flashAmount = 0;
   let flashColor = { r: 1, g: 0.3, b: 0.25 };
@@ -191,12 +258,6 @@ const Village = (() => {
      static - it was doing the whole job for grass, sand, dirt, stone and
      plaster alike, which is why they all read as the same surface in
      different colours. */
-  function speckle(base, spots, density){
-    return (g, S) => {
-      g.fillStyle = base; g.fillRect(0, 0, S, S);
-      grain(g, S, spots, density);
-    };
-  }
   function grain(g, S, spots, density){
     for (let i = 0; i < density; i++){
       g.fillStyle = spots[(Math.random() * spots.length) | 0];
@@ -205,54 +266,63 @@ const Village = (() => {
     }
   }
 
-  /* Big soft blotches under everything else. A 256px tile repeated 28 times
-     across a field reads as a grid unless something breaks the rhythm at a
-     scale larger than the eye can pair up. */
-  function patches(g, S, colors, count, radius, alpha){
-    g.save();
-    g.globalAlpha = alpha;
-    for (let i = 0; i < count; i++){
-      const x = Math.random() * S, y = Math.random() * S;
-      const r = radius * (0.6 + Math.random() * 0.8);
-      const grd = g.createRadialGradient(x, y, 0, x, y, r);
-      const col = colors[(Math.random() * colors.length) | 0];
-      grd.addColorStop(0, col);
-      grd.addColorStop(1, "rgba(0,0,0,0)");
-      g.fillStyle = grd;
-      // Drawn four times, wrapped, so a blotch crossing an edge continues on
-      // the far side instead of being sliced off at the seam.
-      for (const [ox, oy] of [[0,0],[S,0],[0,S],[S,S]]){
-        g.beginPath(); g.arc(x - ox, y - oy, r, 0, Math.PI*2); g.fill();
-      }
-    }
-    g.restore();
-  }
+  /* No macro blotches anywhere any more, and the helper that drew them is
+     gone with them. It was meant to break up a repeating tile at a scale
+     larger than the eye can pair up, and it did the opposite everywhere it
+     was used: at the repeat counts a ground texture actually needs, four or
+     five soft clouds per tile land every metre or two and become the
+     pattern. Variation has to be finer than the repeat, not coarser. */
 
   const TEX = {
-    /* Blades, not noise. Short tapered strokes at varying angles, over
-       patches of lighter and darker turf. */
+    /* Blades, not noise. Short tapered strokes at varying angles, in tufts. */
     grass: () => makeTex("grass", (g, S) => {
       g.fillStyle = "#6E8F3C"; g.fillRect(0, 0, S, S);
-      patches(g, S, ["#7FA349", "#5A7730", "#87AC55"], 7, S * 0.28, 0.5);
+      /* No macro patches, and this is the same lesson the plaza already
+         taught. Seven soft blotches across a tile look like natural variation
+         in the tile and like a repeating pattern in the field, because at
+         twenty-four repeats they land every two and a half metres. Under a
+         low sun the normal map made of those blotches lit one side of each
+         and shaded the other, and the lawn came out as a diamond
+         checkerboard. Variation has to come from something too small to pair
+         up across a repeat - which is what the blades are for. */
       g.lineCap = "round";
-      for (let i = 0; i < 1700; i++){
+      for (let i = 0; i < 2600; i++){
         const x = Math.random() * S, y = Math.random() * S;
         const a = -Math.PI/2 + (Math.random() - 0.5) * 1.5;
-        const len = 2 + Math.random() * 5;
-        g.strokeStyle = ["#7FA349","#8CB254","#5D7B33","#4F6B2C","#93B85E"][(Math.random()*5)|0];
-        g.lineWidth = 0.8 + Math.random() * 1.1;
+        const len = 2 + Math.random() * 6;
+        g.strokeStyle = ["#7FA349","#8CB254","#5D7B33","#4F6B2C","#93B85E",
+                         "#6B8F3E","#A0C46A"][(Math.random()*7)|0];
+        g.lineWidth = 0.8 + Math.random() * 1.2;
         g.beginPath();
         g.moveTo(x, y);
         g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
         g.stroke();
       }
-    }, 24, 2.4),
+      // Clumps: a handful of tighter tufts, small enough that the eye cannot
+      // match one against its neighbour a tile away.
+      for (let i = 0; i < 90; i++){
+        const cx = Math.random() * S, cy = Math.random() * S;
+        const tone = ["#88B054","#587A32"][(Math.random()*2)|0];
+        for (let k = 0; k < 14; k++){
+          const a = -Math.PI/2 + (Math.random() - 0.5) * 1.9;
+          const len = 3 + Math.random() * 5;
+          const x = cx + (Math.random()-0.5) * 11, y = cy + (Math.random()-0.5) * 11;
+          g.strokeStyle = tone; g.lineWidth = 1.0;
+          g.beginPath(); g.moveTo(x, y);
+          g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke();
+        }
+      }
+      // Bump kept low for the same reason. Relief off a blade drawing is
+      // fine; relief off a cloud is a hillside that is not there.
+    }, 24, 0.85),
 
     /* Trodden earth: compacted patches, loose clods, small stones. */
     dirt: () => makeTex("dirt", (g, S) => {
       g.fillStyle = "#B39B63"; g.fillRect(0, 0, S, S);
-      patches(g, S, ["#A28C57", "#C4AC73"], 4, S * 0.26, 0.30);
-      for (let i = 0; i < 130; i++){
+      // No macro blotches. Same story as the grass and the plaza: at ten
+      // repeats four soft clouds stop being variation and start being the
+      // pattern. Clods and stones carry it instead.
+      for (let i = 0; i < 320; i++){
         const x = Math.random() * S, y = Math.random() * S;
         const r = 1.5 + Math.random() * 4;
         g.fillStyle = ["#9C8452","#8E7848","#CBB682"][(Math.random()*3)|0];
@@ -265,7 +335,8 @@ const Village = (() => {
        noise - the grain alone could be any powder. */
     sand: () => makeTex("sand", (g, S) => {
       g.fillStyle = "#D9C88C"; g.fillRect(0, 0, S, S);
-      patches(g, S, ["#E4D69F", "#CDBA7C"], 5, S * 0.34, 0.5);
+      // The ripples are the variation. Blotches on top of them repeated every
+      // metre and a half across the whole bay.
       g.lineWidth = 2.2; g.lineCap = "round";
       for (let y = 0; y < S; y += 9){
         g.strokeStyle = (y / 9) % 2 ? "rgba(196,176,120,.42)" : "rgba(236,224,180,.40)";
@@ -310,36 +381,157 @@ const Village = (() => {
       grain(g, S, ["#D2CCBC","#B8B0A0"], 1300);
     }, 7, 1.5),
 
-    /* Hand-finished render: broad trowel sweep, then a fine tooth. */
-    plaster: () => makeTex("plaster", (g, S) => {
-      g.fillStyle = "#DCD3BE"; g.fillRect(0, 0, S, S);
-      patches(g, S, ["#E6DECB", "#CFC5AE"], 5, S * 0.4, 0.55);
-      g.strokeStyle = "rgba(203,193,170,.34)"; g.lineWidth = 3.5;
-      for (let i = 0; i < 14; i++){
-        const y = Math.random() * S, a = (Math.random() - 0.5) * 0.5;
-        g.beginPath(); g.moveTo(-10, y); g.lineTo(S + 10, y + Math.tan(a) * S); g.stroke();
-      }
-      grain(g, S, ["#E6DECB","#CFC5AE"], 900);
-    }, 2, 1.1),
+    /* Lime render on a wall.
 
+       The old one opened with five blotches four-tenths of a tile wide and
+       then took a normal map off them, at a repeat of two. On a three-metre
+       wall that is two grey clouds and a relief map of two grey clouds, which
+       is why the houses read as damp concrete rather than as painted plaster.
+
+       What a rendered wall actually looks like at six metres is almost flat -
+       an even tone, a fine tooth you can only see in raking light, and the
+       occasional trowel edge. The interest belongs in the shapes and the
+       trim, not in the paint. */
+    plaster: () => makeTex("plaster", (g, S) => {
+      g.fillStyle = "#EDE4D0"; g.fillRect(0, 0, S, S);
+      // Trowel sweeps: long, shallow arcs a shade off the base, not clouds.
+      g.lineCap = "round";
+      for (let i = 0; i < 26; i++){
+        const y = Math.random() * S;
+        const sweep = 90 + Math.random() * 200;
+        g.strokeStyle = Math.random() > 0.5 ? "rgba(228,217,196,.5)" : "rgba(246,240,226,.5)";
+        g.lineWidth = 5 + Math.random() * 9;
+        g.beginPath();
+        g.moveTo(-20, y);
+        g.quadraticCurveTo(sweep, y + (Math.random()-0.5) * 26, S + 20, y + (Math.random()-0.5) * 16);
+        g.stroke();
+      }
+      // The tooth. Small, dense, low contrast: it is what the normal map
+      // wants, and at this scale it never resolves into a pattern.
+      for (let i = 0; i < 5200; i++){
+        g.fillStyle = Math.random() > 0.5 ? "rgba(255,252,244,.42)" : "rgba(206,196,176,.34)";
+        g.beginPath();
+        g.arc(Math.random()*S, Math.random()*S, 0.6 + Math.random()*1.5, 0, Math.PI*2);
+        g.fill();
+      }
+      // A handful of chips where the render has come away, warm underneath.
+      for (let i = 0; i < 7; i++){
+        g.fillStyle = "rgba(198,176,150,.30)";
+        g.beginPath();
+        g.ellipse(Math.random()*S, Math.random()*S, 4 + Math.random()*11,
+                  3 + Math.random()*7, Math.random()*3, 0, Math.PI*2);
+        g.fill();
+      }
+    }, 2, 0.45),
+
+    /* Pantiles: half-round, laid in courses, each course lapping the one
+       below. The lap line and the shadow under it are the whole read - flat
+       rectangles in rows were giving a roof made of brick. */
     roof: () => makeTex("roof", (g,S)=>{
-      g.fillStyle = "#B4573A"; g.fillRect(0,0,S,S);
-      // overlapping tile courses
-      for (let y = 0; y < S; y += 26){
-        g.fillStyle = "#9C4830"; g.fillRect(0, y, S, 1);
-        for (let x = (y/26 % 2) * 20; x < S; x += 40){
-          g.fillStyle = "#C4634A"; g.fillRect(x, y + 3, 34, 20);
+      g.fillStyle = "#8E3F2A"; g.fillRect(0,0,S,S);
+      const course = 62, w = 44;
+      for (let y = -course; y < S + course; y += course){
+        for (let x = -w; x < S + w; x += w){
+          const off = ((y / course) | 0) % 2 ? w * 0.5 : 0;
+          const px = x + off;
+          // The barrel of the tile, lit along its crown and shaded in the
+          // valley between it and its neighbour.
+          const grd = g.createLinearGradient(px, 0, px + w, 0);
+          grd.addColorStop(0.00, "#8A3E29");
+          grd.addColorStop(0.30, "#D0704F");
+          grd.addColorStop(0.55, "#E08A62");
+          grd.addColorStop(1.00, "#93452D");
+          g.fillStyle = grd;
+          g.beginPath();
+          g.moveTo(px, y + course);
+          g.lineTo(px, y + 16);
+          g.quadraticCurveTo(px + w * 0.5, y - 8, px + w, y + 16);
+          g.lineTo(px + w, y + course);
+          g.closePath();
+          g.fill();
+        }
+        // Shadow cast by the course above onto the head of this one.
+        const sh = g.createLinearGradient(0, y, 0, y + 18);
+        sh.addColorStop(0, "rgba(60,18,10,.55)");
+        sh.addColorStop(1, "rgba(60,18,10,0)");
+        g.fillStyle = sh; g.fillRect(0, y, S, 18);
+      }
+      // Weathering, so the courses do not read as printed.
+      for (let i = 0; i < 900; i++){
+        g.fillStyle = Math.random() > 0.5 ? "rgba(230,180,140,.18)" : "rgba(70,30,18,.16)";
+        g.fillRect(Math.random()*S, Math.random()*S, 1 + Math.random()*4, 1 + Math.random()*3);
+      }
+    }, 3, 1.4),
+
+    /* Bark, which is ridges and the shadows between them. Full-height stripes
+       of flat colour gave a trunk that looked like a painted dowel. */
+    bark: () => makeTex("bark", (g,S)=>{
+      g.fillStyle = "#4A3320"; g.fillRect(0,0,S,S);          // the dark between
+      // Ridges: tall tapered slabs that wander, each lit on one edge.
+      for (let i = 0; i < 46; i++){
+        const x = Math.random() * S;
+        const w = 6 + Math.random() * 20;
+        const light = ["#8A6742","#7A5A38","#96734C","#6B4E30"][(Math.random()*4)|0];
+        g.beginPath();
+        g.moveTo(x, -10);
+        let cx = x;
+        for (let y = -10; y < S + 10; y += 40){
+          cx += (Math.random() - 0.5) * 9;
+          g.lineTo(cx, y);
+        }
+        for (let y = S + 10; y > -10; y -= 40){
+          cx += (Math.random() - 0.5) * 5;
+          g.lineTo(cx + w, y);
+        }
+        g.closePath();
+        g.fillStyle = light; g.fill();
+        // A highlight down one side of the ridge and nothing down the other:
+        // that asymmetry is what makes it read as round.
+        g.strokeStyle = "rgba(190,158,116,.34)"; g.lineWidth = 1.6; g.stroke();
+      }
+      // Horizontal lenticels - the short pale dashes real bark has.
+      for (let i = 0; i < 120; i++){
+        g.fillStyle = "rgba(178,150,112,.30)";
+        g.fillRect(Math.random()*S, Math.random()*S, 3 + Math.random()*10, 1.4);
+      }
+    }, 2, 1.5),
+
+    /* Leaves, not green static.
+
+       A speckle is the same at every scale, so a canopy made of it is a
+       coloured ball however close you stand. Actual leaf shapes with sky
+       showing through the gaps is the difference between a tree and a
+       lollipop. */
+    leaf: () => makeTex("leaf", (g,S)=>{
+      g.fillStyle = "#2F4C1E"; g.fillRect(0,0,S,S);          // shade beneath
+      const TONES = ["#6FA047","#5C8B39","#7DB152","#4C7A2E","#8CC061"];
+      // Three passes dark to light. Later leaves sit on top of earlier ones,
+      // which is how depth appears in a flat drawing.
+      for (let pass = 0; pass < 3; pass++){
+        const n = 340 - pass * 70;
+        for (let i = 0; i < n; i++){
+          const x = Math.random() * S, y = Math.random() * S;
+          const a = Math.random() * Math.PI * 2;
+          const L = (9 + Math.random() * 13) * (0.8 + pass * 0.14);
+          g.save();
+          g.translate(x, y); g.rotate(a);
+          g.fillStyle = TONES[(Math.random() * TONES.length) | 0];
+          g.globalAlpha = 0.72 + pass * 0.09;
+          // A pointed oval: two arcs meeting at the tip and the stem.
+          g.beginPath();
+          g.moveTo(0, -L * 0.5);
+          g.quadraticCurveTo(L * 0.34, 0, 0, L * 0.5);
+          g.quadraticCurveTo(-L * 0.34, 0, 0, -L * 0.5);
+          g.fill();
+          // Midrib, one shade down. Tiny, but it stops the leaf reading as a
+          // blob of paint when the camera comes close.
+          g.globalAlpha *= 0.5;
+          g.strokeStyle = "#385A24"; g.lineWidth = 0.9;
+          g.beginPath(); g.moveTo(0, -L*0.44); g.lineTo(0, L*0.44); g.stroke();
+          g.restore();
         }
       }
-    }, 3, 2.6),
-    bark: () => makeTex("bark", (g,S)=>{
-      g.fillStyle = "#6E4E30"; g.fillRect(0,0,S,S);
-      for (let i = 0; i < 150; i++){
-        g.fillStyle = ["#5B3F26","#7E5B39","#4E3520"][(Math.random()*3)|0];
-        g.fillRect(Math.random()*S, 0, 2 + Math.random()*6, S);   // vertical grain
-      }
-    }, 2, 2.2),
-    leaf: () => makeTex("leaf", speckle("#4F7A33", ["#5E8C3E","#42682A","#6B9A48"], 3200), 3),
+    }, 3, 1.0),
     water: () => makeTex("water", (g,S)=>{
       g.fillStyle = "#3F7FA8"; g.fillRect(0,0,S,S);
       for (let y = 0; y < S; y += 18){
@@ -368,17 +560,39 @@ const Village = (() => {
      exactly what Lambert gives - and it has no flatShading option because
      per-vertex is already the model. The toon ramp read as modern cel
      shading; this reads as 1998. */
+  /* Both of these are memoised, and that is not a micro-optimisation.
+
+     Every call used to hand back a brand new material, so fourteen houses
+     built fourteen separate copies of the same plaster and the batcher - which
+     groups by material - found nothing in the world to group. Identical
+     arguments now give back the identical material, which is both the correct
+     thing and the thing that lets the whole village collapse into a handful
+     of draw calls. Anything that wants to differ has to say so in the
+     arguments rather than by editing the material afterwards. */
+  const matCache = new Map();
+
   function toon(color, opts){
-    return new THREE.MeshStandardMaterial(
-      Object.assign({ color, roughness: 0.94, metalness: 0.0 }, opts || {}));
+    const key = "t|" + color + "|" + (opts ? JSON.stringify(opts) : "");
+    let m = matCache.get(key);
+    if (!m){
+      m = new THREE.MeshStandardMaterial(
+        Object.assign({ color, roughness: 0.94, metalness: 0.0 }, opts || {}));
+      matCache.set(key, m);
+    }
+    return m;
   }
 
   /* Textured surface. The colour still tints it, so one texture serves several
      materials without redrawing the canvas. */
-  function surf(texFn, tint, bumpScale){
+  function surf(texFn, tint, bumpScale, opts){
+    const key = "s|" + (texFn.name || texFn) + "|" + (tint || 0) + "|" + bumpScale +
+                "|" + (opts ? JSON.stringify(opts) : "");
+    let cached = matCache.get(key);
+    if (cached) return cached;
     const map = texFn();
-    const mat = new THREE.MeshStandardMaterial({ map, color: tint || 0xffffff,
-                                                 roughness: 0.95, metalness: 0.0 });
+    const mat = new THREE.MeshStandardMaterial(
+      Object.assign({ map, color: tint || 0xffffff, roughness: 0.95, metalness: 0.0 },
+                    opts || {}));
     // The relief that came off the same canvas. Kept well under 1 - at full
     // strength procedural bumps read as crumpled foil rather than ground.
     if (map.userData && map.userData.normal){
@@ -386,6 +600,7 @@ const Village = (() => {
       const k = bumpScale === undefined ? 0.55 : bumpScale;
       mat.normalScale = new THREE.Vector2(k, k);
     }
+    matCache.set(key, mat);
     return mat;
   }
 
@@ -416,15 +631,55 @@ const Village = (() => {
     sun.color.setHex(MAP.sun[0]);
     sun.intensity = MAP.sun[1];
     sun.position.set(MAP.sun[2][0], MAP.sun[2][1], MAP.sun[2][2]);
+    rim.color.setHex(MAP.rim[0]);
+    rim.intensity = MAP.rim[1];
+    // A low sun rakes long shadows, and the default frustum clipped them off
+    // partway across the square. Depth along the light's own axis is what
+    // needs the room, so it scales with how shallow the light is.
+    const sl = Math.hypot(MAP.sun[2][0], MAP.sun[2][1], MAP.sun[2][2]);
+    sun.shadow.camera.far = sl + 80;
+    sun.shadow.camera.updateProjectionMatrix();
+    // ACES holds midtones down, which is right at noon and too dark at
+    // midnight, so each hour carries its own exposure.
+    renderer.toneMappingExposure = MAP.exposure || 1.15;
+    fireflyPts = null;
+    lanternBulbs.length = 0;
+    blockers.length = 0;
+    retintEnvironment();
 
     buildSky();
     buildIsland();
     scatter();
     buildMonument();
     buildHorizon();
+    buildNightLights();
+    bakeScenery();
   }
 
   function currentMap(){ return MAP.name; }
+
+  /* The soft sheen along an arm or a cheek comes from a tiny generated
+     environment, and that environment was hard-coded to a blue midday sky.
+     Under a sunset it read as a cold light source nobody could see, and the
+     characters looked cut out and dropped in. Rebuild it from the map's own
+     sky and ground colours, then push it onto everything already built -
+     materials captured the old texture, they do not follow a variable. */
+  const ENV_RAMPS = {
+    sunset:   ["#5A6FB4", "#C87A62", "#E0885A", "#5A4038"],
+    twilight: ["#2E3C74", "#4A4E86", "#3A3450", "#1E1A28"],
+    night:    ["#16243F", "#24365E", "#1E2A44", "#0E1220"]
+  };
+  function retintEnvironment(){
+    if (!(window.Avatar && Avatar.environment)) return;
+    const env = Avatar.environment(renderer, ENV_RAMPS[MAP.hour] || null);
+    scene.traverse(o => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m => {
+        if (m && "envMap" in m && m.envMap){ m.envMap = env; m.needsUpdate = true; }
+      });
+    });
+  }
 
   /* ------------------------------------------------------------------
      Terrain
@@ -482,13 +737,24 @@ const Village = (() => {
     return m;
   }
 
+  /* The sky was drawing from two module constants and ignoring MAP.sky, which
+     is why every island had the same blue overhead no matter which one you
+     picked. It reads the map now, and carries the three things an evening sky
+     needs that a noon one does not: a bloom around the sun's own bearing, the
+     clouds tinted by that light instead of white, and stars. */
   function buildSky(){
     const geo = new THREE.SphereGeometry(180, 24, 16);
+    const sd = new THREE.Vector3(MAP.sun[2][0], MAP.sun[2][1], MAP.sun[2][2]).normalize();
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: {
-        top:    { value: new THREE.Color(SKY_TOP) },
-        bottom: { value: new THREE.Color(SKY_BOT) }
+        top:    { value: new THREE.Color(MAP.sky[0]) },
+        bottom: { value: new THREE.Color(MAP.sky[1]) },
+        glow:   { value: new THREE.Color(MAP.glow[0]) },
+        glowK:  { value: MAP.glow[1] },
+        starK:  { value: MAP.stars },
+        cloudC: { value: new THREE.Color(MAP.cloud) },
+        sunDir: { value: sd }
       },
       vertexShader: `
         varying float vH;
@@ -502,9 +768,11 @@ const Village = (() => {
       fragmentShader: `
         varying float vH;
         varying vec3 vDir;
-        uniform vec3 top; uniform vec3 bottom;
+        uniform vec3 top; uniform vec3 bottom; uniform vec3 glow; uniform vec3 cloudC;
+        uniform float glowK; uniform float starK; uniform vec3 sunDir;
         // Cheap value noise, enough for soft cloud banding.
         float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+        float hash3(vec3 p){ return fract(sin(dot(p, vec3(12.99, 78.23, 37.72))) * 43758.5453); }
         float noise(vec2 p){
           vec2 i = floor(p), f = fract(p);
           f = f * f * (3.0 - 2.0 * f);
@@ -512,13 +780,39 @@ const Village = (() => {
                      mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
         }
         void main(){
-          float t = smoothstep(-0.10, 0.30, vH);
+          // A wider gradient than the daylight one. At sunset the transition
+          // from fire to deep blue is most of the sky, not a strip at the
+          // bottom of it.
+          float t = smoothstep(-0.06, 0.55, vH);
           vec3 sky = mix(bottom, top, t);
-          // Clouds sit in a band above the horizon and fade out overhead.
-          vec2 uv = vDir.xz / max(0.18, vDir.y + 0.35) * 1.4;
+          vec3 d = normalize(vDir);
+
+          // Stars first, so everything else lays over them. Quantising the
+          // direction gives an even scatter that does not clump at the poles
+          // the way a lat/long grid does.
+          if (starK > 0.001){
+            float s = hash3(floor(d * 240.0));
+            float star = smoothstep(0.9971, 0.9998, s);
+            // Only above the horizon, and dimmer where the sky is bright.
+            sky += vec3(0.86, 0.90, 1.0) * star * starK
+                 * smoothstep(0.0, 0.35, vH) * (1.0 - t * 0.25);
+          }
+
+          // The sun or moon, as a bloom around its own bearing. Two lobes: a
+          // tight disc and a wide haze, which is what stops it reading as a
+          // sticker pasted on the gradient.
+          float sd = max(0.0, dot(d, normalize(sunDir)));
+          sky += glow * glowK * (pow(sd, 220.0) * 0.9 + pow(sd, 9.0) * 0.42 + pow(sd, 2.0) * 0.14);
+
+          // Clouds sit in a band above the horizon and fade out overhead, and
+          // they are lit by whatever is in the sky rather than being white.
+          vec2 uv = d.xz / max(0.18, d.y + 0.35) * 1.4;
           float n = noise(uv * 1.4) * 0.6 + noise(uv * 3.1) * 0.3 + noise(uv * 6.3) * 0.1;
-          float cloud = smoothstep(0.52, 0.78, n) * smoothstep(0.02, 0.30, vH) * (1.0 - t * 0.45);
-          gl_FragColor = vec4(mix(sky, vec3(0.97, 0.98, 1.0), cloud * 0.85), 1.0);
+          float cloud = smoothstep(0.50, 0.80, n) * smoothstep(0.01, 0.28, vH) * (1.0 - t * 0.40);
+          // Underlit: the edge nearest the sun keeps its colour, the rest goes
+          // to shadow. That contrast is the whole look of a sunset sky.
+          vec3 lit = mix(cloudC * 0.42, cloudC, pow(sd, 1.6));
+          gl_FragColor = vec4(mix(sky, lit, cloud * 0.8), 1.0);
         }`
     });
     worldGroup.add(new THREE.Mesh(geo, mat));
@@ -526,9 +820,12 @@ const Village = (() => {
 
   function buildIsland(){
     // Sea, out to the horizon.
+    // Unlit on purpose - water wants to be its own colour rather than take a
+    // shading pass - which means the map has to tint it by hand, or the sea
+    // stays midday blue while the sky above it burns orange.
     const sea = new THREE.Mesh(
       new THREE.CircleGeometry(170, 48),
-      new THREE.MeshBasicMaterial({ map: TEX.water() })
+      new THREE.MeshBasicMaterial({ map: TEX.water(), color: MAP.water })
     );
     sea.rotation.x = -Math.PI/2;
     sea.position.y = -0.85;
@@ -557,7 +854,11 @@ const Village = (() => {
       const r = 4.5 + i * 3.0;
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(r, r + 0.16, 48),
-        new THREE.MeshBasicMaterial({ color: 0xD9C79B, transparent: true, opacity: 0.75 })
+        // Unlit like the sea, so it needs the same hand-tinting - left at the
+        // daylight value these three lines were the brightest thing on a
+        // night island, three glowing hoops around the square.
+        new THREE.MeshStandardMaterial({ color: 0xD9C79B, roughness: 0.9,
+                                         transparent: true, opacity: 0.75 })
       );
       ring.rotation.x = -Math.PI/2;
       ring.position.y = -0.04;
@@ -578,10 +879,41 @@ const Village = (() => {
 
     // Half the houses get the blue dome, the rest a terracotta roof.
     if (rand() > 0.5){
+      /* The dome used to sit straight on the open top of the box, and from
+         anywhere above eye level that is what it looked like: a crate with a
+         ball in it. A flat roof is not the absence of a roof - it is a slab,
+         a parapet round the edge, and a drum under the dome to lift it clear
+         of both. */
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 0.26, 0.16, d + 0.26),
+                                  surf(TEX.plaster, 0xD8CFB8));
+      slab.position.y = h + 0.08;
+      slab.castShadow = true; slab.receiveShadow = true;
+      g.add(slab);
+      // Parapet: four low walls round the edge of the slab. The shadow it
+      // throws inward is most of what says "roof" from above.
+      const PAR = 0.30;
+      for (const [sx, sz, bw, bd] of [[0, 1, w + 0.26, 0.13], [0, -1, w + 0.26, 0.13],
+                                      [1, 0, 0.13, d + 0.26], [-1, 0, 0.13, d + 0.26]]){
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(bw, PAR, bd),
+                                    surf(TEX.plaster, 0xE6DDC6));
+        wall.position.set(sx * (w + 0.13) / 2, h + 0.16 + PAR/2, sz * (d + 0.13) / 2);
+        wall.castShadow = true; wall.receiveShadow = true;
+        g.add(wall);
+      }
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.34, w * 0.36, 0.42, 16),
+                                  surf(TEX.plaster, 0xEDE4D0));
+      drum.position.y = h + 0.37;
+      drum.castShadow = true;
+      g.add(drum);
       const dome = new THREE.Mesh(
-        new THREE.SphereGeometry(w * 0.46, 16, 10, 0, Math.PI*2, 0, Math.PI/2), toon(DOME));
-      dome.position.y = h;
+        new THREE.SphereGeometry(w * 0.36, 18, 11, 0, Math.PI*2, 0, Math.PI/2), toon(DOME));
+      dome.position.y = h + 0.58;
+      dome.castShadow = true;
       g.add(dome);
+      // Finial, so the dome ends in something rather than just stopping.
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), toon(GOLD));
+      knob.position.y = h + 0.58 + w * 0.36 + 0.05;
+      g.add(knob);
     } else {
       const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.92, 1.25, 4), surf(TEX.roof));
       roof.position.y = h + 0.58;
@@ -608,8 +940,15 @@ const Village = (() => {
       frame.position.set(ox, oy, d/2 + 0.02);
       frame.castShadow = true;
       g.add(frame);
+      // After dark a window is either lit from inside or it is a black hole in
+      // a wall, and both are worth having - a village where every window burns
+      // reads as a stage set. Emissive rather than a light: the glow is what
+      // sells it, and twenty point lights would not survive a phone.
+      const lit = glass && MAP.lamp > 0 && rand() > 0.32;
       const hole = new THREE.Mesh(new THREE.BoxGeometry(ow, oh, 0.30),
-                                  toon(glass ? 0x6FA6CE : 0x35455C));
+                                  toon(glass ? (lit ? 0xFFD79A : 0x2B3348) : 0x21283A,
+                                       lit ? { emissive: 0xFFB25E, emissiveIntensity: 2.4 * MAP.lamp }
+                                           : null));
       hole.position.set(ox, oy, d/2 - 0.15);      // set back into the wall
       g.add(hole);
       if (glass){
@@ -622,6 +961,71 @@ const Village = (() => {
     opening(0.62, 1.20, 0, 0.60, false);
     opening(0.52, 0.52, w * 0.30, h * 0.64, true);
     if (w > 3.4) opening(0.52, 0.52, -w * 0.30, h * 0.64, true);
+
+    /* Trim.
+
+       A plastered box with holes in it is a shape, not a building. What makes
+       the difference at this distance is timber: posts at the corners, a beam
+       along the top of the wall, a lintel over the door. All of it is boxes -
+       the cost is nothing - and it gives the flat render something to break
+       against, which is the job the texture was failing to do on its own. */
+    const TIMBER = 0x6B4A32;
+    for (const sx of [-1, 1]){
+      for (const sz of [-1, 1]){
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.17, h, 0.17), toon(TIMBER));
+        post.position.set(sx * (w/2 - 0.06), h/2, sz * (d/2 - 0.06));
+        post.castShadow = true;
+        g.add(post);
+      }
+    }
+    // The wall plate: one beam right round, sitting just under the roof.
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(w + 0.10, 0.18, d + 0.10), toon(TIMBER));
+    plate.position.y = h - 0.09;
+    plate.castShadow = true;
+    g.add(plate);
+
+    // A shallow porch hood over the door, on two brackets.
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.11, 0.60), toon(0x7A5439));
+    hood.position.set(0, 1.44, d/2 + 0.26);
+    hood.rotation.x = -0.16;
+    hood.castShadow = true;
+    g.add(hood);
+    for (const sx of [-1, 1]){
+      const brace = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.44, 0.09), toon(TIMBER));
+      brace.position.set(sx * 0.52, 1.20, d/2 + 0.10);
+      brace.rotation.x = 0.5;
+      g.add(brace);
+    }
+
+    // Shutters, thrown open, on the upper windows. Only ever one pair of
+    // colours per house, or a street of them looks like a paint chart.
+    const shutter = [0x4E7A8C, 0x8C5B4A, 0x5E7A50][(rand() * 3) | 0];
+    const pair = (ox, oy) => {
+      for (const sx of [-1, 1]){
+        const s = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.56, 0.05), toon(shutter));
+        s.position.set(ox + sx * 0.42, oy, d/2 + 0.06);
+        s.rotation.y = sx * 0.42;
+        s.castShadow = true;
+        g.add(s);
+      }
+    };
+    pair(w * 0.30, h * 0.64);
+    if (w > 3.4) pair(-w * 0.30, h * 0.64);
+
+    // Light from inside, on the ground outside the door. Cheap, unlit, and it
+    // is the single thing that makes a house read as occupied after dark.
+    if (MAP.lamp > 0){
+      const spill = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.15, 1.5),
+        new THREE.MeshBasicMaterial({ map: blobShadow(), color: 0xFFC078,
+                                      transparent: true, opacity: 0.42 * MAP.lamp,
+                                      blending: THREE.AdditiveBlending,
+                                      depthWrite: false })
+      );
+      spill.rotation.x = -Math.PI/2;
+      spill.position.set(0, 0.02, d/2 + 0.66);
+      g.add(spill);
+    }
 
     // A step at the door and a base course, so the house meets the ground
     // instead of being dropped onto it.
@@ -638,26 +1042,111 @@ const Village = (() => {
     g.position.set(x, terrainH(x, z), z);
     g.rotation.y = rand() * Math.PI * 2;
     worldGroup.add(g);
+    // Half the diagonal plus the eaves: near enough for a camera test, and
+    // erring wide is the safe direction - it pulls in a fraction early
+    // rather than leaving the player behind a wall.
+    blocker(x, z, Math.hypot(w, d) * 0.5 + 0.15, h + 1.2);
+  }
+
+  /* A tree.
+
+     Three smooth spheres on a dowel is a lollipop, and no texture rescues a
+     silhouette. What reads as a tree from across a square is: a trunk that
+     flares where it meets the ground, branches going somewhere, and a canopy
+     with a broken edge and two tones in it - lit on the sun's side, shaded
+     underneath.
+
+     Flat shading on a jittered icosahedron does the last part for nothing.
+     Every face takes one normal, so a low-poly lump lights as a cluster of
+     facets, which is exactly how a mass of leaves catches light. */
+  function leafCluster(rand, r, tone){
+    const geo = new THREE.IcosahedronGeometry(r, 1);
+    const p = geo.attributes.position;
+    // Push each vertex in or out a little. Deterministic per tree, so the
+    // island is identical on every device.
+    for (let i = 0; i < p.count; i++){
+      const k = 0.82 + rand() * 0.36;
+      p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.88, p.getZ(i) * k);
+    }
+    p.needsUpdate = true;
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, tone);
+    m.castShadow = true; m.receiveShadow = true;
+    return m;
+  }
+
+  // Same texture, three tints, asked for by argument rather than patched in
+  // afterwards - so the cache hands the same three materials to every tree and
+  // sixty trees are still three batches.
+  function leafTones(){
+    return {
+      lit:  surf(TEX.leaf, 0xC6E39A, undefined, { flatShading: true }),
+      mid:  surf(TEX.leaf, 0x9DC46F, undefined, { flatShading: true }),
+      dark: surf(TEX.leaf, 0x6E9450, undefined, { flatShading: true })
+    };
   }
 
   function buildTree(rand, x, z){
     const g = new THREE.Group();
-    const th = 1.5 + rand() * 1.0;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, th, 10), surf(TEX.bark));
+    const th = 1.9 + rand() * 1.3;
+    const tone = leafTones();
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.26, th, 9), surf(TEX.bark));
     trunk.position.y = th/2;
-    trunk.castShadow = true;
+    trunk.castShadow = true; trunk.receiveShadow = true;
     g.add(trunk);
-    // A few overlapping blobs make a nicer canopy than one sphere.
-    for (let i = 0; i < 3; i++){
-      const r = 0.85 + rand() * 0.55;
-      const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), surf(TEX.leaf));
-      blob.position.set((rand()-0.5) * 1.1, th + 0.25 + rand() * 0.6, (rand()-0.5) * 1.1);
-      blob.scale.y = 0.82;
-      blob.castShadow = true;
-      g.add(blob);
+
+    // Root flare. A cylinder meeting flat ground looks pushed into it; a
+    // wider, shorter cone at the base looks grown out of it.
+    const flare = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.46, 0.34, 9),
+                                 surf(TEX.bark));
+    flare.position.y = 0.17;
+    flare.receiveShadow = true;
+    g.add(flare);
+
+    // Two or three limbs leaving the trunk at an angle, each carrying its own
+    // small cluster. This is most of what stops a tree reading as a ball on a
+    // stick from the side.
+    const limbs = 2 + ((rand() * 2) | 0);
+    for (let i = 0; i < limbs; i++){
+      const a = (i / limbs) * Math.PI * 2 + rand();
+      const len = 0.75 + rand() * 0.5;
+      const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.11, len, 6),
+                                  surf(TEX.bark));
+      limb.position.set(Math.cos(a) * len * 0.30, th * 0.80 + rand() * 0.2,
+                        Math.sin(a) * len * 0.30);
+      limb.rotation.z = -Math.cos(a) * 0.75;
+      limb.rotation.x =  Math.sin(a) * 0.75;
+      limb.castShadow = true;
+      g.add(limb);
+      const tip = leafCluster(rand, 0.52 + rand() * 0.22, rand() > 0.5 ? tone.mid : tone.dark);
+      tip.position.set(Math.cos(a) * len * 0.85, th * 0.86 + len * 0.4,
+                       Math.sin(a) * len * 0.85);
+      g.add(tip);
     }
+
+    // The crown: a dark underside, a mid mass, and a smaller lit cap on top.
+    // Three tones stacked is the cheapest thing that reads as volume.
+    const R = 1.00 + rand() * 0.42;
+    const under = leafCluster(rand, R, tone.dark);
+    under.position.y = th + R * 0.42;
+    g.add(under);
+    const mass = leafCluster(rand, R * 0.94, tone.mid);
+    mass.position.set((rand()-0.5) * 0.3, th + R * 0.74, (rand()-0.5) * 0.3);
+    g.add(mass);
+    const cap = leafCluster(rand, R * 0.66, tone.lit);
+    cap.position.set((rand()-0.5) * 0.36, th + R * 1.10, (rand()-0.5) * 0.36);
+    g.add(cap);
+
     g.position.set(x, terrainH(x, z), z);
+    g.rotation.y = rand() * Math.PI * 2;
+    const s = 0.86 + rand() * 0.42;
+    g.scale.set(s, s, s);
     worldGroup.add(g);
+    // The trunk only. A canopy is not something to be shoved out from behind -
+    // you can see through the gaps in it, and being pushed forward every time
+    // a branch clips the view would make the camera feel broken.
+    blocker(x, z, 0.34 * s, th * s);
   }
 
   /* The nightfall monument in the middle of the square - the game's namesake,
@@ -665,6 +1154,16 @@ const Village = (() => {
   /* A ring of hills well beyond the island. They sit inside the fog, so they
      read as distance rather than as geometry, which is the trick the console
      used to make a small world feel like a big one. */
+  const HILL_MATS = [];
+  function hillMat(step){
+    if (!HILL_MATS[step]){
+      HILL_MATS[step] = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0x8FA5A0), 0.22 + step * 0.05),
+        roughness: 1.0, flatShading: true });
+    }
+    return HILL_MATS[step];
+  }
+
   function buildHorizon(){
     const rand = seeded(90210);
     // A single cone per bearing is a cardboard triangle. Ridges are two or
@@ -681,11 +1180,14 @@ const Village = (() => {
         const rr = 10 + rand() * 12;
         // Haze comes from the map's fog, so the rock keeps its own colour and
         // gets greyed by distance instead of being painted pale up front.
+        // Four steps of haze rather than a continuous ramp. A fresh material
+        // per cone gave sixty materials for the horizon alone and nothing the
+        // batcher could group; the difference between step and ramp is not
+        // visible at seventy metres through fog.
+        const step = (rand() * 4) | 0;
         const hill = new THREE.Mesh(
           new THREE.ConeGeometry(rr, h, 10),
-          new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0x6E8F3C).lerp(new THREE.Color(0x8FA5A0), 0.22 + rand() * 0.16),
-            roughness: 1.0, flatShading: true })
+          hillMat(step)
         );
         hill.position.set(Math.cos(a) * dist - Math.sin(a) * off,
                           h * 0.5 - 3.5,
@@ -717,6 +1219,7 @@ const Village = (() => {
     }
     g.position.set(x, terrainH(x, z), z);
     worldGroup.add(g);
+    blocker(x, z, 0.30, h);
   }
 
   function buildRock(rand, x, z){
@@ -756,6 +1259,7 @@ const Village = (() => {
     column.position.y = 2.55;
     column.castShadow = true;
     g.add(column);
+    blocker(0, 0, 0.75, 4.6, 0);
 
     // Flutes down the column.
     for (let i = 0; i < 10; i++){
@@ -769,14 +1273,236 @@ const Village = (() => {
     cap.position.y = 4.35;
     g.add(cap);
 
-    const spindle = new THREE.Mesh(new THREE.SphereGeometry(0.46, 18, 14), toon(GOLD));
+    // The one thing on the island that is meant to be looked at, so after
+    // dark it is the one thing that lights itself. It is also the landmark
+    // players navigate by, and a landmark you cannot see at night is not one.
+    const spindle = new THREE.Mesh(new THREE.SphereGeometry(0.46, 18, 14),
+      toon(GOLD, { emissive: 0xFFC24E, emissiveIntensity: 1.2 }));
     spindle.position.y = 4.95;
     g.add(spindle);
     monumentSpindle = spindle;
 
+    const beacon = new THREE.PointLight(0xFFC98A, 2.2 * (MAP.lamp || 0.6), 11, 2);
+    beacon.position.y = 4.95;
+    g.add(beacon);
+
     worldGroup.add(g);
   }
   let monumentSpindle = null;
+
+  /* ------------------------------------------------------------------
+     After dark
+
+     Turning the sun off is the easy half. What actually makes a night scene
+     legible is having somewhere for the light to come from: pools you walk
+     through, and points of light at a distance that give the dark depth.
+
+     Point lights are the expensive kind, so there is a hard cap and the rest
+     of the lanterns are bulbs only - an unlit lantern with a glowing bulb
+     reads correctly from six metres away, which is where most of them are.
+     ------------------------------------------------------------------ */
+  // Every point light is another loop in the fragment shader for every lit
+  // material in the scene, and a phone feels each one. Three round the square,
+  // plus the monument's and the one that follows you, is five - which is a
+  // budget rather than an accident.
+  const MAX_LAMP_LIGHTS = 3;
+  let lanternBulbs = [];
+  let fireflyPts = null;
+
+  function buildLantern(x, z, withLight){
+    const g = new THREE.Group();
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.10, 2.5, 8), toon(0x4A3A2E));
+    post.position.y = 1.25; post.castShadow = true;
+    g.add(post);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 0.08), toon(0x4A3A2E));
+    arm.position.set(0.18, 2.46, 0);
+    g.add(arm);
+    // Unlit material, so the bulb stays the same brightness whatever the sky
+    // is doing. A bulb that dims with the scene is not a bulb.
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 9),
+      new THREE.MeshBasicMaterial({ color: 0xFFD9A0 }));
+    bulb.position.set(0.36, 2.34, 0);
+    g.add(bulb);
+    const shade = new THREE.Mesh(
+      new THREE.ConeGeometry(0.26, 0.24, 10), toon(0x3A2E24));
+    shade.position.set(0.36, 2.56, 0);
+    g.add(shade);
+    if (withLight){
+      // Short reach on purpose. At fifteen units three lanterns lit the
+      // whole beach and night went back to looking like an overcast day; the
+      // point of a lamp is the dark it leaves around itself.
+      const l = new THREE.PointLight(0xFFC489, 2.6 * MAP.lamp, 8.5, 2);
+      l.position.set(0.36, 2.30, 0);
+      g.add(l);
+    }
+    g.position.set(x, terrainH(x, z), z);
+    g.rotation.y = Math.atan2(-x, -z);          // arm points into the square
+    worldGroup.add(g);
+    lanternBulbs.push(bulb);
+  }
+
+  /* Points, not meshes: ninety fireflies in one draw call. Additive blending
+     so they brighten whatever they drift over rather than punching holes. */
+  function buildFireflies(n){
+    const c = document.createElement("canvas");
+    c.width = c.height = 32;
+    const ctx = c.getContext("2d");
+    const grd = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grd.addColorStop(0, "rgba(220,255,170,1)");
+    grd.addColorStop(0.35, "rgba(160,230,90,0.55)");
+    grd.addColorStop(1, "rgba(120,200,60,0)");
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, 32, 32);
+
+    const pos = new Float32Array(n * 3);
+    const seed = new Float32Array(n * 3);          // home x, home z, phase
+    const rand = seeded(7717);
+    for (let i = 0; i < n; i++){
+      const a = rand() * Math.PI * 2, r = 9 + rand() * 20;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      seed[i*3] = x; seed[i*3+1] = z; seed[i*3+2] = rand() * Math.PI * 2;
+      pos[i*3] = x; pos[i*3+1] = terrainH(x, z) + 0.7 + rand() * 1.8; pos[i*3+2] = z;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+      size: 0.38, map: new THREE.CanvasTexture(c), transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+    }));
+    pts.userData.seed = seed;
+    worldGroup.add(pts);
+    fireflyPts = pts;
+  }
+
+  /* Bake the scenery.
+
+     A village of fourteen houses with posts, shutters, a porch and a parapet,
+     and twenty-six trees with limbs and a three-tone crown, came to 412 draw
+     calls. The triangle count was never the problem - 66k is nothing - but
+     every call is a state change and a phone feels four hundred of them.
+
+     Nothing in the scenery moves, and almost all of it shares a handful of
+     materials, so the whole lot collapses into one mesh per material. The
+     transform each part already has is baked into its vertices on the way in,
+     which is why this runs after the world is built rather than during.
+
+     Left out: anything that animates (the spindle, the lantern bulbs, the
+     fireflies), anything unique enough that merging saves nothing (the sky,
+     the sea, the ground discs), and anything transparent, whose draw order
+     depends on staying separate. */
+  /* Concatenate geometries that all carry position, normal and uv.
+
+     three ships a mergeBufferGeometries, but in examples/ rather than in the
+     core build this vendors, so THREE.BufferGeometryUtils is not there at
+     runtime. The general version handles morph targets, groups and mismatched
+     attribute sets; none of that appears in a village, and the part that does
+     is thirty lines. */
+  function mergeGeos(geos){
+    let verts = 0, idx = 0;
+    const indexed = !!geos[0].index;
+    for (const g of geos){
+      if (!!g.index !== indexed) return null;      // cannot mix the two
+      verts += g.attributes.position.count;
+      idx += indexed ? g.index.count : 0;
+    }
+    // Indices are 16-bit until they cannot be. A village of 60k vertices needs
+    // 32, and getting this wrong wraps the geometry into confetti.
+    const IndexArray = verts > 65535 ? Uint32Array : Uint16Array;
+    const pos = new Float32Array(verts * 3);
+    const nor = new Float32Array(verts * 3);
+    const uv  = new Float32Array(verts * 2);
+    const ind = indexed ? new IndexArray(idx) : null;
+
+    let vo = 0, io = 0;
+    for (const g of geos){
+      const p = g.attributes.position, n = g.attributes.normal, u = g.attributes.uv;
+      pos.set(p.array.subarray(0, p.count * 3), vo * 3);
+      nor.set(n.array.subarray(0, n.count * 3), vo * 3);
+      uv.set(u.array.subarray(0, u.count * 2), vo * 2);
+      if (indexed){
+        const src = g.index.array;
+        for (let i = 0; i < src.length; i++) ind[io + i] = src[i] + vo;
+        io += src.length;
+      }
+      vo += p.count;
+    }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    out.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+    out.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+    if (indexed) out.setIndex(new THREE.BufferAttribute(ind, 1));
+    out.computeBoundingSphere();
+    return out;
+  }
+
+  function bakeScenery(){
+    const keep = new Set([monumentSpindle, fireflyPts].concat(lanternBulbs).filter(Boolean));
+    const groups = new Map();
+    const originals = [];
+
+    worldGroup.updateMatrixWorld(true);
+    worldGroup.traverse(o => {
+      if (!o.isMesh || keep.has(o)) return;
+      const m = o.material;
+      if (!m || Array.isArray(m) || m.transparent || m.isShaderMaterial) return;
+      const g = o.geometry;
+      if (!g || !g.attributes.position || !g.attributes.normal || !g.attributes.uv) return;
+      // Indexed and non-indexed geometry cannot merge with each other, and a
+      // mismatch makes mergeBufferGeometries return null rather than throw -
+      // which would silently empty the island. Keyed apart instead.
+      const key = m.uuid + "|" + (g.index ? "i" : "n");
+      let bucket = groups.get(key);
+      if (!bucket) groups.set(key, bucket = { mat: m, cast: false, recv: false, geos: [] });
+      const clone = g.clone().applyMatrix4(o.matrixWorld);
+      // Merging needs the same attribute set on every input; drop the extras
+      // some primitives carry so one odd geometry cannot fail the batch.
+      for (const name of Object.keys(clone.attributes)){
+        if (name !== "position" && name !== "normal" && name !== "uv") clone.deleteAttribute(name);
+      }
+      bucket.geos.push(clone);
+      bucket.cast = bucket.cast || o.castShadow;
+      bucket.recv = bucket.recv || o.receiveShadow;
+      originals.push(o);
+    });
+
+    let merged = 0;
+    groups.forEach(bucket => {
+      if (bucket.geos.length < 2){ bucket.geos.forEach(g => g.dispose()); return; }
+      const geo = mergeGeos(bucket.geos);
+      bucket.geos.forEach(g => g.dispose());
+      if (!geo) return;
+      const mesh = new THREE.Mesh(geo, bucket.mat);
+      mesh.castShadow = bucket.cast;
+      mesh.receiveShadow = bucket.recv;
+      mesh.userData.baked = true;
+      worldGroup.add(mesh);
+      merged++;
+      bucket.done = true;
+    });
+
+    // Only remove the originals whose batch actually formed, or a failed
+    // merge would delete part of the island rather than leaving it unbatched.
+    const survived = new Set();
+    groups.forEach((b, key) => { if (b.done) survived.add(key); });
+    originals.forEach(o => {
+      const key = o.material.uuid + "|" + (o.geometry.index ? "i" : "n");
+      if (!survived.has(key)) return;
+      o.geometry.dispose();
+      if (o.parent) o.parent.remove(o);
+    });
+    return merged;
+  }
+
+  function buildNightLights(){
+    lanternBulbs = [];
+    if (!MAP.lamp) return;
+    // Ringing the square, offset from the benches so they do not share a spot.
+    const N = 8;
+    for (let i = 0; i < N; i++){
+      const a = (i / N) * Math.PI * 2;
+      buildLantern(Math.cos(a) * 11.2, Math.sin(a) * 11.2, i % 2 === 0 && i / 2 < MAX_LAMP_LIGHTS);
+    }
+    if (MAP.fireflies) buildFireflies(MAP.fireflies);
+  }
 
   function scatter(){
     const rand = seeded(20250815);
@@ -1035,21 +1761,23 @@ const Village = (() => {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;   // ACES darkens midtones; take it back
     renderer.setSize(innerWidth, innerHeight, false);
-    renderer.setClearColor(0xC2D6DE, 1);
+    // Dusk, not daylight, for the frame or two before applyMap runs - a white
+    // flash before a night scene is the most visible thing on the page.
+    renderer.setClearColor(0x8A6A72, 1);
 
     maxAniso = renderer.capabilities.getMaxAnisotropy();
     // Characters need this before any of them are built.
     if (window.Avatar && Avatar.environment) Avatar.environment(renderer);
 
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0xC2D6DE, 34, 112);
+    scene.fog = new THREE.Fog(0x8A6A72, 30, 104);
     camera = new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 400);
 
-    // Warm sun from above, cool bounce from the sky and sand.
-    hemi = new THREE.HemisphereLight(0xBBD6EA, 0xB0A06A, 0.72);
+    // Placeholders. applyMap sets all three from the map's own hour.
+    hemi = new THREE.HemisphereLight(0x6C7FBE, 0x4E3A32, 0.62);
     scene.add(hemi);
-    sun = new THREE.DirectionalLight(0xFFF0CC, 0.95);
-    sun.position.set(14, 22, 9);
+    sun = new THREE.DirectionalLight(0xFFAE64, 1.55);
+    sun.position.set(30, 11, 17);
 
     // Real shadows. The reference has them, and without them everything looks
     // like it is hovering. Kept to a modest map with a tight frustum around
@@ -1061,14 +1789,19 @@ const Village = (() => {
     const cam = sun.shadow.camera;
     cam.left = -34; cam.right = 34; cam.top = 34; cam.bottom = -34;
     cam.near = 1; cam.far = 90;
-    sun.shadow.bias = -0.0008;
-    sun.shadow.normalBias = 0.02;
+    // A low sun grazes every surface, and at a grazing angle the depth
+    // written into the shadow map is nearly parallel to the surface it came
+    // from - which is where acne comes from. normalBias offsets along the
+    // surface normal instead of along the light, so it holds up at sunset
+    // where a plain depth bias just erases the shadow it was meant to fix.
+    sun.shadow.bias = -0.0006;
+    sun.shadow.normalBias = 0.075;
     scene.add(sun);
     scene.add(sun.target);
 
     // A dim, cool light from behind picks out the edge of a character against
     // the sky. It is what stops a figure sinking into the background.
-    rim = new THREE.DirectionalLight(0xCFE4F5, 0.42);
+    rim = new THREE.DirectionalLight(0xFF9C5C, 0.55);
     rim.position.set(-12, 9, -14);
     scene.add(rim);
 
@@ -1156,7 +1889,17 @@ const Village = (() => {
     });
   }
 
+  /* Where the local player is, kept whether or not a rig exists for them yet.
+
+     This used to bail out when the rig was missing, and the camera's only
+     other option was to orbit the origin - which is where the monument
+     stands. So a player who arrived a frame before their own avatar was built
+     got a slow pan around a stone column and no character anywhere on screen.
+     The position is always known; the model is what lags. */
+  let selfAt = null;
+
   function setSelf(pid, x, z, angle, moving){
+    selfAt = { x, z, angle };
     const rig = avatars.get(pid);
     if (!rig) return;
     rig.x = rig.tx = x; rig.z = rig.tz = z;
@@ -1241,7 +1984,10 @@ const Village = (() => {
     camYaw -= dx * 0.005;
     camPitch = Math.max(0.06, Math.min(1.05, camPitch + dy * 0.004));
   }
-  function zoom(delta){ camDist = Math.max(6.0, Math.min(26, camDist + delta)); }
+  // Down to a shoulder shot, out to the old establishing framing. The default
+  // sits near the bottom of that range now, so zoom mostly means "show me
+  // more of the square" rather than "let me find my character".
+  function zoom(delta){ camDist = Math.max(5.0, Math.min(26, camDist + delta)); }
   function heading(){ return camYaw; }
 
   /* ------------------------------------------------------------------
@@ -1439,11 +2185,12 @@ const Village = (() => {
      three-quarter front view, then eases back. camYaw itself is never touched
      - the offset is applied on top - so the shot the player set up by dragging
      is exactly the shot they get back when the emote ends. */
-  // Pull BACK for an emote, not in. Diving closer filled the screen with the
-  // top of a cap and an elbow; the point of a showcase is the whole body, so
-  // it steps back, lifts a little, and aims at mid-height instead of the
-  // chest so head and feet both stay in frame.
-  const EMOTE_CAM = { blend: 0, dist: 11.0, pitch: 0.42, orbit: 0, eye: 1.45 };
+  // Closer for an emote. Diving in used to fill the screen with the top of a
+  // cap and an elbow, but that was from a low over-the-shoulder start; from a
+  // tilted-down angle aimed at mid-body, seven units puts the whole figure at
+  // 38% of the screen with the feet still in frame. Which is the point: you
+  // paid for the dance, you should be able to see the dance.
+  const EMOTE_CAM = { blend: 0, dist: 7.0, pitch: 0.40, orbit: 0, eye: 1.50 };
   // Everyone spawns on a ring facing the middle, and the monument is the
   // middle - so swinging the camera round to a character's front drove it
   // straight inside the stone. A slow orbit from wherever the camera already
@@ -1454,9 +2201,57 @@ const Village = (() => {
   // rather than general collision the camera simply never comes closer to the
   // centre than its steps.
   const PLAZA_KEEPOUT = 3.6;
+  /* What the camera is allowed to be blocked by.
+
+     Raycasting the world was the obvious version and wrong twice over. A
+     grove is sixty trees of a dozen meshes each, so it walked seven hundred
+     objects every frame to answer a question about walls; and it needed those
+     meshes to still exist, which stops the scenery ever being merged into
+     batches.
+
+     So the blockers are not meshes at all - they are upright cylinders, one
+     per solid thing, tested analytically. Sixty cheap tests, no raycaster,
+     and it survives baking. It is also the more correct answer: a camera
+     should not be shoved forward by a leaf cluster it can see straight
+     past. */
+  let blockers = [];
+  function blocker(x, z, r, h, baseY){
+    blockers.push({ x, z, r, h, y: baseY === undefined ? terrainH(x, z) : baseY });
+  }
+
+  /* Distance along a ray, from a point, to the first solid thing.
+
+     The 2D quadratic is the ray against an infinite vertical cylinder; the
+     height check then throws away hits that pass over the roof or under the
+     branches. Returns Infinity when the way is clear. */
+  function firstBlocker(ox, oy, oz, dx, dy, dz, maxT){
+    let best = Infinity;
+    for (let i = 0; i < blockers.length; i++){
+      const b = blockers[i];
+      const px = ox - b.x, pz = oz - b.z;
+      const a = dx*dx + dz*dz;
+      if (a < 1e-6) continue;                      // straight up: nothing to hit
+      const hb = px*dx + pz*dz;
+      const c = px*px + pz*pz - b.r*b.r;
+      const disc = hb*hb - a*c;
+      if (disc <= 0) continue;
+      const sq = Math.sqrt(disc);
+      // The near root, unless we start inside - then the camera is already
+      // past it and pulling in would make things worse, not better.
+      let t = (-hb - sq) / a;
+      if (t <= 0.9 || t >= maxT || t >= best) continue;
+      const y = oy + dy * t;
+      if (y < b.y || y > b.y + b.h) continue;
+      best = t;
+    }
+    return best;
+  }
 
   function updateCamera(dt){
-    const me = avatars.get(followPid);
+    // The rig if there is one, the last known self position if there is not.
+    // Only with neither - genuinely nobody in the world - does the camera fall
+    // back to the establishing shot.
+    const me = avatars.get(followPid) || selfAt;
     const target = me
       ? new THREE.Vector3(me.x, terrainH(me.x, me.z) + EYE_HEIGHT, me.z)
       : new THREE.Vector3(0, 2.2, 0);
@@ -1511,6 +2306,32 @@ const Village = (() => {
       want.x *= push; want.z *= push;
     }
 
+    /* Nor behind a house.
+
+       Terrain and the monument were handled; everything else was not, so a
+       palm or a wall between the camera and the player hid the player
+       completely and there was nothing the player could do about it except
+       walk away. Cast from the character out towards where the camera wants
+       to be, and if scenery is in the way, stop short of it.
+
+       Once a frame, against scenery only - characters never push the camera,
+       or standing in a crowd would shove it into your own face. */
+    const back = want.clone().sub(target);
+    const backLen = back.length();
+    if (backLen > 0.01){
+      back.divideScalar(backLen);
+      const near = firstBlocker(target.x, target.y, target.z, back.x, back.y, back.z, backLen);
+      if (near < backLen){
+        // A margin so the near plane does not eat the wall we stopped at.
+        const d2 = Math.max(2.2, near - 0.45);
+        want.copy(target).addScaledVector(back, d2);
+        want.y = Math.max(terrainH(want.x, want.z) + 1.0, want.y);
+      }
+    }
+
+    // Snapping out from behind an obstruction should be quicker than easing
+    // in behind one, or the character stays hidden for half a second every
+    // time you round a corner.
     camera.position.lerp(want, 1 - Math.pow(0.0005, dt));
     const s = shakeAmount * shakeAmount;
     camera.position.x += (Math.random()-0.5) * s * 0.5;
@@ -1523,6 +2344,76 @@ const Village = (() => {
       sun.target.position.set(target.x, 0, target.z);
       sun.target.updateMatrixWorld();
     }
+  }
+
+  /* Flicker and drift. Both are small, and both are the difference between a
+     night scene and a daytime scene with the brightness turned down. */
+  function animateNight(dt){
+    for (let i = 0; i < lanternBulbs.length; i++){
+      const b = lanternBulbs[i];
+      // Uneven periods per lantern, or eight lamps pulse in unison and the
+      // square reads as one machine.
+      const f = 0.92 + Math.sin(clock * (2.1 + i * 0.37) + i) * 0.05
+                     + Math.sin(clock * (7.3 + i * 0.11)) * 0.03;
+      b.scale.setScalar(f);
+    }
+    if (fireflyPts){
+      const pos = fireflyPts.geometry.attributes.position;
+      const seed = fireflyPts.userData.seed;
+      const n = pos.count;
+      for (let i = 0; i < n; i++){
+        const hx = seed[i*3], hz = seed[i*3+1], ph = seed[i*3+2];
+        // A slow lissajous around a fixed home, so they wander without ever
+        // drifting off the island.
+        const x = hx + Math.sin(clock * 0.34 + ph) * 1.5;
+        const z = hz + Math.cos(clock * 0.27 + ph * 1.7) * 1.5;
+        pos.setXYZ(i, x,
+          terrainH(x, z) + 1.0 + Math.sin(clock * 0.6 + ph * 2.3) * 0.55, z);
+      }
+      pos.needsUpdate = true;
+      // The whole swarm breathes, which reads as individual blinking without
+      // costing a per-point attribute update.
+      fireflyPts.material.opacity = 0.72 + Math.sin(clock * 1.7) * 0.22;
+      fireflyPts.material.transparent = true;
+    }
+  }
+
+  /* You, specifically.
+
+     Two jobs, and the second is why it exists at night. A ring on the ground
+     answers "which one am I" in a crowd of eight Islanders wearing the same
+     kind of clothes, and a soft warm light overhead keeps your own character
+     readable after dark, when the sun that used to light everyone is a strip
+     of orange on the horizon. It travels with you rather than with the world,
+     so it costs one light no matter how big the island gets. */
+  let selfMark = null;
+  function updateSelfMark(dt){
+    const me = avatars.get(followPid) || selfAt;
+    if (!selfMark){
+      selfMark = new THREE.Group();
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.62, 0.80, 32),
+        new THREE.MeshBasicMaterial({ color: 0x7FD4FF, transparent: true,
+                                      opacity: 0.55, side: THREE.DoubleSide,
+                                      depthWrite: false })
+      );
+      ring.rotation.x = -Math.PI/2;
+      ring.position.y = 0.06;
+      ring.renderOrder = 2;
+      selfMark.add(ring);
+      selfMark.userData.ring = ring;
+      const key = new THREE.PointLight(0xFFE0B4, 1.5, 6.5, 2);
+      key.position.y = 3.4;
+      selfMark.add(key);
+      selfMark.userData.key = key;
+      scene.add(selfMark);
+    }
+    selfMark.visible = !!me;
+    if (!me) return;
+    selfMark.position.set(me.x, terrainH(me.x, me.z), me.z);
+    const r = selfMark.userData.ring;
+    r.scale.setScalar(1 + Math.sin(clock * 2.2) * 0.045);
+    r.material.opacity = 0.42 + Math.sin(clock * 2.2) * 0.10;
   }
 
   function frame(){
@@ -1538,6 +2429,8 @@ const Village = (() => {
       monumentSpindle.rotation.y = clock * 0.6;
       monumentSpindle.position.y = 4.95 + Math.sin(clock * 1.4) * 0.09;
     }
+    animateNight(dt);
+    updateSelfMark(dt);
 
     avatars.forEach(rig => {
       animateRig(rig, dt);
