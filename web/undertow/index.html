@@ -236,6 +236,43 @@ button{background:none;border:none;cursor:pointer}
 }
 #sound-btn.on{display:grid}
 #sound-btn.off{opacity:.5}
+
+/* The running transcript sits over the world with no panel behind it, so the
+   island stays visible. Bubbles carry the moment; this carries what you
+   missed while you were looking the other way. */
+#crawl{
+  position:fixed;left:var(--sp);bottom:calc(var(--safe-b) + 74px);z-index:3;
+  display:none;flex-direction:column;gap:3px;max-width:min(64vw,340px);
+  pointer-events:none;
+}
+#crawl.on{display:flex}
+#crawl .ln{
+  font-size:13px;font-weight:700;line-height:1.35;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.7);
+  word-break:break-word;
+}
+#crawl .ln .nm{color:#FFD98A}
+#crawl .ln.spirit{color:#DCC9F5} #crawl .ln.spirit .nm{color:#C4A6F0}
+#crawl .ln.sys{color:#CFE6F2;font-style:italic;font-weight:600}
+#crawl .ln.cut{color:#FFB3A6}
+#crawl .ln.verdict{color:#FFE08A}
+
+/* A single say bar along the bottom, always reachable while walking. */
+#say-bar{
+  position:fixed;left:var(--sp);right:calc(var(--sp) + 66px);
+  bottom:calc(var(--safe-b) + 16px);z-index:4;display:none;gap:8px;
+}
+#say-bar.on{display:flex}
+#say-in{
+  flex:1;min-width:0;padding:12px 16px;border-radius:999px;border:2px solid rgba(255,255,255,.5);
+  background:rgba(255,253,247,.94);font-weight:700;font-size:15px;
+}
+#say-in:focus{outline:none;border-color:var(--gold);background:#fff}
+#say-in:disabled{opacity:.55}
+#say-send{
+  flex:none;width:46px;border-radius:999px;background:var(--gold);color:#3A2708;
+  font-weight:900;font-size:16px;box-shadow:0 4px 0 var(--gold-deep);
+}
 #mic.live{border-color:var(--grass);background:#EAF6EC}
 #mic.muted{border-color:var(--cut);background:#FDECEA}
 #mic.talking{border-color:var(--grass);box-shadow:0 0 0 6px rgba(111,147,80,.28),0 3px 12px rgba(43,36,56,.26)}
@@ -331,6 +368,11 @@ button{background:none;border:none;cursor:pointer}
 <div id="stick"><div id="knob"></div></div>
 <button id="mic" aria-label="Microphone" title="Microphone">🎤</button>
 <div id="voice-note" role="status"></div>
+<div id="crawl" aria-live="polite"></div>
+<form id="say-bar" autocomplete="off">
+  <input id="say-in" maxlength="160" placeholder="Say something…" />
+  <button id="say-send" type="submit" aria-label="Send">➤</button>
+</form>
 <button id="sound-btn" aria-label="Sound" title="Sound">🔊</button>
 <div id="emotes">
   <button data-e="wave" aria-label="Wave">👋</button>
@@ -786,9 +828,12 @@ function render(s){
   const changed = !prev || prev.phase !== phase || prev.round !== s.round;
 
   if (s.map) Village.applyMap(s.map);
+  raiseBubbles(s);
+  renderCrawl(s);
   Village.sync(s.players, islanders);
   $("mic").classList.add("on");
   $("sound-btn").classList.add("on");
+  $("say-bar").classList.add("on");
   // Someone arriving or leaving should be audible, not just visible.
   const names = s.players.map(p => p.pid).join(",");
   if (lastRoster !== null && names !== lastRoster){
@@ -1063,6 +1108,43 @@ function renderOver(s, m){
 const CHAT_KINDS = { chat:"", spirit:"spirit", system:"sys", cut:"cut",
                      verdict:"verdict", omen:"omen", call:"" };
 
+/* New chat lines become bubbles over the speaker. Only lines we have not
+   already shown, so a state refresh does not replay the whole conversation. */
+let seenSaid = new Set();
+function raiseBubbles(s){
+  s.log.forEach(e => {
+    if (!["chat", "call", "spirit"].includes(e.kind) || !e.pid) return;
+    const key = e.at + "|" + e.pid + "|" + e.text;
+    if (seenSaid.has(key)) return;
+    seenSaid.add(key);
+    // Skip the backlog on first join - only speak what happens from now on.
+    if (!bubblesReady) return;
+    Village.say(e.pid, e.text, e.kind === "spirit");
+  });
+  if (seenSaid.size > 400) seenSaid = new Set([...seenSaid].slice(-200));
+  bubblesReady = true;
+}
+let bubblesReady = false;
+
+const CRAWL_KINDS = { chat:"", call:"", spirit:"spirit", system:"sys", cut:"cut",
+                      verdict:"verdict", omen:"spirit", decree:"cut", phase:"sys" };
+function renderCrawl(s){
+  const el = $("crawl");
+  el.classList.add("on");
+  el.innerHTML = "";
+  s.log.slice(-7).forEach(e => {
+    if (!(e.kind in CRAWL_KINDS)) return;
+    const ln = document.createElement("div");
+    ln.className = "ln " + CRAWL_KINDS[e.kind];
+    if (e.who && !e.anonymous){
+      ln.innerHTML = `<span class="nm">[${escapeHtml(e.who)}]</span> ${escapeHtml(e.text)}`;
+    } else {
+      ln.textContent = e.text;
+    }
+    el.appendChild(ln);
+  });
+}
+
 function renderChat(s, m){
   const panel = $("chat");
   // The living are silent at night; Spirits can always talk to each other.
@@ -1085,6 +1167,10 @@ function renderChat(s, m){
   });
   if (atBottom) log.scrollTop = log.scrollHeight;
 
+  $("say-in").disabled = !canTalk;
+  $("say-in").placeholder = canTalk
+    ? (m.alive ? "Say something\u2026" : "Spirits only\u2026")
+    : "Quiet until morning\u2026";
   $("chat-in").disabled = !canTalk;
   $("chat-send").disabled = !canTalk;
   $("chat-in").placeholder = canTalk
@@ -1246,6 +1332,15 @@ $("join-btn").onclick = joinIsland;
 $("share-btn").onclick = share;
 $("start-btn").onclick = () => net.send({ t:"start" });
 $("obey-btn").onclick = () => net.send({ t:"obey" });
+function sendSaid(input){
+  const text = input.value.trim();
+  if (!text || !net) return;
+  net.send({ t:"say", text });
+  input.value = "";
+  Sound.tap();
+}
+$("say-bar").addEventListener("submit", (e) => { e.preventDefault(); sendSaid($("say-in")); });
+
 $("chat-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("chat-in");

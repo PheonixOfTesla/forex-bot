@@ -73,6 +73,9 @@ Nintendo, not "web game". Concretely:
 ## 6. Talking
 
 - **S6.1** Text chat, living and spirits separate — DONE
+- **S6.5** Speech bubbles over the speaker's head, Wizard101 / Free Realms
+  style, with a running transcript in the corner — DONE
+- **S6.6** A say bar always reachable while walking — DONE
 - **S6.2** Browser mic, click to talk, peer to peer — DONE
 - **S6.3** See who is speaking — DONE
 - **S6.4** Works behind strict NAT — TODO (needs a paid TURN relay)

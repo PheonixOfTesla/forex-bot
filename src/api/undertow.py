@@ -507,9 +507,9 @@ class Room:
         actor.last_said = now
 
         if not actor.alive:
-            self.write_log("spirit", message, who=actor.name, seat=actor.seat)
+            self.write_log("spirit", message, who=actor.name, seat=actor.seat, pid=actor.pid)
         elif self.phase in (Phase.LOBBY, Phase.GATHERING, Phase.OVER):
-            self.write_log("chat", message, who=actor.name, seat=actor.seat)
+            self.write_log("chat", message, who=actor.name, seat=actor.seat, pid=actor.pid)
         # During the Nightfall and the forty seconds the living stay quiet.
 
     def act_call(self, actor: Player, index: Any) -> None:
@@ -517,9 +517,9 @@ class Room:
         if not isinstance(index, int) or not 0 <= index < len(CALLS):
             return
         if not actor.alive:
-            self.write_log("spirit", CALLS[index], who=actor.name, seat=actor.seat)
+            self.write_log("spirit", CALLS[index], who=actor.name, seat=actor.seat, pid=actor.pid)
         elif self.phase in (Phase.GATHERING, Phase.LOBBY, Phase.OVER):
-            self.write_log("call", CALLS[index], who=actor.name, seat=actor.seat)
+            self.write_log("call", CALLS[index], who=actor.name, seat=actor.seat, pid=actor.pid)
 
     def act_omen(self, actor: Player, index: Any) -> None:
         """One anonymous message from a Spirit to the living, once per game."""

@@ -521,6 +521,92 @@ const Village = (() => {
     return blobShadowTex;
   }
 
+  /* ------------------------------------------------------------------
+     Speech bubbles
+
+     The Wizard101 / Free Realms arrangement: what you say floats over your
+     own head, your name sits under it, and a transcript runs in the corner
+     for anything missed. Saying something is an act your character performs
+     in the world, not a line in a panel somewhere else.
+     ------------------------------------------------------------------ */
+  function bubbleTexture(text, spirit){
+    const PAD = 26, LINE = 46, MAXW = 620;
+    const measure = document.createElement("canvas").getContext("2d");
+    const font = "600 38px ui-rounded, -apple-system, 'Segoe UI', system-ui, sans-serif";
+    measure.font = font;
+
+    // Wrap on words, then hard-break anything that still will not fit.
+    const words = String(text).split(/\s+/);
+    const lines = [];
+    let line = "";
+    words.forEach(w => {
+      const test = line ? line + " " + w : w;
+      if (measure.measureText(test).width > MAXW - PAD*2 && line){ lines.push(line); line = w; }
+      else line = test;
+    });
+    if (line) lines.push(line);
+    while (lines.length > 3){ lines.pop(); }
+    if (lines.length === 3 && words.length > lines.join(" ").split(/\s+/).length){
+      lines[2] = lines[2].slice(0, 22) + "\u2026";
+    }
+
+    const w = Math.min(MAXW, Math.max(160,
+      Math.max.apply(null, lines.map(l => measure.measureText(l).width)) + PAD*2));
+    const h = lines.length * LINE + PAD*2 + 22;   // 22 for the tail
+
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    g.font = font;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+
+    const bodyH = h - 22;
+    const r = 22;
+    g.fillStyle = spirit ? "rgba(226,214,246,0.96)" : "rgba(255,252,244,0.97)";
+    g.strokeStyle = spirit ? "#7A5CC4" : "#C9A05A";
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(r, 0);
+    g.arcTo(w, 0, w, bodyH, r);
+    g.arcTo(w, bodyH, 0, bodyH, r);
+    // tail, pointing down at the speaker
+    g.lineTo(w/2 + 16, bodyH);
+    g.lineTo(w/2, h);
+    g.lineTo(w/2 - 16, bodyH);
+    g.arcTo(0, bodyH, 0, 0, r);
+    g.arcTo(0, 0, w, 0, r);
+    g.closePath();
+    g.fill(); g.stroke();
+
+    g.fillStyle = spirit ? "#4A2F73" : "#2B2438";
+    lines.forEach((l, i) => g.fillText(l, w/2, PAD + LINE*i + LINE/2));
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    return { tex, w, h };
+  }
+
+  /* Show a line over a player. Replaces whatever they were saying. */
+  function say(pid, text, spirit){
+    const rig = avatars.get(pid);
+    if (!rig || !text) return;
+    if (rig.bubble){ rig.group.remove(rig.bubble); rig.bubble.material.map.dispose(); }
+    const { tex, w, h } = bubbleTexture(text, spirit);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthWrite: false, depthTest: false
+    }));
+    const scale = 2.4;                     // world units across the widest bubble
+    sprite.scale.set(scale * (w / 620), scale * (h / 620), 1);
+    // Above the name tag, and stepped per seat so two people talking at once
+    // do not stack their bubbles on top of each other.
+    sprite.position.y = 3.4 + ((rig.seat || 0) % 3) * 0.42;
+    sprite.center.set(0.5, 0);             // grow upward from the head
+    rig.group.add(sprite);
+    rig.bubble = sprite;
+    rig.bubbleAt = clock;
+  }
+
   function nameTag(name, tint){
     const c = document.createElement("canvas");
     c.width = 320; c.height = 80;
@@ -588,6 +674,7 @@ const Village = (() => {
     scene.add(rig);
     return {
       group: rig, avatar: a, head: a.head, body: a.torso, tag, marker, shadow,
+      seat: player.seat || 0,
       armL: a.armL, armR: a.armR, legL: a.legL, legR: a.legR,
       pid: player.pid,
       // Interpolation targets, fed by the movement frame.
@@ -925,7 +1012,20 @@ const Village = (() => {
       monumentSpindle.position.y = 4.95 + Math.sin(clock * 1.4) * 0.09;
     }
 
-    avatars.forEach(rig => animateRig(rig, dt));
+    avatars.forEach(rig => {
+      animateRig(rig, dt);
+      if (rig.bubble){
+        // Hold for six seconds, then fade over one.
+        const age = clock - rig.bubbleAt;
+        const fade = age < 6 ? 1 : Math.max(0, 1 - (age - 6));
+        rig.bubble.material.opacity = fade;
+        if (fade <= 0){
+          rig.group.remove(rig.bubble);
+          rig.bubble.material.map.dispose();
+          rig.bubble = null;
+        }
+      }
+    });
     updateCamera(dt);
 
     shakeAmount = Math.max(0, shakeAmount - dt * 2.2);
@@ -944,7 +1044,7 @@ const Village = (() => {
 
   return {
     init, sync, applyPositions, setSelf, setFollow, selfRig, setMarkers,
-    faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking,
+    faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking, say,
     applyMap, currentMap,
     VILLAGE_RADIUS
   };
