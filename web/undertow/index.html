@@ -1605,7 +1605,7 @@ async function openIsland(){
     const res = await fetch(API + "/api/v1/game/rooms", { method:"POST" });
     if (!res.ok) throw new Error();
     const room = await res.json();
-    history.replaceState(null, "", BASE_PATH + "/" + room.code);
+    history.replaceState(null, "", withApi(BASE_PATH + "/" + room.code));
     connect(room.code, name);
   } catch(e){
     gateError("Could not reach the island server");
@@ -1655,8 +1655,20 @@ function connect(code, name){
 
 function showLobbyOrGame(){ if (state) render(state); }
 
+/* When the backend came from ?api=, it has to travel with the link.
+
+   Otherwise the host opens a room against a temporary server, sends the link
+   on, and everyone who taps it lands on the default backend instead - which
+   is a different room at best and a dead one at worst. Remembering the last
+   ?api= only helps the browser that used it; the friend you texted has never
+   seen it. */
+function withApi(url){
+  if (!window.MOLUA_API_CUSTOM) return url;
+  return url + (url.includes("?") ? "&" : "?") + "api=" + encodeURIComponent(API);
+}
+
 async function share(){
-  const url = location.origin + BASE_PATH + "/" + state.code;
+  const url = withApi(location.origin + BASE_PATH + "/" + state.code);
   const payload = { title:"Molua Island", text:`Come to Molua. Island code ${state.code}.`, url };
   try {
     if (navigator.share){ await navigator.share(payload); return; }
