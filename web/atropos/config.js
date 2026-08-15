@@ -15,7 +15,13 @@
 
 const API_ORIGIN = "https://web-production-7d1c.up.railway.app";
 
-window.ATROPOS_API = /railway\.app$/.test(location.hostname) || location.hostname === "localhost"
-  || location.hostname === "127.0.0.1"
-  ? location.origin
-  : API_ORIGIN;
+// Never clobber a value set ahead of this file. That lets a host inject its
+// own backend at build time, and lets a test point the client somewhere else,
+// without editing this file at all.
+if (!window.ATROPOS_API){
+  const sameOrigin =
+    /(^|\.)railway\.app$/.test(location.hostname) ||
+    location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1";
+  window.ATROPOS_API = sameOrigin ? location.origin : API_ORIGIN;
+}
