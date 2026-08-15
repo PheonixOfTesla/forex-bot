@@ -1178,11 +1178,25 @@ function stepMovement(dt){
     // diagonal on the keyboard is not faster than a straight line.
     const throttle = Math.min(1, mag);
     ix /= mag; iz /= mag;
-    // Move relative to where the camera is looking, like every 3D game.
+    /* Move relative to where the camera is looking, like every 3D game -
+       and get the sign right, which this did not.
+
+       camYaw places the camera at (sin yaw, cos yaw) FROM the player, so it
+       looks back along that line. Forward, meaning away from the camera and
+       into the screen, is therefore the negative of it:
+
+           forward = (-sin yaw, -cos yaw)
+           right   = ( cos yaw, -sin yaw)
+
+       A stick pushed up gives a negative iz, because screen y grows
+       downward, and W does the same. So the world move is
+       right*ix + forward*(-iz), and the iz terms below carried the opposite
+       sign of that - which is why pushing down walked you forward and W
+       walked you backwards. */
     const yaw = Village.heading() || 0;
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
-    wx = (ix * fz - iz * fx) * throttle;
-    wz = (-ix * fx - iz * fz) * throttle;
+    wx = (ix * fz + iz * fx) * throttle;
+    wz = (-ix * fx + iz * fz) * throttle;
   }
 
   const targetVX = wx * RUN, targetVZ = wz * RUN;
