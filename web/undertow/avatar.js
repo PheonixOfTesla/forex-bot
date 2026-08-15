@@ -289,26 +289,127 @@ const Avatar = (() => {
     });
   }
 
-  /* The inverted-hull outline: the single biggest quality jump available
-     without art. Draw the shape again, inside out and slightly bigger, in ink.
-     Applied only to the large silhouette pieces to keep the draw count sane. */
-  /* Outlines are off. The inverted hull is a modern cel-shading device and it
-     fought the N64 look, which gets its definition from flat facets and hard
-     lighting instead. The hull is kept behind a flag so the look can be
-     switched back without rebuilding the rig. */
-  let OUTLINES = false;
-  function outlined(geo, mat, thickness){
-    if (!OUTLINES) return new THREE.Mesh(geo, mat);
-    const group = new THREE.Group();
+  /* The inverted-hull outline. The old version scaled the whole mesh up, which
+     only works when a shape is centred on its own origin - on a lathe whose
+     geometry sits a metre above its pivot, scaling it launches the part across
+     the character. This version pushes each vertex along its own normal by a
+     fixed distance in world units, so it is correct for any shape at any
+     origin, and the line has the same weight everywhere instead of being thick
+     on big parts and invisible on small ones.
+
+     Inking every part roughly doubles the mesh count, and sixteen characters
+     of that on a phone is not a budget that survives. So the line goes on the
+     silhouette only: head, body, limbs, hands, feet. Those are the shapes a
+     player picks out of a crowd at ten metres; a crown spike or a goggle lens
+     is detail nobody reads at that distance and costs the same to ink.
+     Measured: 36 meshes a character without, 52 with. Sixteen more, not
+     thirty-five, and the character still has an edge.
+
+     Avatar.setOutlines(false) turns the pass off entirely. */
+  let OUTLINES = true;
+  const INK_WIDTH = 0.012;
+  let inkMat = null;
+
+  function inkHull(geo, width){
+    const g = geo.clone();
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const p = g.attributes.position, n = g.attributes.normal;
+    // Scale the line to the part. One fixed width is 12mm of ink on a torso,
+    // which is right, and 12mm on a crown spike, which swallows the spike.
+    g.computeBoundingSphere();
+    const rad = (g.boundingSphere && g.boundingSphere.radius) || 0.2;
+    const d = width || Math.max(0.004, Math.min(INK_WIDTH, rad * 0.055));
+    for (let i = 0; i < p.count; i++){
+      p.setXYZ(i, p.getX(i) + n.getX(i) * d,
+                  p.getY(i) + n.getY(i) * d,
+                  p.getZ(i) + n.getZ(i) * d);
+    }
+    p.needsUpdate = true;
+    g.computeBoundingSphere();
+    return g;
+  }
+
+  /* Third argument is ignored - it used to be a scale fraction. Kept in the
+     signature because every costume calls through here. Costume and hat parts
+     come through this one and never get a line; the silhouette pieces are
+     built with `ink` below. */
+  function outlined(geo, mat){
+    return new THREE.Mesh(geo, mat);
+  }
+
+  function ink(geo, mat){
     const solid = new THREE.Mesh(geo, mat);
+    if (!OUTLINES) return solid;
+    const group = new THREE.Group();
     group.add(solid);
-    const ink = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: INK, side: THREE.BackSide
-    }));
-    ink.scale.setScalar(1 + (thickness || 0.055));
+    inkMat = inkMat || new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
+    const ink = new THREE.Mesh(inkHull(geo), inkMat);
+    ink.castShadow = false; ink.receiveShadow = false;
     group.add(ink);
     group.userData.solid = solid;
     return group;
+  }
+
+  /* ---------------------------------------------------------------------
+     Surfaces of revolution
+
+     A cylinder has one radius; a body does not. Lathing a profile gives a
+     single continuous skin - hip to waist to chest to collar - instead of
+     three primitives pushed into each other with the seams showing. It is the
+     difference between a figure and a stack of shapes, and it costs the same
+     to draw.
+     --------------------------------------------------------------------- */
+  function lathe(profile, segments){
+    return new THREE.LatheGeometry(
+      profile.map(p => new THREE.Vector2(p[0], p[1])), segments || 28);
+  }
+
+  /* A limb section: wide at the joint it hangs from, swelling at the bicep or
+     the calf, narrowing into the next joint. Capped at both ends so nothing
+     shows through; the caps sit inside the joint spheres anyway. */
+  function taper(rTop, rSwell, rEnd, len){
+    return lathe([
+      [0.001, 0],
+      [rTop, 0.004],
+      [rTop * 0.4 + rSwell * 0.6, len * 0.15],
+      [rSwell, len * 0.34],
+      [(rSwell + rEnd) * 0.5, len * 0.68],
+      [rEnd, len * 0.99],
+      [0.001, len]
+    ], 18);
+  }
+
+  /* Hands. A sphere on the end of an arm is a stump; a mitten with a thumb is
+     a hand, and it is two meshes. Nintendo has been making this exact trade
+     since Mario had gloves. */
+  function buildHand(mat, R, wrap, plain){
+    const g = new THREE.Group();
+    const palm = wrap(new THREE.SphereGeometry(R * 1.20, 14, 12), mat);
+    palm.scale.set(0.86, 1.15, 0.62);
+    palm.position.y = -R * 0.60;
+    g.add(palm);
+    const thumb = plain(new THREE.SphereGeometry(R * 0.46, 10, 8), mat);
+    thumb.scale.set(0.85, 1.30, 0.85);
+    thumb.position.set(R * 0.72, -R * 0.34, R * 0.10);
+    thumb.rotation.z = 0.6;
+    g.add(thumb);
+    return g;
+  }
+
+  /* Shoes. The old foot was one squashed sphere, which points nowhere - so a
+     character walking away looked identical to one walking towards you. A toe
+     box and a heel give the foot a direction. */
+  function buildShoe(mat, R, wrap, plain){
+    const g = new THREE.Group();
+    const toe = wrap(new THREE.SphereGeometry(R * 1.02, 14, 12), mat);
+    toe.scale.set(1.10, 0.66, 1.72);
+    toe.position.set(0, -R * 0.46, R * 0.66);
+    g.add(toe);
+    const heel = plain(new THREE.SphereGeometry(R * 0.86, 12, 10), mat);
+    heel.scale.set(1.04, 0.96, 1.02);
+    heel.position.set(0, -R * 0.26, -R * 0.20);
+    g.add(heel);
+    return g;
   }
 
   /* --- hair ------------------------------------------------------------ */
@@ -611,7 +712,7 @@ const Avatar = (() => {
     // Everything hangs off this, lifted so the soles rest on y = 0 rather
     // than sinking the feet through the ground.
     const rig = new THREE.Group();
-    rig.position.y = 0.06;
+    rig.position.y = 0.06;   // recomputed from the finished legs at the end
     root.add(rig);
 
     const skinMat  = toon(cfg.skin);
@@ -619,39 +720,82 @@ const Avatar = (() => {
     const pantMat  = toon(cfg.pants);
     const shoeMat  = toon(cfg.shoes);
 
-    const wrap = outline ? outlined : (geo, mat) => new THREE.Mesh(geo, mat);
-    const HEAD_R = 0.42;
+    const plain = (geo, mat) => new THREE.Mesh(geo, mat);
+    const wrap = plain;                       // detail: no line
+    const edge = outline ? ink : plain;       // silhouette: gets the line
+    const HEAD_R = 0.385;
+    const HEAD_Y = 2.14;
+    const BODY_Y = 1.18;      // the pivot the body leans and breathes around
 
-    /* Torso: a tapered barrel with a collar, so clothing reads as clothing. */
-    // Chest wider than waist, with shoulders on top, instead of one barrel.
-    const torso = wrap(new THREE.CylinderGeometry(0.30, 0.245, 0.86, 22), shirtMat, 0.075);
-    torso.position.y = 1.18;
-    rig.add(torso);
+    /* ---------------------------------------------------------------
+       The body: one silhouette, three materials.
 
-    const shoulders = wrap(new THREE.SphereGeometry(0.315, 20, 14), shirtMat, 0.06);
-    shoulders.position.y = 1.55;
-    shoulders.scale.set(1.12, 0.52, 0.92);
-    rig.add(shoulders);
+       Three lathes that share their end radii exactly, so the outline runs
+       unbroken from ankle-height to jaw while the trousers, shirt and neck
+       stay separately coloured. Nothing intersects, so there are no seams to
+       catch the light at the waist or the collar.
 
-    const collar = wrap(new THREE.SphereGeometry(0.20, 18, 12), shirtMat, 0.06);
-    collar.position.y = 1.68; collar.scale.set(1, 0.5, 1);
-    rig.add(collar);
+       All three hang off one group pivoted at mid-torso, so the walk lean and
+       the idle breath move the whole body instead of sliding the shirt off
+       the trousers.
+       --------------------------------------------------------------- */
+    const body = new THREE.Group();
+    body.position.y = BODY_Y;
+    rig.add(body);
 
-    // A short neck stops the head reading as a ball balanced on a barrel.
-    const neck = wrap(new THREE.CylinderGeometry(0.10, 0.115, 0.20, 14), skinMat, 0.08);
-    neck.position.y = 1.76;
-    rig.add(neck);
+    const at = (geo) => { geo.translate(0, -BODY_Y, 0); return geo; };
 
-    const hips = wrap(new THREE.CylinderGeometry(0.275, 0.245, 0.24, 18), pantMat, 0.07);
-    hips.position.y = 0.78;
-    rig.add(hips);
+    const legsTop  = [0.240, 0.985];
+    const chestTop = [0.128, 1.635];
+
+    const hips = edge(at(lathe([
+      [0.020, 0.640], [0.150, 0.652], [0.232, 0.680], [0.270, 0.722],
+      [0.278, 0.790], [0.266, 0.868], [0.250, 0.938], legsTop
+    ])), pantMat);
+    body.add(hips);
+
+    const torso = edge(at(lathe([
+      legsTop,        [0.244, 1.042], [0.259, 1.122], [0.279, 1.222],
+      [0.297, 1.330], [0.308, 1.428], [0.305, 1.498], [0.284, 1.558],
+      [0.236, 1.604], chestTop
+    ])), shirtMat);
+    body.add(torso);
+
+    const neck = edge(at(lathe([
+      chestTop,       [0.110, 1.672], [0.103, 1.730], [0.109, 1.798],
+      [0.020, 1.816]
+    ], 20)), skinMat);
+    body.add(neck);
+
+    // Deltoids: without them an arm reads as a rod stuck into a barrel. With
+    // them the shoulder is a joint the arm swings from. Tucked in and slightly
+    // flattened - proud of the torso they stop being shoulders and become
+    // shoulder pads.
+    const shoulders = new THREE.Group();
+    [-1, 1].forEach(s => {
+      const d = wrap(new THREE.SphereGeometry(0.118, 16, 12), shirtMat);
+      d.position.set(s * 0.268, 1.486 - BODY_Y, 0);
+      d.scale.set(1.0, 0.90, 1.0);
+      body.add(d);
+      shoulders.add(d);
+    });
+
+    const collar = torso;   // kept for callers that reach for it by name
 
     /* Head. */
     const head = new THREE.Group();
-    head.position.y = 2.06;
-    const skull = wrap(new THREE.SphereGeometry(HEAD_R, 26, 20), skinMat, 0.052);
-    skull.scale.set(1, 1.07, 0.95);
+    head.position.y = HEAD_Y;
+    const skull = edge(new THREE.SphereGeometry(HEAD_R, 32, 24), skinMat);
+    skull.scale.set(1, 1.06, 0.95);
     head.add(skull);
+
+    // A slight jaw: the skull alone is a ball, and a ball has no chin. Kept
+    // shallow - push it any lower and the drawn face rides up into the
+    // forehead with a bare slab of chin under the mouth.
+    const jaw = wrap(new THREE.SphereGeometry(HEAD_R * 0.88, 20, 16), skinMat);
+    jaw.position.set(0, -HEAD_R * 0.18, HEAD_R * 0.05);
+    jaw.scale.set(0.95, 0.74, 0.93);
+    head.add(jaw);
 
     // The drawn features sit on a shallow cap across the front of the head.
     const faceGeo = new THREE.SphereGeometry(HEAD_R * 1.008, 30, 24,
@@ -680,25 +824,38 @@ const Avatar = (() => {
     }
     rig.add(head);
 
-    /* Limbs, pivoted so they swing from shoulder and hip. */
-    function limb(x, y, upperLen, lowerLen, upperMat, lowerMat, endMat, endScale, rad){
+    /* Limbs, pivoted so they swing from shoulder and hip.
+
+       Each section is a lathe rather than a cylinder, and there is a sphere at
+       the elbow and the knee. That sphere is the whole reason a bent arm looks
+       like it bent instead of snapping: two cylinders meeting at an angle leave
+       a wedge of empty air on the outside of the joint, and every one of the
+       fourteen emotes bends something. */
+    function limb(x, y, upperLen, lowerLen, upperMat, lowerMat, rTop, rSwell,
+                  rJoint, rEnd, endBuilder){
       const pivot = new THREE.Group();
       pivot.position.set(x, y, 0);
 
-      const R0 = rad || 0.105;
-      const upper = wrap(new THREE.CylinderGeometry(R0, R0*0.94, upperLen, 12), upperMat, 0.16);
-      upper.position.y = -upperLen/2;
+      const upper = edge(taper(rTop, rSwell, rJoint, upperLen), upperMat);
+      upper.rotation.x = Math.PI;      // lathes build upward; hang it downward
       pivot.add(upper);
 
       const knee = new THREE.Group();
       knee.position.y = -upperLen;
-      const lower = wrap(new THREE.CylinderGeometry(R0*0.94, R0*0.88, lowerLen, 12), lowerMat, 0.16);
-      lower.position.y = -lowerLen/2;
+
+      // Exactly the radius the two sections meet at. A percent or two proud of
+      // them looked anatomically right in a still and read as a hard shading
+      // band on a moving leg - the ring is a lit sphere against an unlit
+      // cylinder wall, and the eye reads a band as a seam, not a knee.
+      const joint = wrap(new THREE.SphereGeometry(rJoint, 16, 14), lowerMat);
+      knee.add(joint);
+
+      const lower = edge(taper(rJoint, rJoint * 1.06, rEnd, lowerLen), lowerMat);
+      lower.rotation.x = Math.PI;
       knee.add(lower);
 
-      const end = wrap(new THREE.SphereGeometry(R0*1.30, 12, 10), endMat, 0.12);
-      end.position.y = -lowerLen - 0.02;
-      if (endScale) end.scale.set(endScale[0], endScale[1], endScale[2]);
+      const end = endBuilder(rEnd);
+      end.position.y = -lowerLen;
       knee.add(end);
 
       pivot.add(knee);
@@ -708,22 +865,38 @@ const Avatar = (() => {
     }
 
     const sleeveMat = toon(spirit(cfg.shirt, -0.14));
-    // Longer limbs relative to the body: roughly four and a half heads tall
-    // rather than three, which is the difference between a toy and a figure.
-    const armL = limb(-0.345, 1.52, 0.42, 0.42, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.082);
-    const armR = limb( 0.345, 1.52, 0.42, 0.42, sleeveMat, skinMat, skinMat, [1.05, 1.05, 1.05], 0.082);
-    const legL = limb(-0.145, 0.80, 0.44, 0.42, pantMat, pantMat, shoeMat, [1.25, 0.72, 1.7], 0.105);
-    const legR = limb( 0.145, 0.80, 0.44, 0.42, pantMat, pantMat, shoeMat, [1.25, 0.72, 1.7], 0.105);
+    const hand = (R) => buildHand(skinMat, R, edge, plain);
+    const shoe = (R) => buildShoe(shoeMat, R, edge, plain);
+
+    // Long legs relative to the body. The gap between a toy and a figure is
+    // mostly leg: the same torso on short legs reads as a doll every time.
+    const armL = limb(-0.318, 1.486, 0.42, 0.40, sleeveMat, skinMat,
+                      0.100, 0.105, 0.079, 0.063, hand);
+    const armR = limb( 0.318, 1.486, 0.42, 0.40, sleeveMat, skinMat,
+                      0.100, 0.105, 0.079, 0.063, hand);
+    const legL = limb(-0.142, 0.80, 0.47, 0.45, pantMat, pantMat,
+                      0.132, 0.136, 0.100, 0.070, shoe);
+    const legR = limb( 0.142, 0.80, 0.47, 0.45, pantMat, pantMat,
+                      0.132, 0.136, 0.100, 0.070, shoe);
+
+    // Plant the soles on y = 0 rather than guessing at the lift. The lowest
+    // point is the underside of the toe box, which buildShoe puts at
+    // -(0.46 + 0.66 * 0.66) of the ankle radius below the ankle.
+    const ankleY = 0.80 - 0.47 - 0.45;
+    rig.position.y = -(ankleY - 0.070 * (0.46 + 1.02 * 0.66));
 
     return {
-      root, rig, head, face, faceMat, torso, collar, hips,
+      root, rig, body, head, face, faceMat, torso, collar, hips, neck, shoulders,
       armL, armR, legL, legR,
-      height: 2.9
+      headY: HEAD_Y, bodyY: BODY_Y,
+      height: HEAD_Y + HEAD_R * 1.06 + rig.position.y
     };
   }
 
   return {
     build, faceTexture, defaults, toon, gradientMap, spirit, environment,
+    setOutlines(v){ OUTLINES = !!v; },
+    get outlines(){ return OUTLINES; },
     SKIN, HAIR, CLOTH, PANTS, SHOES, HAT_COLORS,
     HAIR_STYLES, HAT_STYLES, COSTUMES, EYE_STYLES, BROW_STYLES, MOUTH_STYLES
   };

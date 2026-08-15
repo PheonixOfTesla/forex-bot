@@ -64,11 +64,31 @@ Nintendo, not "web game". Concretely:
 - **S4.2** Costumes with personality: bear, scientist, explorer, crown, chef, diver — DONE
 - **S4.3** Photo → cartoon face, on device, never uploaded — PARTIAL (untested on a real photo)
 - **S4.4** Skin, hair, outfit and cap colour customisable — DONE
-- **S4.5** Figures, not toys: roughly four and a half heads tall, shoulders,
-  waist, soft specular from a generated environment, rim light — DONE
-- **S4.6** Hand-modelled character quality (Smash Bros tier) — **NOT
-  ACHIEVABLE PROCEDURALLY.** Needs bought or commissioned art; the system is
-  built so a config swaps the mesh source without touching the game
+- **S4.5** Figures, not toys — DONE
+  - The body is one continuous surface, hip to collar, lathed from a profile
+    instead of assembled from a cylinder and two spheres. No seams to catch
+    the light at the waist or the shoulder
+  - Limbs taper: wide at the joint, swelling at the bicep and the calf,
+    narrowing into the wrist and the ankle
+  - A sphere at every elbow and knee, so a bent joint is a joint and not a
+    wedge of missing arm
+  - Hands with thumbs, not stumps. Shoes with a toe and a heel, so a walking
+    character has a direction
+  - Deltoids, a short neck, a jaw. Soft specular from a generated environment
+- **S4.6** Hand-modelled character quality (Smash Bros tier) — **STILL SHORT,
+  and it is a question of authorship, not effort.** Every shape here is a
+  surface of revolution or a sphere because that is what code can describe;
+  a modelled character has asymmetry, cloth folds, a face that is geometry
+  rather than a decal, and a rig with weighted skinning. The parts library is
+  the same *structure* a bought character set would drop into, and swapping
+  the mesh source is a config change, not a rewrite
+- **S4.12** An ink outline on the silhouette — DONE
+  - Inverted hull, offset along vertex normals so it is correct on any shape
+    at any origin, and scaled to the part so a crown spike does not vanish
+  - Silhouette only - head, body, limbs, hands, feet. Measured at 36 meshes a
+    character without it and 52 with; inking the costumes and hat as well
+    roughly doubles the count, which sixteen players on a phone cannot afford
+  - `Avatar.setOutlines(false)` turns it off
 - **S4.7** Emotes and dances, Fortnite / Apex style — DONE
   - 14 to choose from: wave, dance, spin, clap, cheer, point, bow, flex,
     laugh, think, sit, sleep, robot, wiggle

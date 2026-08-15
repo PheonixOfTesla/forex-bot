@@ -14,8 +14,8 @@
   .over{position:absolute;inset:0;pointer-events:none;
         font-family:ui-rounded,-apple-system,"Segoe UI",system-ui,sans-serif}
   /* A soft scrim so the words read over sand, grass or sky alike. */
-  .scrim{position:absolute;left:0;top:0;bottom:0;width:56%;
-         background:linear-gradient(90deg,rgba(18,46,68,.62),rgba(18,46,68,.28) 55%,transparent)}
+  .scrim{position:absolute;left:0;top:0;bottom:0;width:52%;
+         background:linear-gradient(90deg,rgba(16,42,64,.74),rgba(16,42,64,.42) 52%,transparent)}
   .title{
     position:absolute;left:64px;top:96px;font-size:104px;font-weight:900;color:#fff;
     letter-spacing:-.02em;line-height:.92;
@@ -23,7 +23,7 @@
   }
   .sub{
     position:absolute;left:70px;top:236px;font-size:29px;font-weight:800;color:#FFF3D6;
-    text-shadow:0 3px 10px rgba(20,40,60,.75);max-width:400px;line-height:1.28;
+    text-shadow:0 3px 10px rgba(20,40,60,.75);max-width:468px;line-height:1.26;
   }
   .pill{
     position:absolute;left:70px;top:404px;display:flex;gap:11px;
@@ -43,7 +43,7 @@
 <div class="over">
   <div class="scrim"></div>
   <div class="title">MOLUA</div>
-  <div class="sub">One of you is the Undertow.<br>Everyone else has until morning.</div>
+  <div class="sub">One of you is the Undertow.<br>Nobody else knows who.</div>
   <div class="pill"><span>4–16 players</span><span>~7 min</span><span>No app</span></div>
   <div class="brand">Clockwork Hub</div>
 </div>
@@ -115,8 +115,18 @@ const CAST = [
 ];
 CAST.forEach((cfg, i) => {
   const a = Avatar.build(Object.assign(Avatar.defaults(), cfg, { hat:true, brand:"CLOCKWORK HUB" }));
-  a.root.position.set(5.9 + i * 1.7, 0, -1.0 - (i % 2) * 1.4);
-  a.root.rotation.y = -0.42 + (i % 2) * 0.16;
+  // Spaced by angle from the camera rather than by world x. Even world
+  // spacing put two of them on the same sight line and one vanished behind
+  // the other's shoulder; even *angular* spacing is what actually separates
+  // figures in a frame. Radius alternates so the row has depth.
+  const AIM = Math.atan2(8.2 - 1.9, -1.6 - 7.0);
+  // th = AIM lands on the frame centre. The camera is aimed past 90 degrees,
+  // so *decreasing* the angle is what walks the cast to the right - which
+  // puts every one of them clear of the text column on the left.
+  const th = AIM - i * 0.107;
+  const rad = 9.4 + (i % 2) * 1.9;
+  a.root.position.set(1.9 + Math.sin(th) * rad, 0, 7.0 + Math.cos(th) * rad);
+  a.root.rotation.y = th + Math.PI + (i % 2 ? 0.18 : -0.14);
   a.root.traverse(o => { if (o.isMesh) o.castShadow = true; });
   // a little life in the pose
   a.armL.rotation.x = -0.12 - (i % 3) * 0.5;
@@ -125,8 +135,10 @@ CAST.forEach((cfg, i) => {
   sc.add(a.root);
 });
 
-cam.position.set(1.2, 2.5, 8.2);
-cam.lookAt(8.6, 1.5, -2.4);
+// Closer and a touch lower: at share-card size a face has to be readable
+// at a thumbnail, and the old framing put the cast in the middle distance.
+cam.position.set(1.9, 2.35, 7.0);
+cam.lookAt(8.2, 1.62, -1.6);
 sun.target.position.set(6, 0, -2); sun.target.updateMatrixWorld();
 r.render(sc, cam);
 window.__ready = true;

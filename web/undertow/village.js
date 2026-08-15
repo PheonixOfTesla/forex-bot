@@ -674,7 +674,12 @@ const Village = (() => {
     rig.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(rig);
     return {
-      group: rig, avatar: a, head: a.head, body: a.torso, tag, marker, shadow,
+      // `torso` and `body` are the same object under both names: the emote
+      // code reaches for rig.torso and the walk cycle for rig.body, and when
+      // only one of them existed every emote that leaned - bow, laugh, sleep,
+      // wiggle - threw on the first frame and stopped the render loop.
+      group: rig, avatar: a, head: a.head, body: a.body, torso: a.body,
+      headY: a.headY, tag, marker, shadow,
       seat: player.seat || 0,
       armL: a.armL, armR: a.armR, legL: a.legL, legR: a.legR,
       pid: player.pid,
@@ -917,13 +922,16 @@ const Village = (() => {
     if (!rig.moving){
       const idle = Math.sin(rig.phase * 0.6);
       rig.body.scale.y = 1 + idle * 0.022;
-      rig.head.position.y = 1.90 + idle * 0.02;
+      // Off the avatar's own head height, not a number typed in when the
+      // proportions were different - that hard-coded 1.90 was sinking every
+      // idle character's head into its shoulders.
+      rig.head.position.y = rig.headY + idle * 0.02;
       rig.head.rotation.z = idle * 0.05;
       rig.armL.rotation.x = idle * 0.1;
       rig.armR.rotation.x = -idle * 0.1;
     } else {
       rig.body.scale.y = 1;
-      rig.head.position.y = 1.90;
+      rig.head.position.y = rig.headY;
       rig.head.rotation.z = 0;
     }
 

@@ -1,38 +1,82 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Eidolon turnaround</title>
+<!doctype html><html><head><meta charset="utf-8"><title>Islander turnaround</title>
+<!-- A model-review page, not part of the game. Lights and ground match the
+     island so what you judge here is what ships. Configs come in on the hash;
+     ?pose= bends the joints, ?ink=1 turns the outline pass on. -->
 <script src="/undertow/three.min.js"></script><script src="/undertow/avatar.js"></script>
 <style>html,body{margin:0;height:100%;background:#BFD0B4;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
 </head><body><canvas id="c"></canvas><script>
-const r=new THREE.WebGLRenderer({canvas:c,antialias:false});
-r.setPixelRatio(1); r.setSize(innerWidth,innerHeight); r.setClearColor(0xBFD0B4,1);
-const sc=new THREE.Scene();
-const cam=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,0.1,100);
+const Q = new URLSearchParams(location.search);
+if (Q.get("ink") === "0") Avatar.setOutlines(false);
+
+const r = new THREE.WebGLRenderer({ canvas: c, antialias: true });
+r.setPixelRatio(2); r.setSize(innerWidth, innerHeight); r.setClearColor(0xBFD0B4, 1);
+r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const sc = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(34, innerWidth/innerHeight, 0.1, 100);
 Avatar.environment(r);
-sc.add(new THREE.HemisphereLight(0xBBD6EA,0xB0A06A,0.8));
-const rim=new THREE.DirectionalLight(0xCFE4F5,0.45); rim.position.set(-8,6,-10); sc.add(rim);
-const sun=new THREE.DirectionalLight(0xFFF6E2,0.8); sun.position.set(4,8,6); sc.add(sun);
-const floor=new THREE.Mesh(new THREE.CircleGeometry(40,48),
-  new THREE.MeshStandardMaterial({color:0xB8C79E,roughness:1}));
-floor.rotation.x=-Math.PI/2; sc.add(floor);
+
+sc.add(new THREE.HemisphereLight(0xBBD6EA, 0xB0A06A, 0.8));
+const rim = new THREE.DirectionalLight(0xCFE4F5, 0.45); rim.position.set(-8, 6, -10); sc.add(rim);
+const sun = new THREE.DirectionalLight(0xFFF6E2, 0.95); sun.position.set(4, 9, 6);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left:-8, right:8, top:8, bottom:-8, near:1, far:30 });
+sc.add(sun);
+
+const floor = new THREE.Mesh(new THREE.CircleGeometry(40, 48),
+  new THREE.MeshStandardMaterial({ color: 0xB8C79E, roughness: 1 }));
+floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; sc.add(floor);
+
 const CFGS = JSON.parse(decodeURIComponent(location.hash.slice(1) || "%5B%5D"));
-const built=[];
-CFGS.forEach((cfg,i)=>{
-  const a=Avatar.build(cfg);
-  a.root.position.x=(i-(CFGS.length-1)/2)*1.9;
+const built = [];
+CFGS.forEach((cfg, i) => {
+  const a = Avatar.build(cfg);
+  a.root.position.x = (i - (CFGS.length - 1) / 2) * 2.05;
+  a.root.traverse(o => { if (o.isMesh) o.castShadow = true; });
   sc.add(a.root); built.push(a);
 });
-window.__ready=true;
-let t=0;
+window.__built = built;
+window.__ready = true;
+
+// Poses exist to catch what a T-pose hides: whether a bent elbow leaves a hole,
+// whether a raised arm tears out of the shoulder, whether a sitting character
+// still has knees.
+const POSES = {
+  idle:  (a) => {},
+  bend:  (a) => { a.armL.rotation.x = -1.5; a.armL.userData.knee.rotation.x = -2.0;
+                  a.armR.rotation.x = -0.4; a.armR.userData.knee.rotation.x = -1.1;
+                  a.legL.userData.knee.rotation.x = -0.9; a.legL.rotation.x = 0.5; },
+  cheer: (a) => { a.armL.rotation.x = a.armR.rotation.x = -2.85;
+                  a.armL.rotation.z = 0.25; a.armR.rotation.z = -0.25; },
+  sit:   (a) => { a.legL.rotation.x = a.legR.rotation.x = -1.5;
+                  a.legL.userData.knee.rotation.x = a.legR.userData.knee.rotation.x = 1.5;
+                  a.root.position.y = -0.42; },
+  walk:  (a) => { a.legL.rotation.x = 0.7; a.legR.rotation.x = -0.7;
+                  a.armL.rotation.x = -0.6; a.armR.rotation.x = 0.6;
+                  a.legL.userData.knee.rotation.x = -0.4; }
+};
+
+let t = 0;
 function tick(){
-  t+=0.016;
-  built.forEach((a,i)=>{
-    a.root.rotation.y = window.__spin ? t*0.8 : (window.__yaw||0);
-    const ph=t*3+i;
-    a.armL.rotation.x=Math.sin(ph)*0.12-0.06;
-    a.armR.rotation.x=-Math.sin(ph)*0.12-0.06;
-    a.head.rotation.y=Math.sin(t*0.7+i)*0.12;
+  t += 0.016;
+  const pose = POSES[Q.get("pose") || "idle"] || POSES.idle;
+  built.forEach((a, i) => {
+    a.armL.rotation.set(0,0,0); a.armR.rotation.set(0,0,0);
+    a.legL.rotation.set(0,0,0); a.legR.rotation.set(0,0,0);
+    a.armL.userData.knee.rotation.set(0,0,0); a.armR.userData.knee.rotation.set(0,0,0);
+    a.legL.userData.knee.rotation.set(0,0,0); a.legR.userData.knee.rotation.set(0,0,0);
+    a.root.position.y = 0;
+    a.root.rotation.y = window.__spin ? t * 0.8 : (window.__yaw || 0);
+    if ((Q.get("pose") || "idle") === "idle"){
+      const ph = t * 3 + i;
+      a.armL.rotation.x = Math.sin(ph) * 0.12 - 0.06;
+      a.armR.rotation.x = -Math.sin(ph) * 0.12 - 0.06;
+      a.head.rotation.y = Math.sin(t * 0.7 + i) * 0.12;
+    }
+    pose(a);
   });
-  cam.position.set(0,1.75,7.4); cam.lookAt(0,1.45,0);
-  r.render(sc,cam); requestAnimationFrame(tick);
+  cam.position.set(0, 1.60, 10.4); cam.lookAt(0, 1.32, 0);
+  r.render(sc, cam); requestAnimationFrame(tick);
 }
 tick();
 </script></body></html>
