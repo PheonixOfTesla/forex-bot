@@ -573,8 +573,20 @@ button{background:none;border:none;cursor:pointer}
            autocomplete="off" autocapitalize="characters" spellcheck="false" />
     <button id="join-btn" class="btn">Join island</button>
     <button id="open-btn" class="btn ghost">Make a new island</button>
+    <button id="quick-btn" class="btn ghost">Quick join<span id="quick-count"></span></button>
     <div id="gate-error" style="color:var(--cut);font-weight:700;font-size:13px;min-height:16px;text-align:center"></div>
     <div id="gate-down" style="display:none;background:#FFF3D6;border:2px solid #E8A33D;border-radius:14px;padding:13px 15px;margin-top:10px;font-size:13px;line-height:1.45;color:#5A4526"><strong style="display:block;margin-bottom:4px">The island server is asleep</strong><span id="gate-down-why">Molua needs a small server to hold the room while you play. It is not answering right now, so a game cannot be opened.</span></div>
+  </div>
+
+  <!-- The island browser. A room code is fine when your friend is next to
+       you; it is useless when you just want a game. -->
+  <div class="card stack" id="browse-card" style="margin-top:12px">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="label" style="margin:0">Islands you can join</div>
+      <button id="refresh-btn" class="btn ghost"
+              style="padding:7px 12px;font-size:13px;flex:0 0 auto">Refresh</button>
+    </div>
+    <div id="browse-list"></div>
   </div>
 </section>
 
@@ -634,6 +646,9 @@ button{background:none;border:none;cursor:pointer}
     <div id="lobby-note" class="label" style="text-align:center"></div>
     <div class="label" style="text-align:center;margin-top:2px">Where are we playing?</div>
     <div id="map-pick" class="row" style="flex-wrap:wrap"></div>
+    <div id="public-row" class="row" style="justify-content:center;display:none">
+      <button id="public-btn" class="btn ghost" style="font-size:14px"></button>
+    </div>
     <button id="start-btn" class="btn" disabled>Start the game</button>
     <button id="walk-btn" class="btn ghost">Walk around while you wait</button>
   </div>
@@ -1248,6 +1263,16 @@ function renderLobby(s, m){
   const n = s.players.length, enough = n >= s.minPlayers;
   $("lobby-note").textContent = enough
     ? `${n} of ${s.maxPlayers} here` : `Need ${s.minPlayers - n} more`;
+  // Only the host sees this, and only in the lobby: a public island is how
+  // strangers find a game, so closing it has to be one obvious tap.
+  const prow = $("public-row"), pbtn = $("public-btn");
+  if (prow && pbtn){
+    prow.style.display = m.host ? "" : "none";
+    const open = s.public !== false;
+    pbtn.textContent = open ? "Anyone can find this island" : "Invite only — link or code";
+    pbtn.onclick = () => { Sound.tap(); net.send({ t:"public", on: !open }); };
+  }
+
   const start = $("start-btn");
   start.style.display = m.host ? "" : "none";
   start.disabled = !enough;
@@ -1616,6 +1641,98 @@ async function probeBackend(){
   return backendUp;
 }
 
+/* ===========================================================================
+   THE ISLAND BROWSER
+
+   A room code works when your friend is standing next to you. It is useless
+   when you just want a game, which is most of the time - so the front screen
+   lists what is open and lets you walk in, and Quick join takes the fullest
+   one because a room one player short of starting is the one worth joining.
+
+   Only islands still in their lobby are ever listed, so nobody drops into the
+   middle of somebody else's argument.
+   =========================================================================== */
+const MAP_LABEL = { village: "Molua Village", grove: "Kanu Grove", bay: "Halehua Bay" };
+let openIslands = [];
+let browseTimer = null;
+
+function renderBrowse(msg){
+  const host = $("browse-list");
+  const quick = $("quick-btn"), count = $("quick-count");
+  if (!host) return;
+  host.innerHTML = "";
+
+  if (msg){
+    const p = document.createElement("div");
+    p.className = "label";
+    p.style.cssText = "text-align:center;margin:6px 0 2px";
+    p.textContent = msg;
+    host.appendChild(p);
+  }
+  openIslands.forEach(isl => {
+    const b = document.createElement("button");
+    b.className = "btn ghost";
+    b.style.cssText = "text-align:left;padding:11px 14px;margin-top:7px;width:100%";
+    const full = isl.players >= isl.max;
+    b.innerHTML =
+      `<span style="display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%">
+         <span style="min-width:0">
+           <span style="display:block;font-weight:800">${escapeHtml(isl.host)}'s island</span>
+           <span style="display:block;font-size:12px;opacity:.7">${MAP_LABEL[isl.map] || isl.map}</span>
+         </span>
+         <span style="font-weight:800;white-space:nowrap">${isl.players}/${isl.max}</span>
+       </span>`;
+    b.disabled = full;
+    b.onclick = () => {
+      const name = $("name-in").value.trim();
+      if (!name){ gateError("Pick a name first"); Sound.deny(); return; }
+      Sound.tap();
+      store.set("name", name);
+      connect(isl.code, name);
+    };
+    host.appendChild(b);
+  });
+
+  if (quick) quick.disabled = openIslands.length === 0 || backendUp === false;
+  if (count) count.textContent = openIslands.length ? ` (${openIslands.length})` : "";
+}
+
+async function loadIslands(){
+  if (backendUp === false){ openIslands = []; renderBrowse("No server, so nothing to list."); return; }
+  try {
+    const res = await fetch(API + "/api/v1/game/islands");
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    openIslands = Array.isArray(data.islands) ? data.islands : [];
+    renderBrowse(openIslands.length ? null : "Nobody has an island open. Make one.");
+  } catch(e){
+    openIslands = [];
+    renderBrowse("Could not reach the island server.");
+  }
+}
+
+function startBrowsing(){
+  loadIslands();
+  clearInterval(browseTimer);
+  // Slow enough to be free, quick enough that a friend's island shows up
+  // while you are still typing your name.
+  browseTimer = setInterval(() => {
+    if ($("gate").classList.contains("on")) loadIslands();
+  }, 5000);
+}
+
+function quickJoin(){
+  const name = $("name-in").value.trim();
+  if (!name) return gateError("Pick a name first");
+  if (!openIslands.length) return gateError("No islands open yet");
+  // The list arrives fullest first.
+  const pick = openIslands.find(i => i.players < i.max);
+  if (!pick) return gateError("The open islands are full");
+  Sound.confirm();
+  store.set("name", name);
+  connect(pick.code, name);
+}
+
 async function openIsland(){
   const name = $("name-in").value.trim();
   if (!name) return gateError("Pick a name first");
@@ -1786,7 +1903,9 @@ try {
   }
 }
 setupMaker();
-probeBackend();
+probeBackend().then(startBrowsing);
+$("refresh-btn").onclick = () => { Sound.tap(); loadIslands(); };
+$("quick-btn").onclick = quickJoin;
 setupControls();
 
 const savedName = store.get("name");

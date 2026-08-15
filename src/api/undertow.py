@@ -317,6 +317,15 @@ class Room:
         self.created_at: float = time.time()
         self.last_seen: float = time.time()
 
+        # Whether this island shows up in the public list. On by default,
+        # because a browser that is always empty is not a feature - but a host
+        # can close it, and only rooms still in the lobby are ever listed, so
+        # nobody walks into a game that is already being played.
+        #
+        # For a commercial launch to minors this is the surface that needs a
+        # policy decision: a public list is how strangers find a room.
+        self.public: bool = True
+
         # Nightfall bookkeeping.
         self.cut: Optional[str] = None
         self.cut_manner: Optional[str] = None
@@ -602,6 +611,12 @@ class Room:
         if clean:
             actor.loadout = clean[:EMOTE_SLOTS]
 
+    def act_public(self, actor: Player, on: Any) -> None:
+        """Host decides whether strangers can find this island."""
+        if not actor.is_host or self.phase is not Phase.LOBBY:
+            return
+        self.public = bool(on)
+
     def act_islander(self, actor: Player, face: Any, colors: Any) -> None:
         """
         Store a player's Islander.
@@ -851,6 +866,7 @@ class Room:
             "winner": self.winner,
             "minPlayers": MIN_PLAYERS,
             "maxPlayers": MAX_PLAYERS,
+            "public": self.public,
             "manners": MANNERS,
             "decrees": DECREES,
             "calls": CALLS,
@@ -928,6 +944,36 @@ class Room:
 class Registry:
     def __init__(self):
         self.rooms: Dict[str, Room] = {}
+
+    def open_islands(self, limit: int = 24) -> List[Dict[str, Any]]:
+        """Islands anyone can walk into.
+
+        Only rooms still in the lobby, marked public, with somebody actually
+        connected and a seat left. Fullest first, because a game that is one
+        player short of starting is the one worth joining.
+
+        Nothing here is private: a display name the host typed, a count and a
+        map. No codes for rooms that are mid-game, and no player lists.
+        """
+        self.reap()
+        out: List[Dict[str, Any]] = []
+        for room in self.rooms.values():
+            if not room.public or room.phase is not Phase.LOBBY:
+                continue
+            seated = room.seated
+            if not seated or not room.sockets or len(seated) >= MAX_PLAYERS:
+                continue
+            host = next((p for p in seated if p.is_host), seated[0])
+            out.append({
+                "code": room.code,
+                "host": host.name,
+                "players": len(seated),
+                "max": MAX_PLAYERS,
+                "map": room.map,
+                "age": int(time.time() - room.created_at),
+            })
+        out.sort(key=lambda r: (-r["players"], r["age"]))
+        return out[:limit]
 
     def create(self) -> Room:
         self.reap()

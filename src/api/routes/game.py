@@ -145,6 +145,12 @@ async def open_room(request: Request) -> Dict[str, Any]:
     }
 
 
+@router.get("/islands")
+async def open_islands() -> Dict[str, Any]:
+    """Islands anyone can join, for the quick search on the front screen."""
+    return {"islands": registry.open_islands()}
+
+
 @router.get("/rooms/{code}")
 async def peek_room(code: str, request: Request) -> Dict[str, Any]:
     room = registry.get(code)
@@ -286,6 +292,10 @@ async def handle(room: Room, player: Any, message: Dict[str, Any], websocket: We
 
     if kind == "vote":
         room.act_vote(player, target)
+        return True
+
+    if kind == "public":
+        room.act_public(player, message.get("on"))
         return True
 
     # --- voice ------------------------------------------------------------
