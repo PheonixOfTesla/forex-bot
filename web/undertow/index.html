@@ -159,8 +159,20 @@ button{background:none;border:none;cursor:pointer}
 #clock-pill.urgent{background:var(--cut);color:#fff}
 
 /* --- bottom HUD --------------------------------------------------------- */
+/* Under the phase header, not on the floor.
+
+   The play panel used to be pinned to the bottom, which put everything a
+   player needs - the names they vote on, their own role - in the same band as
+   the stick, the emote column and their own feet. Hung from the top it reads
+   with the header it belongs to: phase, clock, then what to do about it, and
+   the bottom of the screen is left for moving around. */
 #hud{
-  margin-top:auto;padding:0 var(--sp) calc(var(--safe-b) + 12px);
+  margin-top:calc(var(--safe-t) + 78px);
+  /* Clear of the right-hand control stack. The mic, sound, roster and talk
+     buttons are fixed over this column, and a full-width panel runs straight
+     under them - so the end of a role line and the last name in a row of
+     targets sit behind a button. */
+  padding:0 calc(var(--sp) + 56px) 12px var(--sp);
   display:flex;flex-direction:column;gap:9px;
 }
 #hud.hidden{display:none}
@@ -242,7 +254,7 @@ button{background:none;border:none;cursor:pointer}
 /* The transcript sits above the collapsed panel rather than through it.
    Collapsing used to reveal the running chat straight on top of the panel it
    had just shrunk to, so both were unreadable. */
-body.panel-min #crawl{bottom:calc(var(--safe-b) + 132px);max-width:min(78vw,420px)}
+body.panel-min #crawl{max-width:min(78vw,420px)}
 .targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
 .target{
   padding:11px 8px;border-radius:15px;background:var(--paper-2);border:2px solid transparent;
@@ -304,6 +316,37 @@ body.panel-min #crawl{bottom:calc(var(--safe-b) + 132px);max-width:min(78vw,420p
   display:none;place-items:center;box-shadow:0 3px 10px rgba(43,36,56,.22);
 }
 #who-btn.on{display:grid}
+#talk-btn{
+  position:fixed;right:var(--sp);top:calc(var(--safe-t) + 236px);z-index:7;
+  width:40px;height:40px;border-radius:50%;background:rgba(255,253,247,.94);
+  display:none;place-items:center;box-shadow:0 3px 10px rgba(43,36,56,.22);
+}
+#talk-btn.on{display:grid}
+#talk-dot{
+  position:absolute;top:-2px;right:-2px;width:12px;height:12px;border-radius:50%;
+  background:var(--gold);border:2px solid #fff;display:none;
+}
+#talk-btn.unread #talk-dot{display:block}
+#talk{position:fixed;inset:0;z-index:9;display:none;align-items:flex-end;
+  background:rgba(12,10,22,.55);padding:0}
+#talk.on{display:flex}
+.talk-card{background:#FFFCF4;border-radius:22px 22px 0 0;padding:14px 16px
+  calc(var(--safe-b) + 14px);width:100%;max-height:72vh;display:flex;flex-direction:column;gap:10px}
+.talk-head{display:flex;align-items:center;gap:10px}
+.talk-title{font-size:17px;font-weight:900;flex:1}
+.talk-x{font-size:26px;line-height:1;width:36px;height:36px;border-radius:50%;
+  background:var(--paper-2);color:var(--ink-soft)}
+#talk-log{flex:1;overflow-y:auto;min-height:90px;max-height:38vh;
+  display:flex;flex-direction:column;gap:5px;font-size:14px;line-height:1.4}
+#talk-log .m{word-break:break-word}
+#talk-log .m b{color:#7A5A18;margin-right:5px}
+#talk-log .m.spirit{color:#6A4FA0}
+#talk-log .m.sys{color:#5A6472;font-style:italic}
+#talk-form{display:flex;gap:8px}
+#talk-in{flex:1;min-width:0;padding:13px 15px;border-radius:16px;background:var(--paper-2);
+  border:2px solid transparent;font-size:16px;font-weight:600}
+#talk-in:focus{outline:none;border-color:var(--gold);background:#fff}
+#talk-send{width:52px;border-radius:16px;background:var(--gold);display:grid;place-items:center}
 #begin-float{
   /* Top centre, not bottom. The bottom of the screen is the stick on one side
      and the emote column on the other, and a wide button across the middle of
@@ -606,6 +649,11 @@ body.panel-min #crawl{bottom:calc(var(--safe-b) + 132px);max-width:min(78vw,420p
     <rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/>
     <path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01"/>
   </symbol>
+  <symbol id="i-talk" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.2 12.4c0 3.9-3.7 7-8.2 7a9.4 9.4 0 0 1-2.6-.36L4.4 20.4l1.2-3.6A6.6 6.6 0 0 1 3.8 12.4c0-3.9 3.7-7 8.2-7s8.2 3.1 8.2 7Z"/>
+    <path d="M8.6 12.4h.01M12 12.4h.01M15.4 12.4h.01"/>
+  </symbol>
   <symbol id="i-notebook" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <path d="M6.5 3.2h11a1.3 1.3 0 0 1 1.3 1.3v15a1.3 1.3 0 0 1-1.3 1.3h-11A1.8 1.8 0 0 1 4.7 19V5a1.8 1.8 0 0 1 1.8-1.8Z"/>
@@ -649,7 +697,7 @@ body.panel-min #crawl{bottom:calc(var(--safe-b) + 132px);max-width:min(78vw,420p
       <div id="targets" class="targets" style="margin-top:10px"></div>
       <!-- Chat sits above the preset calls: buried under them it needed a
            scroll on every single message. -->
-      <div id="chat" style="margin-top:10px">
+      <div id="chat" style="margin-top:10px;display:none">
         <div id="chat-log"></div>
         <form id="chat-form" autocomplete="off">
           <input id="chat-in" maxlength="160" placeholder="Say something…" />
@@ -718,6 +766,23 @@ body.panel-min #crawl{bottom:calc(var(--safe-b) + 132px);max-width:min(78vw,420p
      used to exist only on the lobby card, so the moment a match started
      nobody could see who they were playing with. -->
 <button id="who-btn" aria-label="Who is here" title="Who is here"><svg class="ic" width="20" height="20" aria-hidden="true"><use href="#i-people"/></svg></button>
+<!-- Talking is a widget on the right with the other controls, not a bar
+     pinned across the bottom of the island. -->
+<button id="talk-btn" aria-label="Talk" title="Talk"><svg class="ic" width="20" height="20" aria-hidden="true"><use href="#i-talk"/></svg><span id="talk-dot"></span></button>
+<div id="talk" aria-hidden="true">
+  <div class="talk-card">
+    <div class="talk-head">
+      <div class="talk-title">Say something</div>
+      <button id="talk-close" class="talk-x" aria-label="Close">&times;</button>
+    </div>
+    <div id="talk-log"></div>
+    <div id="talk-calls" class="chips"></div>
+    <form id="talk-form" autocomplete="off">
+      <input id="talk-in" maxlength="160" placeholder="Say something&hellip;" />
+      <button id="talk-send" type="submit" aria-label="Send"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-send"/></svg></button>
+    </form>
+  </div>
+</div>
 <!-- Begin, in the world.
 
      The host taps "Walk around while you wait", the lobby card goes away, and
@@ -1578,7 +1643,10 @@ function render(s){
   $("mic").classList.add("on");
   $("sound-btn").classList.add("on");
   $("who-btn").classList.add("on");
+  $("talk-btn").classList.add("on");
   if ($("who").classList.contains("on")) renderWho();   // keep it live while open
+  if (talkWasOpen && $("talk").classList.contains("on")) renderTalk();
+  else if (s.log.length > talkSeen) $("talk-btn").classList.add("unread");
   // The say bar is owned by syncWorldChrome now - turning it on here as well
   // is what put two of them on screen during Nightfall.
   // Someone arriving or leaving should be audible, not just visible.
@@ -2353,7 +2421,10 @@ function syncWorldChrome(){
   const cardOpen = !hud.classList.contains("hidden") && !hud.classList.contains("min");
   $("stick").classList.toggle("on", !cardOpen && (walking || !hud.classList.contains("hidden")));
   $("emotes").classList.toggle("on", !cardOpen && (walking || !hud.classList.contains("hidden")));
-  $("say-bar").classList.toggle("on", !cardOpen);
+  // The say bar is gone from the bottom of the screen entirely - talking is
+  // the widget in the right-hand stack now, reachable whether the panel is
+  // open or shut, which the bottom bar never was.
+  $("say-bar").classList.remove("on");
   $("crawl").classList.toggle("on", !cardOpen);
   // #crawl and #say-bar are fixed outside #ui, so they cannot be styled from
   // the panel's own class. A body class is the one hook that reaches both.
@@ -2397,6 +2468,70 @@ function renderWho(){
     list.appendChild(row);
   });
 }
+
+/* Talking, as a widget.
+
+   The say bar used to run across the bottom of the island permanently, which
+   is a lot of screen given how much of the time nobody is typing - and it sat
+   in the same band as the stick and the emote column. It is a button in the
+   right-hand stack with the mic, the sound and the roster now, and it opens a
+   sheet with the conversation, the one-tap calls and the box.
+
+   The dot on the button means somebody said something while it was closed, so
+   putting it away never means missing the argument. */
+let talkSeen = 0, talkWasOpen = false;
+
+function renderTalk(){
+  const log = $("talk-log");
+  if (!log || !state) return;
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  log.innerHTML = "";
+  state.log.slice(-40).forEach(e => {
+    if (!(e.kind in CHAT_KINDS)) return;
+    const el = document.createElement("div");
+    el.className = "m " + CHAT_KINDS[e.kind];
+    if (e.who && !e.anonymous){
+      el.innerHTML = `<b>${escapeHtml(e.who)}</b>${escapeHtml(e.text)}`;
+    } else {
+      el.textContent = e.text;
+    }
+    log.appendChild(el);
+  });
+  if (atBottom) log.scrollTop = log.scrollHeight;
+
+  const calls = $("talk-calls");
+  calls.innerHTML = "";
+  (state.calls || []).forEach((text, i) => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = text;
+    b.onclick = () => { net && net.send({ t:"call", index: i }); Sound.tap(); };
+    calls.appendChild(b);
+  });
+}
+
+function openTalk(){
+  renderTalk();
+  $("talk").classList.add("on");
+  $("talk-btn").classList.remove("unread");
+  talkSeen = state ? state.log.length : 0;
+  talkWasOpen = true;
+  setTimeout(() => $("talk-in").focus(), 60);
+}
+function closeTalk(){
+  $("talk").classList.remove("on");
+  talkWasOpen = false;
+  talkSeen = state ? state.log.length : 0;
+}
+
+$("talk-btn").onclick = () => { openTalk(); Sound.tap(); };
+$("talk-close").onclick = () => { closeTalk(); Sound.tap(); };
+$("talk").addEventListener("click", (e) => { if (e.target.id === "talk") closeTalk(); });
+$("talk-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  sendSaid($("talk-in"));
+  renderTalk();
+});
 
 $("begin-float").onclick = () => { net && net.send({ t:"start" }); Sound.confirm(); };
 $("who-btn").onclick = () => { renderWho(); $("who").classList.add("on"); Sound.tap(); };
