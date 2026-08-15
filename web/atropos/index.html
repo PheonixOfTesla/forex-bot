@@ -7,8 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="description" content="A sunlit island party game. One of you holds the shears." />
 <title>Atropos Island</title>
+<script src="/atropos/config.js"></script>
 <script src="/atropos/three.min.js"></script>
 <script src="/atropos/eidolon.js"></script>
+<script src="/atropos/avatar.js"></script>
 <script src="/atropos/village.js"></script>
 <style>
 /* ===========================================================================
@@ -315,6 +317,12 @@ button{background:none;border:none;cursor:pointer}
     <div class="label" style="margin:10px 0 6px">Shirt</div>
     <div class="swatches" id="sw-shirt"></div>
 
+    <div class="label" style="margin:10px 0 6px">Cap</div>
+    <div class="swatches" id="sw-cap"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="reroll-btn" class="btn ghost" style="padding:11px">🎲 Reroll look</button>
+    </div>
+
     <div id="maker-err"></div>
     <button id="enter-btn" class="btn">Enter the island</button>
   </div>
@@ -359,6 +367,10 @@ const PHASE_COPY = {
   over:    { name:"The End",       sub:"" }
 };
 
+// The backend may live on a different host than the page (see config.js).
+const API = (window.ATROPOS_API || location.origin).replace(/\/$/, "");
+const WS_API = API.replace(/^http/, "ws");
+
 let state = null, prev = null, net = null, myPid = null;
 let ready = false;          // true once this player has an Eidolon and is in the world
 let clockBase = { remaining:0, duration:1, at:0 };
@@ -378,6 +390,9 @@ const store = {
 const maker = {
   image: null, zoom: 1.3, offY: 0,
   hand: Eidolon.randomChoice(),
+  // The full avatar config - face features, cap and outfit - so the character
+  // walking around the island is the one the player built.
+  cfg: Avatar.defaults(),
   result: null,
   mode: "hand"
 };
@@ -392,6 +407,9 @@ function paintPreview(){
   ctx.drawImage(out.canvas, 0, 0, 128, 128);
   // A photo tells us the colours; a hand-built one is told them.
   if (maker.mode === "photo") maker.hand = Object.assign({}, out.colors);
+  maker.cfg.skin = maker.hand.skin;
+  maker.cfg.hair = maker.hand.hair;
+  maker.cfg.shirt = maker.hand.shirt;
   markSwatches();
 }
 
@@ -431,12 +449,37 @@ function hexToRgb(h){
   return `rgb(${(n>>16)&255}, ${(n>>8)&255}, ${n&255})`;
 }
 
+function capRow(){
+  const host = $("sw-cap");
+  host.innerHTML = "";
+  Avatar.HAT_COLORS.forEach(hex => {
+    const b = document.createElement("button");
+    b.className = "sw";
+    b.style.background = hex;
+    b.setAttribute("aria-label", "cap " + hex);
+    b.setAttribute("aria-pressed", String(maker.cfg.hatColor === hex));
+    b.onclick = () => {
+      maker.cfg.hatColor = hex;
+      capRow();
+    };
+    host.appendChild(b);
+  });
+}
+
 function setupMaker(){
   swatchRow($("sw-skin"),  Eidolon.PRESET_SKIN,  "skin");
   swatchRow($("sw-hair"),  Eidolon.PRESET_HAIR,  "hair");
   swatchRow($("sw-shirt"), Eidolon.PRESET_SHIRT, "shirt");
+  capRow();
   paintPreview();
 
+  $("reroll-btn").onclick = () => {
+    const keep = { skin: maker.cfg.skin, hair: maker.cfg.hair, shirt: maker.cfg.shirt,
+                   hatColor: maker.cfg.hatColor };
+    maker.cfg = Object.assign(Avatar.defaults(), keep);
+    paintPreview();
+    capRow();
+  };
   $("pick-btn").onclick = () => $("file-in").click();
   $("draw-btn").onclick = () => {
     maker.mode = "hand";
@@ -463,9 +506,10 @@ function setupMaker(){
   $("offy").oninput = (e) => { maker.offY = e.target.value/100; paintPreview(); };
   $("enter-btn").onclick = () => {
     const out = maker.result;
-    const colors = maker.mode === "photo"
+    const base = maker.mode === "photo"
       ? Object.assign({}, out.colors, { shirt: maker.hand.shirt })
       : maker.hand;
+    const colors = Object.assign({}, maker.cfg, base);
     myEidolon = { face: out.face, colors };
     store.set("eidolon", myEidolon);
     net.send({ t:"eidolon", face: out.face, colors });
@@ -874,9 +918,8 @@ function escapeHtml(str){
 class Net {
   constructor(code, name, secret, onState, onError){
     this.onState = onState; this.onError = onError; this.closed = false;
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const qs = new URLSearchParams({ name:name||"", secret:secret||"" });
-    this.ws = new WebSocket(`${proto}//${location.host}/api/v1/game/ws/${code}?${qs}`);
+    this.ws = new WebSocket(`${WS_API}/api/v1/game/ws/${code}?${qs}`);
     this.ws.onmessage = async (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.t === "welcome"){
@@ -936,7 +979,7 @@ async function openIsland(){
   if (!name) return gateError("Pick a name first");
   store.set("name", name);
   try {
-    const res = await fetch("/api/v1/game/rooms", { method:"POST" });
+    const res = await fetch(API + "/api/v1/game/rooms", { method:"POST" });
     if (!res.ok) throw new Error();
     const room = await res.json();
     history.replaceState(null, "", "/play/" + room.code);

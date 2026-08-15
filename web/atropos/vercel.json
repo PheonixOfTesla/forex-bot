@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/play", "destination": "/index.html" },
+    { "source": "/play/:code", "destination": "/index.html" },
+    { "source": "/atropos/:file", "destination": "/:file" }
+  ],
+  "headers": [
+    {
+      "source": "/three.min.js",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
+}

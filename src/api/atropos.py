@@ -139,6 +139,19 @@ SPAWN_RADIUS = 7.0
 # sends roughly a 128px cel-shaded JPEG, which lands near 6 KB.
 MAX_EIDOLON_BYTES = 24000
 
+# The shape of an Eidolon, mirroring web/atropos/avatar.js. Kept as explicit
+# whitelists so a client cannot inject arbitrary strings into other players'
+# renderers.
+HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
+EIDOLON_COLOR_KEYS = ("skin", "hair", "shirt", "pants", "shoes", "hatColor")
+EIDOLON_STYLE_KEYS = {
+    "hairStyle": {"crop", "buzz", "bob", "long", "ponytail", "curls", "bun", "topknot"},
+    "eyes": {"round", "almond", "wide", "happy", "sleepy", "wink"},
+    "brows": {"soft", "flat", "arched", "thick"},
+    "mouth": {"smile", "grin", "smirk", "open", "calm"},
+    "hatStyle": {"cap", "capBack"},
+}
+
 
 class Phase(str, Enum):
     LOBBY = "lobby"
@@ -501,18 +514,35 @@ class Room:
         actor.emote = name if name in EMOTES else None
 
     def act_eidolon(self, actor: Player, face: Any, colors: Any) -> None:
-        """Store a player's likeness. Size-capped: this is relayed to everyone."""
-        if not isinstance(face, str) or not face.startswith("data:image/"):
-            return
-        if len(face) > MAX_EIDOLON_BYTES:
-            return
-        safe: Dict[str, Any] = {"face": face}
+        """
+        Store a player's Eidolon.
+
+        Everything here is relayed to every other player, so nothing is trusted:
+        colours must match a hex pattern, every style must be one of a known
+        set, and the optional face thumbnail is both size-capped and required to
+        be a data URL. Anything that fails simply does not make it into the
+        record.
+        """
+        safe: Dict[str, Any] = {}
+
+        if isinstance(face, str) and face.startswith("data:image/") and len(face) <= MAX_EIDOLON_BYTES:
+            safe["face"] = face
+
         if isinstance(colors, dict):
-            for key in ("skin", "hair", "shirt"):
+            for key in EIDOLON_COLOR_KEYS:
                 value = colors.get(key)
-                if isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+                if isinstance(value, str) and HEX_COLOR.fullmatch(value):
                     safe[key] = value
-        actor.eidolon = safe
+            for key, allowed in EIDOLON_STYLE_KEYS.items():
+                value = colors.get(key)
+                if isinstance(value, str) and value in allowed:
+                    safe[key] = value
+            if isinstance(colors.get("glasses"), bool):
+                safe["glasses"] = colors["glasses"]
+
+        # A record with nothing valid in it is not worth relaying.
+        if safe:
+            actor.eidolon = safe
 
     def spawn_positions(self) -> None:
         """Stand everyone in a ring in the square, facing the middle."""

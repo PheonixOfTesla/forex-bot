@@ -298,73 +298,15 @@ const Village = (() => {
     return tex;
   }
 
-  /* One Eidolon: head, face, hair, body, arms, legs, shadow, name tag. */
+  /* One Eidolon in the world: the shared avatar rig, plus the things only the
+     island needs - a painted shadow, a name tag and a vote marker. */
   function buildRig(player, eidolon){
-    const rig = new THREE.Group();
-    const colors = (eidolon && eidolon.colors) || {};
-    const skin  = new THREE.Color(colors.skin  || 0xEBBE94);
-    const hair  = new THREE.Color(colors.hair  || 0x3A2A1E);
-    const shirt = new THREE.Color(colors.shirt || 0x3B82C4);
+    const cfg = Object.assign(Avatar.defaults(), eidolon || {});
+    cfg.hat = cfg.hat !== false;
 
-    const skinMat  = toon(skin);
-    const shirtMat = toon(shirt);
-    const hairMat  = toon(hair);
-    const pantMat  = toon(new THREE.Color(shirt).multiplyScalar(0.55));
+    const a = Avatar.build(cfg);
+    const rig = a.root;
 
-    // Body: a soft tapered barrel. Wii proportions - small body, big head.
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.86, 14), shirtMat);
-    body.position.y = 0.92;
-    rig.add(body);
-    const collar = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), shirtMat);
-    collar.position.y = 1.3; collar.scale.y = 0.6;
-    rig.add(collar);
-
-    // Head, oversized on purpose.
-    const head = new THREE.Group();
-    head.position.y = 1.78;
-    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.56, 22, 18), skinMat);
-    skull.scale.set(1, 1.06, 0.94);
-    head.add(skull);
-
-    // The photo sits on a slightly domed disc on the front of the head.
-    const faceGeo = new THREE.SphereGeometry(0.545, 26, 20,
-      -Math.PI/2 - 0.72, 1.44, Math.PI * 0.18, Math.PI * 0.64);
-    const faceMat = new THREE.MeshBasicMaterial({ transparent: true });
-    if (eidolon && eidolon.faceTexture) faceMat.map = eidolon.faceTexture;
-    else faceMat.color = skin;
-    const face = new THREE.Mesh(faceGeo, faceMat);
-    face.rotation.y = Math.PI;
-    face.scale.set(1, 1.06, 0.94);
-    head.add(face);
-
-    // A hair shell over the back and top of the skull.
-    const hairMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.585, 20, 16, 0, Math.PI*2, 0, Math.PI * 0.56), hairMat);
-    hairMesh.scale.set(1, 1.02, 0.98);
-    hairMesh.position.y = 0.02;
-    head.add(hairMesh);
-
-    rig.add(head);
-
-    // Limbs, pivoted at the shoulder and hip so they swing properly.
-    function limb(len, rad, mat, x, y){
-      const pivot = new THREE.Group();
-      pivot.position.set(x, y, 0);
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad * 0.86, len, 10), mat);
-      m.position.y = -len/2;
-      pivot.add(m);
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(rad * 1.02, 10, 8), mat);
-      tip.position.y = -len;
-      pivot.add(tip);
-      rig.add(pivot);
-      return pivot;
-    }
-    const armL = limb(0.62, 0.13, skinMat, -0.44, 1.24);
-    const armR = limb(0.62, 0.13, skinMat,  0.44, 1.24);
-    const legL = limb(0.55, 0.155, pantMat, -0.18, 0.52);
-    const legR = limb(0.55, 0.155, pantMat,  0.18, 0.52);
-
-    // Painted shadow: far cheaper than a shadow map, and it suits the look.
     const shadow = new THREE.Mesh(
       new THREE.PlaneGeometry(1.5, 1.5),
       new THREE.MeshBasicMaterial({ map: blobShadow(), transparent: true, depthWrite: false })
@@ -377,15 +319,14 @@ const Village = (() => {
       map: nameTag(player.name), transparent: true, depthWrite: false, depthTest: false
     }));
     tag.scale.set(1.7, 0.43, 1);
-    // Stagger the height per player so tags on bunched-up characters do not
-    // land exactly on top of each other.
-    tag.position.y = 2.62 + ((player.seat || 0) % 4) * 0.32;
+    // Staggered per player so tags on bunched-up characters do not overlap.
+    tag.position.y = 2.95 + ((player.seat || 0) % 4) * 0.32;
     rig.add(tag);
 
-    // A ring under the feet, used to mark who you have voted for.
     const marker = new THREE.Mesh(
       new THREE.RingGeometry(0.52, 0.68, 24),
-      new THREE.MeshBasicMaterial({ color: 0xE04B3C, transparent: true, opacity: 0, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: 0xE04B3C, transparent: true, opacity: 0,
+                                    side: THREE.DoubleSide })
     );
     marker.rotation.x = -Math.PI/2;
     marker.position.y = 0.03;
@@ -393,8 +334,8 @@ const Village = (() => {
 
     scene.add(rig);
     return {
-      group: rig, head, face, faceMat, body, tag, marker, shadow,
-      armL, armR, legL, legR,
+      group: rig, avatar: a, head: a.head, body: a.torso, tag, marker, shadow,
+      armL: a.armL, armR: a.armR, legL: a.legL, legR: a.legR,
       pid: player.pid,
       // Interpolation targets, fed by the movement frame.
       x: player.x || 0, z: player.z || 0, angle: 0,
@@ -449,9 +390,7 @@ const Village = (() => {
       const raw = eidolonMap && eidolonMap[p.pid];
       // Include the colours, not just the face: changing only a shirt would
       // otherwise leave the old rig standing.
-      const stamp = raw
-        ? [(raw.face || "").length, raw.skin, raw.hair, raw.shirt].join("|")
-        : "none";
+      const stamp = raw ? JSON.stringify(raw) : "none";
       if (rig && rig.stamp !== stamp){
         scene.remove(rig.group);
         avatars.delete(p.pid);
@@ -586,13 +525,13 @@ const Village = (() => {
     if (!rig.moving){
       const idle = Math.sin(rig.phase * 0.6);
       rig.body.scale.y = 1 + idle * 0.022;
-      rig.head.position.y = 1.78 + idle * 0.02;
+      rig.head.position.y = 1.90 + idle * 0.02;
       rig.head.rotation.z = idle * 0.05;
       rig.armL.rotation.x = idle * 0.1;
       rig.armR.rotation.x = -idle * 0.1;
     } else {
       rig.body.scale.y = 1;
-      rig.head.position.y = 1.78;
+      rig.head.position.y = 1.90;
       rig.head.rotation.z = 0;
     }
 
