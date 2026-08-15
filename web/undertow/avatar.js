@@ -73,11 +73,22 @@ const Avatar = (() => {
       return finish(c);
     }
 
-    const eyeY = S * 0.455, eyeDx = S * 0.142, eyeR = S * 0.060;
+    /* Feature size is the whole answer to "why does the face look like that".
+
+       The geometry was never wrong - the eyes, nose and mouth were drawn in
+       the right places. They were drawn small. An eye at 0.060 of the texture
+       is about six per cent of the width of the face, which on a head eighty
+       pixels tall on a phone is two dark pixels. From any distance the face
+       read as a smudge, and up close as a doll with pinpricks for eyes.
+
+       Stylised characters of this kind put the eyes at roughly a fifth of the
+       face width each and set them low enough to leave a forehead. That is
+       what these numbers are now. */
+    const eyeY = S * 0.475, eyeDx = S * 0.150, eyeR = S * 0.090;
     drawBrows(g, cfg, eyeY - eyeR * 2.5, eyeDx);
     drawEyes(g, cfg, eyeY, eyeDx, eyeR);
     drawNose(g, cfg, eyeY + eyeR * 1.7);
-    drawMouth(g, cfg, S * 0.655);
+    drawMouth(g, cfg, S * 0.690);
     drawBlush(g, eyeY + eyeR * 1.9, eyeDx * 1.55);
     if (cfg.glasses) drawGlasses(g, eyeY, eyeDx, eyeR);
     return finish(c);
@@ -134,10 +145,11 @@ const Avatar = (() => {
   }
 
   function drawBrows(g, cfg, y, dx){
-    const w = S * 0.115;
-    let thickness = S * 0.020, lift = 0, tilt = 0;
-    if (cfg.brows === "thick")  thickness = S * 0.032;
-    if (cfg.brows === "arched"){ lift = -S * 0.012; tilt = 0.16; }
+    // Brows carry most of the expression, so they scale with the eyes.
+    const w = S * 0.150;
+    let thickness = S * 0.028, lift = 0, tilt = 0;
+    if (cfg.brows === "thick")  thickness = S * 0.042;
+    if (cfg.brows === "arched"){ lift = -S * 0.014; tilt = 0.16; }
     if (cfg.brows === "flat")   tilt = 0;
     else if (cfg.brows === "soft") tilt = 0.09;
 
@@ -154,17 +166,17 @@ const Avatar = (() => {
   }
 
   function drawNose(g, cfg, y){
-    g.strokeStyle = "rgba(90,60,45,0.45)";
-    g.lineWidth = S * 0.013; g.lineCap = "round";
+    g.strokeStyle = "rgba(90,60,45,0.50)";
+    g.lineWidth = S * 0.018; g.lineCap = "round";
     g.beginPath();
-    g.moveTo(S/2 - S*0.012, y);
-    g.quadraticCurveTo(S/2 + S*0.016, y + S*0.030, S/2 - S*0.006, y + S*0.040);
+    g.moveTo(S/2 - S*0.016, y);
+    g.quadraticCurveTo(S/2 + S*0.022, y + S*0.040, S/2 - S*0.008, y + S*0.054);
     g.stroke();
   }
 
   function drawMouth(g, cfg, y){
     g.lineCap = "round"; g.lineJoin = "round";
-    const w = S * 0.115;
+    const w = S * 0.140;
 
     if (cfg.mouth === "open"){
       g.fillStyle = "#8E3B3B";
@@ -761,12 +773,29 @@ const Avatar = (() => {
   }
 
   /* Just enough hair to show under a hat: a back fringe and sideburns. */
+  /* Hair showing under a cap.
+
+     This was a complete ring - a full 360 degrees of hair at exactly eye
+     level - and its z radius came out at 1.019R once scaled, against a skull
+     of 0.96R and a face cap of 0.958R. So it was not under the cap at all: it
+     was a band of hair standing proud of the face, across the eyes, in
+     whatever colour the player picked. On a phone that reads as a stripe
+     painted over the character's features.
+
+     Hair under a cap shows at the back and the sides. The front of the head
+     is where the face is, and it is now excluded by construction - the sweep
+     starts past the edge of the face cap and stops before the other edge. */
   function buildFringe(color, R, wrap){
     const g = new THREE.Group();
     const mat = toon(color);
-    const back = wrap(new THREE.SphereGeometry(R*0.98, 18, 14, 0, Math.PI*2, Math.PI*0.32, Math.PI*0.34), mat, 0.04);
-    back.position.z = -R * 0.08;
-    back.scale.set(1.02, 1.0, 1.04);
+    // phi = +PI/2 is the front of an unrotated sphere. The face cap occupies
+    // about 90 degrees there, so this starts clear of it and wraps the rest.
+    const FRONT = Math.PI / 2, GAP = 0.92;
+    const back = wrap(new THREE.SphereGeometry(
+      R * 0.99, 20, 14, FRONT + GAP, Math.PI * 2 - GAP * 2, Math.PI * 0.30, Math.PI * 0.36), mat, 0.04);
+    back.position.z = -R * 0.05;
+    // Kept just inside the skull front to back so it can never bulge through.
+    back.scale.set(1.03, 1.0, 0.97);
     g.add(back);
     [-1, 1].forEach(s => {
       const burn = wrap(new THREE.SphereGeometry(R*0.22, 10, 8), mat, 0.05);

@@ -2466,18 +2466,22 @@ const Village = (() => {
      so it costs one light no matter how big the island gets. */
   let selfMark = null;
 
-  /* The diamond.
+  /* The "you" marker.
 
      A ring on the floor is fine until you are in a crowd, at which point it is
-     under somebody's feet and you cannot tell whose. The Sims put a spinning
-     green diamond in the air above the character you control and never had to
-     explain it to anybody, which is the whole argument for copying it: it sits
-     above the heads, it is the only thing in the world shaped like that, and
-     it moves, so the eye finds it before it has finished reading the scene.
+     under somebody's feet and you cannot tell whose. What works is something
+     in the air above the heads that moves, so the eye finds it before it has
+     finished reading the scene.
 
-     Two four-sided cones base to base, unlit, drawn last with the depth test
-     off - so it stays visible through a tree or a wall. Losing sight of the
-     marker that tells you where you are is the one thing it must never do. */
+     It was a green diamond, and a green diamond floating over the character
+     you control is The Sims' plumbob - close enough to theirs to be a problem
+     rather than a reference. So it is a downward chevron in the island's own
+     gold instead: an arrow pointing at a thing is about as generic as game UI
+     gets, and it says "this one" more directly than a gem does.
+
+     Unlit and drawn last with the depth test off, so it stays visible through
+     a tree or a wall. Losing sight of the marker whose entire job is telling
+     you where you are is the one thing it must never do. */
   function buildPlumbob(){
     const g = new THREE.Group();
     /* toneMapped false is the important flag.
@@ -2487,32 +2491,53 @@ const Village = (() => {
        washed sage that vanished against the plaster. The marker is UI that
        happens to live in the scene; it should be exactly the colour it is
        set to, whatever the hour of the map. */
+    /* toneMapped false is the important flag.
+
+       An unlit material still goes through the tone curve by default, and
+       this world runs ACES at 0.78 exposure - so a bright colour came out a
+       washed pastel that vanished against the plaster. The marker is UI that
+       happens to live in the scene; it should be exactly the colour it is set
+       to, whatever the hour of the map. */
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x3CF03C, depthTest: false, depthWrite: false, toneMapped: false
+      color: 0xFFC23D, depthTest: false, depthWrite: false, toneMapped: false
     });
-    const top = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.44, 4), mat);
-    top.position.y = 0.22;
-    const bot = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.32, 4), mat);
-    bot.position.y = -0.16; bot.rotation.x = Math.PI;
-    g.add(top); g.add(bot);
-    // A darker copy a hair larger, drawn first: an outline. The diamond has to
+    // A chevron: a flat triangular blade pointing down, given a little depth
+    // by a second blade behind it so it turns rather than flickering edge-on.
+    const blade = () => {
+      const sh = new THREE.Shape();
+      sh.moveTo(0, -0.34);
+      sh.lineTo(0.30, 0.20);
+      sh.lineTo(0.13, 0.20);
+      sh.lineTo(0, -0.06);
+      sh.lineTo(-0.13, 0.20);
+      sh.lineTo(-0.30, 0.20);
+      sh.closePath();
+      return new THREE.ShapeGeometry(sh);
+    };
+    const front = new THREE.Mesh(blade(), mat);
+    const back = new THREE.Mesh(blade(), mat);
+    back.rotation.y = Math.PI / 2;
+    g.add(front); g.add(back);
+    // A darker copy a hair larger behind it: an outline. The marker has to
     // hold up against a pale wall as well as a dark tree, and a solid colour
     // alone can only manage one of those.
     const edgeMat = new THREE.MeshBasicMaterial({
-      color: 0x0B3D14, side: THREE.BackSide,
-      depthTest: false, depthWrite: false, toneMapped: false
+      color: 0x4A2E05, depthTest: false, depthWrite: false, toneMapped: false,
+      side: THREE.DoubleSide
     });
-    const eTop = new THREE.Mesh(new THREE.ConeGeometry(0.30, 0.50, 4), edgeMat);
-    eTop.position.y = 0.22;
-    const eBot = new THREE.Mesh(new THREE.ConeGeometry(0.30, 0.37, 4), edgeMat);
-    eBot.position.y = -0.17; eBot.rotation.x = Math.PI;
-    g.add(eTop); g.add(eBot);
+    [0, Math.PI / 2].forEach(rot => {
+      const e = new THREE.Mesh(blade(), edgeMat);
+      e.rotation.y = rot;
+      e.scale.setScalar(1.18);
+      e.position.z = rot === 0 ? -0.002 : 0;
+      g.add(e);
+    });
     g.renderOrder = 999;
     g.traverse(o => { o.renderOrder = 999; });
     // Sized against the character rather than in the abstract: about a fifth
-    // of an Islander's height, which is the proportion the reference uses and
-    // small enough that eight of them on screen is not a hedge of diamonds.
-    g.scale.setScalar(0.72);
+    // of an Islander's height, small enough that eight on screen at once is
+    // not a hedge of arrows.
+    g.scale.setScalar(0.80);
     return g;
   }
 
