@@ -164,7 +164,8 @@ MAX_ISLANDER_BYTES = 24000
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 ISLANDER_COLOR_KEYS = ("skin", "hair", "shirt", "pants", "shoes", "hatColor")
 ISLANDER_STYLE_KEYS = {
-    "hairStyle": {"crop", "buzz", "bob", "long", "ponytail", "curls", "bun", "topknot"},
+    "hairStyle": {"crop", "buzz", "bob", "long", "wavy", "braids",
+                  "ponytail", "curls", "bun", "topknot"},
     "eyes": {"round", "almond", "wide", "happy", "sleepy", "wink"},
     "brows": {"soft", "flat", "arched", "thick"},
     "mouth": {"smile", "grin", "smirk", "open", "calm"},

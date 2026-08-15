@@ -42,6 +42,15 @@ Nintendo, not "web game". Concretely:
 ## 2. Graphics — Ocarina art direction, modern clarity
 
 - **S2.1** Textured ground, walls, bark, foliage, water — DONE
+  - Each surface is drawn as itself: grass is blades, sand is wind ripples,
+    stone is running-bond paving with mortar, dirt is clods and pebbles,
+    plaster is a trowelled mottle. Five of them used to be one speckle
+    function in five colours, which is why they all read as the same material
+  - Every ground texture carries a normal map derived from its own canvas, so
+    the sun actually catches the surface instead of lighting flat colour
+  - Macro blotches break up tiling on the low-repeat surfaces. Deliberately
+    not on paving: at seven repeats the blotches *become* the pattern and the
+    plaza came out as a giant checkerboard
 - **S2.2** Blue sky with drifting cloud banding — DONE
 - **S2.3** Distant terrain in haze so the world feels bigger than it is — DONE
 - **S2.4** Low third-person camera, behind the shoulder — DONE
@@ -64,6 +73,17 @@ Nintendo, not "web game". Concretely:
 - **S4.2** Costumes with personality: bear, scientist, explorer, crown, chef, diver — DONE
 - **S4.3** Photo → cartoon face, on device, never uploaded — PARTIAL (untested on a real photo)
 - **S4.4** Skin, hair, outfit and cap colour customisable — DONE
+- **S4.13** Ten hair styles, and a picker in the maker for them — DONE
+  - crop, buzz, bob, long, wavy, braids, ponytail, curls, bun, topknot
+  - The library and the server whitelist had styles from the start; the maker
+    never exposed them, so everyone got a random style they could not change
+  - Long, wavy, braids and bob read unmistakably as long hair, with strands
+    down the front of each shoulder — without those it is a hood, not hair
+- **S4.14** A cap takes the crown and leaves the length — DONE
+  - Hair is built in two parts, and only the crown is skipped under a hat, so
+    a player in a Clockwork Hub cap still has her hair down her back
+  - Verified through the real server: the style relays to other players, and
+    a value that is not on the list is rejected
 - **S4.5** Figures, not toys — DONE
   - The body is one continuous surface, hip to collar, lathed from a profile
     instead of assembled from a cylinder and two spheres. No seams to catch

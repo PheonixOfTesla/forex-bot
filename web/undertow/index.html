@@ -602,7 +602,8 @@ button{background:none;border:none;cursor:pointer}
       <div class="label" style="margin-bottom:6px">Skin</div>
       <div class="swatches" id="sw-skin"></div>
       <div class="label" style="margin:10px 0 6px">Hair</div>
-      <div class="swatches" id="sw-hair"></div>
+      <div id="hair-pick" class="chips"></div>
+      <div class="swatches" id="sw-hair" style="margin-top:8px"></div>
     </div>
 
     <div class="label" style="margin:10px 0 6px">Shirt</div>
@@ -785,6 +786,35 @@ function emoteRow(){
   });
 }
 
+/* Hair style. It was in the avatar library and whitelisted on the server
+   from the start, but nothing on this screen ever let a player choose it -
+   so everyone got a random style, and with a cap on that meant everyone
+   got the same short fringe. */
+const HAIR_LABEL = {
+  crop: "Crop", buzz: "Buzz", bob: "Bob", long: "Long", wavy: "Wavy",
+  braids: "Braids", ponytail: "Ponytail", curls: "Curls", bun: "Bun",
+  topknot: "Topknot"
+};
+function hairRow(){
+  const host = $("hair-pick");
+  if (!host) return;
+  host.innerHTML = "";
+  Avatar.HAIR_STYLES.forEach(name => {
+    const on = maker.cfg.hairStyle === name;
+    const b = document.createElement("button");
+    b.className = "chip" + (on ? " sel" : "");
+    b.setAttribute("aria-pressed", String(on));
+    b.innerHTML = `<span>${HAIR_LABEL[name] || name}</span>`;
+    b.onclick = () => {
+      maker.cfg.hairStyle = name;
+      Sound.tap();
+      hairRow();
+      paintPreview();
+    };
+    host.appendChild(b);
+  });
+}
+
 function capRow(){
   const host = $("sw-cap");
   host.innerHTML = "";
@@ -797,7 +827,6 @@ function capRow(){
     b.onclick = () => {
       maker.cfg.hatColor = hex;
       capRow();
-  emoteRow();
     };
     host.appendChild(b);
   });
@@ -808,6 +837,7 @@ function setupMaker(){
   swatchRow($("sw-hair"),  Islander.PRESET_HAIR,  "hair");
   swatchRow($("sw-shirt"), Islander.PRESET_SHIRT, "shirt");
   capRow();
+  hairRow();
   emoteRow();
   paintPreview();
 
@@ -817,6 +847,7 @@ function setupMaker(){
     maker.cfg = Object.assign(Avatar.defaults(), keep);
     paintPreview();
     capRow();
+    hairRow();
   };
   $("pick-btn").onclick = () => $("file-in").click();
   $("draw-btn").onclick = () => {

@@ -92,7 +92,43 @@ const Village = (() => {
   const texCache = {};
   let maxAniso = 4;
 
-  function makeTex(key, draw, repeat){
+  /* A height field read off the drawn canvas, turned into a tangent-space
+     normal map. This is what was missing: every ground surface was drawn as
+     flat colour, so the sun could not catch anything and grass, sand and
+     stone all lit identically no matter what was painted on them. Deriving
+     the relief from the same canvas costs one pass at load and means a
+     texture only has to be drawn once to get both its colour and its bumps. */
+  function normalFrom(canvas, strength){
+    const S = canvas.width;
+    const src = canvas.getContext("2d").getImageData(0, 0, S, S).data;
+    const h = new Float32Array(S * S);
+    for (let i = 0; i < S * S; i++){
+      h[i] = (src[i*4] * 0.299 + src[i*4+1] * 0.587 + src[i*4+2] * 0.114) / 255;
+    }
+    // Wrapped sampling, so the relief tiles as seamlessly as the colour does.
+    const at = (x, y) => h[((y % S) + S) % S * S + (((x % S) + S) % S)];
+    const out = new Uint8Array(S * S * 3);
+    for (let y = 0; y < S; y++){
+      for (let x = 0; x < S; x++){
+        const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+        const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+        const len = Math.sqrt(dx*dx + dy*dy + 1);
+        const i = (y * S + x) * 3;
+        out[i]     = (-dx / len * 0.5 + 0.5) * 255;
+        out[i + 1] = ( dy / len * 0.5 + 0.5) * 255;
+        out[i + 2] = (  1 / len * 0.5 + 0.5) * 255;
+      }
+    }
+    const t = new THREE.DataTexture(out, S, S, THREE.RGBFormat);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true;
+    t.needsUpdate = true;
+    return t;
+  }
+
+  function makeTex(key, draw, repeat, bump){
     if (texCache[key]) return texCache[key];
     const size = 256;
     const c = document.createElement("canvas");
@@ -106,29 +142,153 @@ const Village = (() => {
     t.minFilter = THREE.LinearMipmapLinearFilter;
     t.anisotropy = maxAniso;
     t.repeat.set(repeat || 1, repeat || 1);
+    if (bump){
+      const n = normalFrom(c, bump);
+      n.anisotropy = maxAniso;
+      n.repeat.copy(t.repeat);
+      // three r128's Texture has no userData of its own, so make one.
+      t.userData = t.userData || {};
+      t.userData.normal = n;
+    }
     texCache[key] = t;
     return t;
   }
 
-  /* Speckled noise, the workhorse for ground surfaces. */
+  /* Fine grain. Still useful as a top layer, but on its own it is coloured
+     static - it was doing the whole job for grass, sand, dirt, stone and
+     plaster alike, which is why they all read as the same surface in
+     different colours. */
   function speckle(base, spots, density){
     return (g, S) => {
       g.fillStyle = base; g.fillRect(0, 0, S, S);
-      for (let i = 0; i < density; i++){
-        g.fillStyle = spots[(Math.random() * spots.length) | 0];
-        const x = Math.random() * S, y = Math.random() * S;
-        const w = 1 + Math.random() * 3;
-        g.fillRect(x, y, w, 1 + Math.random() * 2);
-      }
+      grain(g, S, spots, density);
     };
+  }
+  function grain(g, S, spots, density){
+    for (let i = 0; i < density; i++){
+      g.fillStyle = spots[(Math.random() * spots.length) | 0];
+      g.fillRect(Math.random() * S, Math.random() * S,
+                 1 + Math.random() * 3, 1 + Math.random() * 2);
+    }
+  }
+
+  /* Big soft blotches under everything else. A 256px tile repeated 28 times
+     across a field reads as a grid unless something breaks the rhythm at a
+     scale larger than the eye can pair up. */
+  function patches(g, S, colors, count, radius, alpha){
+    g.save();
+    g.globalAlpha = alpha;
+    for (let i = 0; i < count; i++){
+      const x = Math.random() * S, y = Math.random() * S;
+      const r = radius * (0.6 + Math.random() * 0.8);
+      const grd = g.createRadialGradient(x, y, 0, x, y, r);
+      const col = colors[(Math.random() * colors.length) | 0];
+      grd.addColorStop(0, col);
+      grd.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grd;
+      // Drawn four times, wrapped, so a blotch crossing an edge continues on
+      // the far side instead of being sliced off at the seam.
+      for (const [ox, oy] of [[0,0],[S,0],[0,S],[S,S]]){
+        g.beginPath(); g.arc(x - ox, y - oy, r, 0, Math.PI*2); g.fill();
+      }
+    }
+    g.restore();
   }
 
   const TEX = {
-    grass: () => makeTex("grass", speckle("#6E8F3C", ["#7FA349","#5D7B33","#87AC55","#4F6B2C"], 4200), 28),
-    dirt:  () => makeTex("dirt",  speckle("#B39B63", ["#C4AC73","#9C8452","#CBB682"], 3200), 10),
-    sand:  () => makeTex("sand",  speckle("#D9C88C", ["#E4D69F","#C8B478"], 2800), 22),
-    stone: () => makeTex("stone", speckle("#C6BFAC", ["#D3CCBA","#AFA792","#DAD4C4"], 2400), 6),
-    plaster: () => makeTex("plaster", speckle("#DCD3BE", ["#E6DECB","#CFC5AE"], 1400), 2),
+    /* Blades, not noise. Short tapered strokes at varying angles, over
+       patches of lighter and darker turf. */
+    grass: () => makeTex("grass", (g, S) => {
+      g.fillStyle = "#6E8F3C"; g.fillRect(0, 0, S, S);
+      patches(g, S, ["#7FA349", "#5A7730", "#87AC55"], 7, S * 0.28, 0.5);
+      g.lineCap = "round";
+      for (let i = 0; i < 1700; i++){
+        const x = Math.random() * S, y = Math.random() * S;
+        const a = -Math.PI/2 + (Math.random() - 0.5) * 1.5;
+        const len = 2 + Math.random() * 5;
+        g.strokeStyle = ["#7FA349","#8CB254","#5D7B33","#4F6B2C","#93B85E"][(Math.random()*5)|0];
+        g.lineWidth = 0.8 + Math.random() * 1.1;
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+        g.stroke();
+      }
+    }, 24, 2.4),
+
+    /* Trodden earth: compacted patches, loose clods, small stones. */
+    dirt: () => makeTex("dirt", (g, S) => {
+      g.fillStyle = "#B39B63"; g.fillRect(0, 0, S, S);
+      patches(g, S, ["#A28C57", "#C4AC73"], 6, S * 0.30, 0.55);
+      for (let i = 0; i < 130; i++){
+        const x = Math.random() * S, y = Math.random() * S;
+        const r = 1.5 + Math.random() * 4;
+        g.fillStyle = ["#9C8452","#8E7848","#CBB682"][(Math.random()*3)|0];
+        g.beginPath(); g.ellipse(x, y, r, r * 0.7, Math.random() * 3, 0, Math.PI*2); g.fill();
+      }
+      grain(g, S, ["#C4AC73","#9C8452"], 1200);
+    }, 10, 2.0),
+
+    /* Wind ripples are what makes sand read as sand rather than as beige
+       noise - the grain alone could be any powder. */
+    sand: () => makeTex("sand", (g, S) => {
+      g.fillStyle = "#D9C88C"; g.fillRect(0, 0, S, S);
+      patches(g, S, ["#E4D69F", "#CDBA7C"], 5, S * 0.34, 0.5);
+      g.lineWidth = 2.2; g.lineCap = "round";
+      for (let y = 0; y < S; y += 9){
+        g.strokeStyle = (y / 9) % 2 ? "rgba(196,176,120,.42)" : "rgba(236,224,180,.40)";
+        g.beginPath();
+        for (let x = 0; x <= S; x += 8){
+          const yy = y + Math.sin((x / S) * Math.PI * 4 + y * 0.11) * 3.2;
+          x === 0 ? g.moveTo(x, yy) : g.lineTo(x, yy);
+        }
+        g.stroke();
+      }
+      grain(g, S, ["#EBDCA8","#C8B478"], 2400);
+    }, 20, 1.6),
+
+    /* Flagstones with mortar between them, which is a pattern the eye can
+       actually latch onto at ground level. */
+    stone: () => makeTex("stone", (g, S) => {
+      g.fillStyle = "#B0A992"; g.fillRect(0, 0, S, S);       // mortar
+      const N = 5, cell = S / N;
+      for (let ry = 0; ry < N; ry++){
+        for (let rx = 0; rx < N; rx++){
+          const off = (ry % 2) * cell * 0.5;                  // running bond
+          const x = rx * cell + off, y = ry * cell;
+          const pad = 2 + Math.random();
+          // Stones close in tone on purpose. Wide per-stone variance looked
+          // richer in a single tile and made the tiling obvious the moment it
+          // repeated: the eye cannot see a grid, but it will happily match a
+          // memorable arrangement of light and dark blocks across a plaza.
+          g.fillStyle = ["#C8C1AE","#CCC5B2","#C2BBA8","#CEC7B5"][(Math.random()*4)|0];
+          const w = cell - pad * 2, h = cell - pad * 2;
+          for (const ox of [0, S]){
+            g.beginPath();
+            g.roundRect ? g.roundRect(x + pad - ox, y + pad, w, h, 3)
+                        : g.rect(x + pad - ox, y + pad, w, h);
+            g.fill();
+          }
+        }
+      }
+      // No macro patches here. They break up a tile that repeats a handful of
+      // times; at the seven repeats a plaza needs, four big blobs *become* the
+      // pattern - the plaza came out as a giant light-and-dark checkerboard,
+      // which is the exact artefact patches exist to prevent.
+      grain(g, S, ["#D2CCBC","#B8B0A0"], 1300);
+    }, 7, 1.5),
+
+    /* Hand-finished render: broad trowel sweep, then a fine tooth. */
+    plaster: () => makeTex("plaster", (g, S) => {
+      g.fillStyle = "#DCD3BE"; g.fillRect(0, 0, S, S);
+      patches(g, S, ["#E6DECB", "#CFC5AE"], 5, S * 0.4, 0.55);
+      g.strokeStyle = "rgba(203,193,170,.34)"; g.lineWidth = 3.5;
+      for (let i = 0; i < 14; i++){
+        const y = Math.random() * S, a = (Math.random() - 0.5) * 0.5;
+        g.beginPath(); g.moveTo(-10, y); g.lineTo(S + 10, y + Math.tan(a) * S); g.stroke();
+      }
+      grain(g, S, ["#E6DECB","#CFC5AE"], 900);
+    }, 2, 1.1),
+
     roof: () => makeTex("roof", (g,S)=>{
       g.fillStyle = "#B4573A"; g.fillRect(0,0,S,S);
       // overlapping tile courses
@@ -138,14 +298,14 @@ const Village = (() => {
           g.fillStyle = "#C4634A"; g.fillRect(x, y + 3, 34, 20);
         }
       }
-    }, 3),
+    }, 3, 2.6),
     bark: () => makeTex("bark", (g,S)=>{
       g.fillStyle = "#6E4E30"; g.fillRect(0,0,S,S);
       for (let i = 0; i < 150; i++){
         g.fillStyle = ["#5B3F26","#7E5B39","#4E3520"][(Math.random()*3)|0];
         g.fillRect(Math.random()*S, 0, 2 + Math.random()*6, S);   // vertical grain
       }
-    }, 2),
+    }, 2, 2.2),
     leaf: () => makeTex("leaf", speckle("#4F7A33", ["#5E8C3E","#42682A","#6B9A48"], 3200), 3),
     water: () => makeTex("water", (g,S)=>{
       g.fillStyle = "#3F7FA8"; g.fillRect(0,0,S,S);
@@ -182,9 +342,18 @@ const Village = (() => {
 
   /* Textured surface. The colour still tints it, so one texture serves several
      materials without redrawing the canvas. */
-  function surf(texFn, tint){
-    return new THREE.MeshStandardMaterial({ map: texFn(), color: tint || 0xffffff,
-                                            roughness: 0.95, metalness: 0.0 });
+  function surf(texFn, tint, bumpScale){
+    const map = texFn();
+    const mat = new THREE.MeshStandardMaterial({ map, color: tint || 0xffffff,
+                                                 roughness: 0.95, metalness: 0.0 });
+    // The relief that came off the same canvas. Kept well under 1 - at full
+    // strength procedural bumps read as crumpled foil rather than ground.
+    if (map.userData && map.userData.normal){
+      mat.normalMap = map.userData.normal;
+      const k = bumpScale === undefined ? 0.55 : bumpScale;
+      mat.normalScale = new THREE.Vector2(k, k);
+    }
+    return mat;
   }
 
   /* ------------------------------------------------------------------
@@ -1157,6 +1326,9 @@ const Village = (() => {
     init, sync, applyPositions, setSelf, setFollow, selfRig, setMarkers,
     faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking, say,
     applyMap, currentMap,
+    // Exposed for the tile inspector: judging a repeating texture from a
+    // screenshot of a field is guesswork, and the tile itself is the evidence.
+    TEXTURE: (name) => (TEX[name] ? TEX[name]() : null),
     VILLAGE_RADIUS
   };
 })();

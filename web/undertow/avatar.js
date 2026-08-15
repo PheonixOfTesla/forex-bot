@@ -31,7 +31,8 @@ const Avatar = (() => {
   const PANTS = ["#3A4657","#2F3A46","#5A6B7D","#7A6A55","#31445E","#4A3B52","#8A8175","#2B2438"];
   const SHOES = ["#2B2438","#F2F0E6","#E05B4B","#3B82C4","#7A6A55","#4CAF6E"];
 
-  const HAIR_STYLES = ["crop","buzz","bob","long","ponytail","curls","bun","topknot"];
+  const HAIR_STYLES = ["crop","buzz","bob","long","wavy","braids","ponytail",
+                       "curls","bun","topknot"];
   const EYE_STYLES  = ["round","almond","wide","happy","sleepy","wink"];
   const BROW_STYLES = ["soft","flat","arched","thick"];
   const MOUTH_STYLES = ["smile","grin","smirk","open","calm"];
@@ -412,70 +413,113 @@ const Avatar = (() => {
     return g;
   }
 
-  /* --- hair ------------------------------------------------------------ */
-  function buildHair(style, color, R){
+  /* --- hair ------------------------------------------------------------
+
+     Two separable parts, and that separation is the whole point: the CROWN is
+     the shell over the top of the skull, and the LENGTH is everything that
+     hangs off it - a fall down the back, a tail, braids, a bun.
+
+     A cap hides the crown and nothing else. So under a hat we build only the
+     length, which means a player in a Clockwork Hub cap still has her hair
+     down her back. Before this, every hat wearer got a token fringe and a bare
+     neck regardless of the style they picked, which is why the whole cast read
+     as boys.
+
+     Spheres rather than a partial surface of revolution. A lathe left open at
+     the face shows its hollow inside the moment the camera swings round, and
+     at this scale hair is read by its silhouette anyway.
+     -------------------------------------------------------------------- */
+  function buildHair(style, color, R, wrapIn, opts){
+    const o = opts || {};
+    const wrap = wrapIn || outlined;
     const g = new THREE.Group();
     const mat = toon(color);
-    const cap = (coverage, scaleY, lift) => {
-      const shell = outlined(
-        new THREE.SphereGeometry(R * 1.05, 24, 18, 0, Math.PI*2, 0, Math.PI * coverage),
-        mat, 0.038);
-      shell.scale.set(1, scaleY, 1);
-      shell.position.y = lift || 0;
-      // Nudged back so the fringe clears the brow rather than covering the eyes.
-      shell.position.z = -R * 0.05;
-      g.add(shell);
-      return shell;
+
+    const ball = (r, seg) => new THREE.SphereGeometry(R * r, seg || 16, (seg || 16) - 4);
+    const put = (geo, pos, scl, rot) => {
+      const m = wrap(geo, mat);
+      m.position.set(pos[0], pos[1], pos[2]);
+      if (scl) m.scale.set(scl[0], scl[1], scl[2]);
+      if (rot) m.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
+      g.add(m);
+      return m;
     };
 
-    if (style === "buzz"){ cap(0.40, 0.94, 0); }
-    else if (style === "crop"){ cap(0.45, 1.0, 0.01); }
+    /* The crown. Skipped under a cap. */
+    if (!o.underHat){
+      // Coverage is measured from the top of the skull. The eyes sit about
+      // 0.46pi down from it, so past ~0.46 the hairline lands *under* the
+      // eyebrows and the character peers out through a fringe; at 0.44 there
+      // is a forehead.
+      //
+      // Coverage is the only lever here. Pushing the shell back in z looks
+      // like the same fix and is not: the shell only clears the skull by
+      // 0.08R, so any meaningful z offset sinks its front edge inside the
+      // head and the hairline vanishes into a bald patch.
+      const cov = { buzz: 0.40, crop: 0.42, curls: 0.40, topknot: 0.38 }[style] || 0.44;
+      const shell = wrap(new THREE.SphereGeometry(R * 1.08, 26, 20, 0, Math.PI*2,
+                                                  0, Math.PI * cov), mat);
+      shell.scale.set(1, style === "buzz" ? 0.94 : 1, 1);
+      shell.position.z = -R * 0.04;
+      g.add(shell);
+    }
+
+    /* The length.
+
+       Every mass is placed by its top and bottom edge rather than by a centre
+       and a scale. That matters most at the top: a mass sized by scale alone
+       reaches as far up as it does down, so long hair grew back through the
+       cap and hid it completely from behind. Here the top edge stops just
+       under the cap band by construction. */
+    const mass = (rad, top, bottom, wide, deep, z, x, tilt) => {
+      const k = (top - bottom) / (2 * rad);
+      return put(ball(rad, 18), [R * (x || 0), R * (top + bottom) / 2, R * (z || 0)],
+                 [wide, k, deep], tilt ? [0, 0, tilt] : null);
+    };
+
+    if (style === "long" || style === "wavy"){
+      const drop = style === "wavy" ? -1.70 : -2.15;
+      mass(0.99, 0.22, drop * 0.66, 1.05, 0.80, -0.26);
+      mass(0.84, drop * 0.52, drop, style === "wavy" ? 1.22 : 0.96, 0.72, -0.18);
+      // A strand down the front of each shoulder. Without these it is a hood,
+      // not hair - the front is where the eye checks.
+      [-1, 1].forEach(sd =>
+        mass(0.34, 0.02, drop * 0.80, 0.70, 0.70, 0.14, sd * 0.84, sd * 0.07));
+    }
     else if (style === "bob"){
-      cap(0.48, 1.0, 0.01);
-      [-1, 1].forEach(s => {
-        const side = outlined(new THREE.SphereGeometry(R*0.42, 14, 12), mat, 0.04);
-        side.position.set(s * R * 0.82, -R * 0.34, 0);
-        side.scale.set(0.62, 1.25, 0.9);
-        g.add(side);
+      mass(0.92, 0.20, -0.98, 1.03, 0.80, -0.22);
+      [-1, 1].forEach(sd => mass(0.42, 0.10, -1.02, 0.68, 0.94, 0.02, sd * 0.80));
+    }
+    else if (style === "braids"){
+      mass(0.88, 0.20, -0.72, 1.01, 0.76, -0.24);
+      [-1, 1].forEach(sd => {
+        // Three beads to a braid: the kink is what makes it a braid rather
+        // than a length of rope.
+        for (let i = 0; i < 3; i++){
+          put(ball(0.25 - i * 0.03, 12),
+              [sd * (R * 0.82 + i * R * 0.03), -R * (0.74 + i * 0.50), R * 0.06],
+              [0.92, 1.16, 0.92]);
+        }
       });
     }
-    else if (style === "long"){
-      cap(0.47, 1.0, 0.01);
-      const back = outlined(new THREE.SphereGeometry(R*0.82, 16, 14), mat, 0.04);
-      back.position.set(0, -R * 0.60, -R * 0.22);
-      back.scale.set(0.94, 1.35, 0.72);
-      g.add(back);
-    }
     else if (style === "ponytail"){
-      cap(0.44, 1.0, 0.01);
-      const tail = outlined(new THREE.SphereGeometry(R*0.34, 14, 12), mat, 0.045);
-      tail.position.set(0, -R * 0.28, -R * 1.02);
-      tail.scale.set(0.72, 1.9, 0.72);
-      tail.rotation.x = -0.35;
-      g.add(tail);
+      mass(0.76, 0.18, -0.56, 0.96, 0.72, -0.32);
+      put(ball(0.36, 14), [0, -R * 0.64, -R * 0.94], [0.78, 2.05, 0.78], [-0.42, 0, 0]);
     }
     else if (style === "curls"){
-      cap(0.40, 0.92, 0.01);
       for (let i = 0; i < 9; i++){
-        const a = (i/9) * Math.PI * 2;
-        const curl = outlined(new THREE.SphereGeometry(R*0.30, 10, 9), mat, 0.05);
-        curl.position.set(Math.cos(a) * R * 0.78, R * 0.34 + Math.sin(i*2.1) * R * 0.16,
-                          Math.sin(a) * R * 0.78);
-        g.add(curl);
+        const a = (i / 9) * Math.PI * 2;
+        put(ball(0.30, 10), [Math.cos(a) * R * 0.78,
+                             R * 0.28 + Math.sin(i * 2.1) * R * 0.15,
+                             Math.sin(a) * R * 0.78]);
       }
     }
     else if (style === "bun"){
-      cap(0.44, 1.0, 0.01);
-      const bun = outlined(new THREE.SphereGeometry(R*0.36, 14, 12), mat, 0.05);
-      bun.position.set(0, R * 0.92, -R * 0.30);
-      g.add(bun);
+      mass(0.72, 0.16, -0.44, 0.94, 0.70, -0.30);
+      put(ball(0.38, 14), [0, R * 0.86, -R * 0.34]);
     }
     else if (style === "topknot"){
-      cap(0.38, 0.9, 0.01);
-      const knot = outlined(new THREE.SphereGeometry(R*0.24, 12, 10), mat, 0.055);
-      knot.position.set(0, R * 1.05, 0);
-      knot.scale.set(1, 1.5, 1);
-      g.add(knot);
+      put(ball(0.25, 12), [0, R * 1.02, 0], [1, 1.5, 1]);
     }
     return g;
   }
@@ -817,9 +861,12 @@ const Avatar = (() => {
     });
 
     if (cfg.hat === false){
-      head.add(buildHair(cfg.hairStyle, cfg.hair, HEAD_R));
+      head.add(buildHair(cfg.hairStyle, cfg.hair, HEAD_R, wrap));
     } else {
+      // The cap takes the crown; the hair keeps its length. A player who chose
+      // long hair and a cap gets both, which is how a cap works.
       head.add(buildFringe(cfg.hair, HEAD_R, wrap));
+      head.add(buildHair(cfg.hairStyle, cfg.hair, HEAD_R, wrap, { underHat: true }));
       head.add(buildCostume(cfg, HEAD_R, wrap));
     }
     rig.add(head);
