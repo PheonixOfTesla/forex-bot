@@ -642,6 +642,7 @@ button{background:none;border:none;cursor:pointer}
     <div class="label" style="text-align:center">Island code</div>
     <div id="code-big">-----</div>
     <button id="share-btn" class="btn">Share this island</button>
+    <button id="copy-btn" class="btn ghost">Copy link</button>
     <div id="roster"></div>
     <div id="lobby-note" class="label" style="text-align:center"></div>
     <div class="label" style="text-align:center;margin-top:2px">Where are we playing?</div>
@@ -928,6 +929,10 @@ function setupMaker(){
    MOVEMENT
    =========================================================================== */
 const me = { x:0, z:0, angle:0, vx:0, vz:0, moving:false };
+// The world hands back the spot the room gave us, once, before we have moved.
+Village.onSpawn && Village.onSpawn((x, z, a) => {
+  me.x = x; me.z = z; me.angle = a;
+});
 const input = { mx:0, my:0, keys:{} };
 let lastSent = 0;
 
@@ -1803,6 +1808,32 @@ function withApi(url){
   return url + (url.includes("?") ? "&" : "?") + "api=" + encodeURIComponent(API);
 }
 
+/* Copy, plainly. The share sheet is right on a phone and awkward everywhere
+   else - on a laptop it either does not exist or opens something nobody
+   wanted - and sometimes you just want the link in your clipboard to paste
+   where you choose. */
+async function copyLink(){
+  const url = withApi(location.origin + BASE_PATH + "/" + state.code);
+  try {
+    await navigator.clipboard.writeText(url);
+    Sound.confirm();
+    flashCopy("Link copied");
+  } catch(e){
+    // Clipboard access needs a secure context and a real gesture; when it is
+    // refused, show the link so it can still be selected by hand.
+    flashCopy(url);
+  }
+}
+
+function flashCopy(text){
+  const b = $("copy-btn");
+  if (!b) return;
+  clearTimeout(flashCopy.timer);
+  const old = "Copy link";
+  b.textContent = text;
+  flashCopy.timer = setTimeout(() => { b.textContent = old; }, 2200);
+}
+
 async function share(){
   const url = withApi(location.origin + BASE_PATH + "/" + state.code);
   const payload = { title:"Molua Island", text:`Come to Molua. Island code ${state.code}.`, url };
@@ -1825,6 +1856,7 @@ function flashShare(msg){
 $("open-btn").onclick = openIsland;
 $("join-btn").onclick = joinIsland;
 $("share-btn").onclick = share;
+$("copy-btn").onclick = copyLink;
 $("start-btn").onclick = () => net.send({ t:"start" });
 $("obey-btn").onclick = () => net.send({ t:"obey" });
 function sendSaid(input){

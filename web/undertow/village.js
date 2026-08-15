@@ -66,7 +66,28 @@ const Village = (() => {
   let avatars = new Map();       // pid -> rig
   let clock = 0;
   let quality = 1, fpsAvg = 60, lastFrame = performance.now();
-  let camYaw = 0, camPitch = 0.30, camDist = 11.0;
+  /* Third person, Fortnite shape: close behind the shoulder rather than a
+     drone eleven metres up. The old framing put the character small and
+     central in a wide establishing shot - fine for looking at an island,
+     wrong for being a person standing on one. Close in, pitch almost level,
+     and the body offset off-centre so the view ahead stays clear. */
+  /* Distance is arithmetic, not taste. An Islander is about 2.8 units tall
+     and the lens is 58 degrees vertical, so the visible height at distance D
+     is 2*D*tan(29deg) = 1.109*D. For a character to fill the ~30% of a
+     portrait screen a third-person mobile game gives it:
+
+         2.8 / (1.109 * D) = 0.30   ->   D = 8.4
+
+     Five was a face full of the back of your own head; eleven was a drone
+     shot. Aiming a little above centre pushes the body down the frame and
+     leaves the ground ahead visible, which is what you actually steer by. */
+  let camYaw = 0, camPitch = 0.22, camDist = 8.0;
+  // Measured, not guessed: 0.90 put the body at 28% across, and centre is 50%,
+  // so a unit of offset is worth about 24 points. A third of that lands the
+  // character near 42% - off centre enough to leave the path ahead clear,
+  // not so far that they are hugging the edge of the screen.
+  const SHOULDER = 0.34;
+  const EYE_HEIGHT = 2.05;    // aim above the waist; the body drops down frame
   let followPid = null;
   let shakeAmount = 0, flashAmount = 0;
   let flashColor = { r: 1, g: 0.3, b: 0.25 };
@@ -1069,11 +1090,32 @@ const Village = (() => {
   }
 
   /* The movement frame: [pid, x, z, angle, moving, alive, emote] */
+  let adoptedSpawn = false;
+  let onSpawn = null;
+
   function applyPositions(rows, selfPid){
     rows.forEach(([pid, x, z, a, m, alive, emote]) => {
       const rig = avatars.get(pid);
       if (!rig) return;
-      if (pid === selfPid) return;          // your own body is driven locally
+      if (pid === selfPid){
+        // Take the server's spawn once, before this player has moved. Without
+        // it the local position stays at the origin no matter where the room
+        // put you, because self position is otherwise never read back.
+        if (!adoptedSpawn && (x || z)){
+          adoptedSpawn = true;
+          rig.x = rig.tx = x; rig.z = rig.tz = z;
+          rig.angle = rig.ta = a;
+          if (onSpawn) onSpawn(x, z, a);
+        }
+        // Your own position stays local, because waiting on a round trip to
+        // move is what makes a game feel like a website. The emote does not:
+        // the server owns it, and skipping the whole row meant everybody
+        // could see your dance except you - the one person who chose it.
+        rig.alive = !!alive;
+        if (emote && emote !== rig.emote){ rig.emote = emote; rig.emoteT = 0; }
+        if (!emote) rig.emote = "";
+        return;
+      }
       rig.tx = x; rig.tz = z; rig.ta = a;
       rig.moving = !!m;
       rig.alive = !!alive;
@@ -1167,7 +1209,7 @@ const Village = (() => {
     camYaw -= dx * 0.005;
     camPitch = Math.max(0.06, Math.min(1.05, camPitch + dy * 0.004));
   }
-  function zoom(delta){ camDist = Math.max(4.5, Math.min(16, camDist + delta)); }
+  function zoom(delta){ camDist = Math.max(4.0, Math.min(14, camDist + delta)); }
   function heading(){ return camYaw; }
 
   /* ------------------------------------------------------------------
@@ -1354,10 +1396,27 @@ const Village = (() => {
     if (wantGhost) rig.group.position.y += 0.35 + Math.sin(clock * 1.6 + rig.phase) * 0.12;
   }
 
+  /* Emote showcase.
+
+     Buying a dance you never see is pointless, which is why every game with
+     emotes swings the camera round for them. Behind-the-shoulder is right for
+     walking and wrong for dancing: the emote plays into the back of your own
+     head.
+
+     While the followed player is emoting the camera eases in and round to a
+     three-quarter front view, then eases back. camYaw itself is never touched
+     - the offset is applied on top - so the shot the player set up by dragging
+     is exactly the shot they get back when the emote ends. */
+  const EMOTE_CAM = { blend: 0, dist: 6.4, pitch: 0.20, swing: 0.62 };
+
+  function shortestAngle(from, to){
+    return ((to - from + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  }
+
   function updateCamera(dt){
     const me = avatars.get(followPid);
     const target = me
-      ? new THREE.Vector3(me.x, terrainH(me.x, me.z) + 1.9, me.z)
+      ? new THREE.Vector3(me.x, terrainH(me.x, me.z) + EYE_HEIGHT, me.z)
       : new THREE.Vector3(0, 2.2, 0);
 
     if (!me){
@@ -1365,12 +1424,39 @@ const Village = (() => {
       camYaw += dt * 0.09;
     }
 
-    const d = me ? camDist : 17;
-    const p = me ? camPitch : 0.42;
+    // Ease in fast enough to catch the start of the emote, out slowly enough
+    // that it does not snap.
+    const emoting = !!(me && me.emote);
+    const rate = emoting ? 3.4 : 1.9;
+    EMOTE_CAM.blend += ((emoting ? 1 : 0) - EMOTE_CAM.blend) * Math.min(1, dt * rate);
+    const k = EMOTE_CAM.blend;
+
+    let d = me ? camDist : 17;
+    let p = me ? camPitch : 0.42;
+    let yaw = camYaw;
+
+    if (me && k > 0.001){
+      d += (EMOTE_CAM.dist - d) * k;
+      p += (EMOTE_CAM.pitch - p) * k;
+      // The rig faces its own angle, so standing the camera at that angle
+      // puts it in front of the character. A little past it reads as three
+      // quarters rather than a passport photo.
+      const front = me.angle + EMOTE_CAM.swing;
+      yaw = camYaw + shortestAngle(camYaw, front) * k;
+    }
+
+    // Shift camera and aim point together along the camera's own right, which
+    // slides the character off-centre without turning the view. Eased out
+    // during an emote, because a showcase wants them middle of frame.
+    const shoulder = SHOULDER * (me ? 1 - k : 0);
+    const rx = Math.cos(yaw) * shoulder;
+    const rz = -Math.sin(yaw) * shoulder;
+    target.x += rx; target.z += rz;
+
     const want = new THREE.Vector3(
-      target.x + Math.sin(camYaw) * Math.cos(p) * d,
+      target.x + Math.sin(yaw) * Math.cos(p) * d,
       target.y + Math.sin(p) * d,
-      target.z + Math.cos(camYaw) * Math.cos(p) * d
+      target.z + Math.cos(yaw) * Math.cos(p) * d
     );
     // Never let the camera drop below the ground.
     // Never let the camera drop through a hill.
@@ -1436,6 +1522,8 @@ const Village = (() => {
 
   return {
     init, sync, applyPositions, setSelf, setFollow, selfRig, setMarkers,
+    onSpawn(fn){ onSpawn = fn; },
+    camera: () => camera,     // for framing checks
     faceTextureFor, flash, orbit, zoom, heading, separation, setSpeaking, say,
     applyMap, currentMap,
     // Exposed for the tile inspector: judging a repeating texture from a
