@@ -66,7 +66,8 @@ function tick(){
     a.armL.userData.knee.rotation.set(0,0,0); a.armR.userData.knee.rotation.set(0,0,0);
     a.legL.userData.knee.rotation.set(0,0,0); a.legR.userData.knee.rotation.set(0,0,0);
     a.root.position.y = 0;
-    a.root.rotation.y = window.__spin ? t * 0.8 : (window.__yaw || 0);
+    a.root.rotation.y = (Q.get("shot") === "head") ? 0
+                      : (window.__spin ? t * 0.8 : (window.__yaw || 0));
     if ((Q.get("pose") || "idle") === "idle"){
       const ph = t * 3 + i;
       a.armL.rotation.x = Math.sin(ph) * 0.12 - 0.06;
@@ -75,7 +76,16 @@ function tick(){
     }
     pose(a);
   });
-  cam.position.set(0, 1.62, 5.6); cam.lookAt(0, 1.45, 0);
+  // ?shot=head frames the head alone. Judging a face from a full-body render
+  // at 900px means judging forty pixels of it, which is how a hairstyle that
+  // covers the mouth survives three rounds of review.
+  if (Q.get("shot") === "head"){
+    const d = +(Q.get("dist") || 1.05);
+    cam.position.set(Math.sin(window.__yaw || 0) * d, 2.62, Math.cos(window.__yaw || 0) * d);
+    cam.lookAt(0, 2.60, 0);
+  } else {
+    cam.position.set(0, 1.62, 5.6); cam.lookAt(0, 1.45, 0);
+  }
   r.render(sc, cam); requestAnimationFrame(tick);
 }
 tick();

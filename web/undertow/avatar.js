@@ -122,25 +122,28 @@ const Avatar = (() => {
       if (cfg.eyes === "wide")  { rx = r * 1.10; ry = r * 1.30; }
       if (cfg.eyes === "sleepy"){ rx = r * 1.02; ry = r * 0.66; }
 
-      // White, iris, pupil, highlight - the four layers that make an eye read.
+      /* Flat, not shaded.
+
+         There were five layers here - white, iris, pupil, highlight and a
+         heavy lash line over the top - and at the size a face actually gets
+         on screen they average into a dark smear. The whole point of the Mii
+         face is that it is printed, not modelled: a white, a dark iris, one
+         highlight, and a thin outline to hold the shape. Three shapes read
+         at forty pixels; five do not. */
       g.fillStyle = "#FFFFFF";
       g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); g.fill();
 
-      g.fillStyle = cfg.eyeColor || "#5B4636";
-      g.beginPath(); g.ellipse(x, y + ry*0.06, rx*0.62, ry*0.62, 0, 0, Math.PI*2); g.fill();
-
-      g.fillStyle = "#1C1622";
-      g.beginPath(); g.ellipse(x, y + ry*0.06, rx*0.34, ry*0.36, 0, 0, Math.PI*2); g.fill();
+      g.fillStyle = cfg.eyeColor || "#3A2E28";
+      g.beginPath(); g.ellipse(x, y + ry*0.04, rx*0.60, ry*0.66, 0, 0, Math.PI*2); g.fill();
 
       g.fillStyle = "rgba(255,255,255,0.95)";
-      g.beginPath(); g.ellipse(x - rx*0.26, y - ry*0.32, rx*0.20, ry*0.20, 0, 0, Math.PI*2); g.fill();
+      g.beginPath(); g.ellipse(x - rx*0.24, y - ry*0.30, rx*0.19, ry*0.19, 0, 0, Math.PI*2); g.fill();
 
-      // Lash line across the top, heavier on the outside.
+      // A thin, even outline. Even, because a lash line weighted to one side
+      // is a drawing decision that stops reading at any distance.
       g.strokeStyle = "#2A2333";
-      g.lineWidth = r * 0.20; g.lineCap = "round";
-      g.beginPath();
-      g.ellipse(x, y, rx, ry, 0, Math.PI * 1.05, Math.PI * 1.95);
-      g.stroke();
+      g.lineWidth = r * 0.13;
+      g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); g.stroke();
     });
   }
 
@@ -165,12 +168,18 @@ const Avatar = (() => {
     });
   }
 
+  /* A nose is a mark, not a drawing.
+
+     The hooked line here was trying to describe a nose in three-quarter view
+     on a face that is only ever seen flat. At small sizes it read as a smudge
+     under one eye. A short soft stroke on the centre line is what the
+     reference uses, and it is all a nose has to be. */
   function drawNose(g, cfg, y){
-    g.strokeStyle = "rgba(90,60,45,0.50)";
-    g.lineWidth = S * 0.018; g.lineCap = "round";
+    g.strokeStyle = "rgba(120,85,66,0.42)";
+    g.lineWidth = S * 0.020; g.lineCap = "round";
     g.beginPath();
-    g.moveTo(S/2 - S*0.016, y);
-    g.quadraticCurveTo(S/2 + S*0.022, y + S*0.040, S/2 - S*0.008, y + S*0.054);
+    g.moveTo(S/2, y + S*0.012);
+    g.lineTo(S/2, y + S*0.044);
     g.stroke();
   }
 
@@ -490,11 +499,9 @@ const Avatar = (() => {
       // like the same fix and is not: the shell only clears the skull by
       // 0.08R, so any meaningful z offset sinks its front edge inside the
       // head and the hairline vanishes into a bald patch.
-      const cov = { buzz: 0.40, crop: 0.42, curls: 0.40, topknot: 0.38 }[style] || 0.44;
-      const shell = wrap(new THREE.SphereGeometry(R * 1.08, 26, 20, 0, Math.PI*2,
-                                                  0, Math.PI * cov), mat);
-      shell.scale.set(1, style === "buzz" ? 0.94 : 1, 1);
-      shell.position.z = -R * 0.04;
+      const cov = { buzz: 0.40, crop: 0.42, curls: 0.40, topknot: 0.38 }[style] || 0.43;
+      const shell = wrap(new THREE.LatheGeometry(headProfile(R, 1.05, cov), 32), mat);
+      shell.scale.set(1, style === "buzz" ? 0.96 : 1, 0.98);
       g.add(shell);
     }
 
@@ -512,20 +519,31 @@ const Avatar = (() => {
     };
 
     if (style === "long" || style === "wavy"){
+      /* Set back behind the head, not around it.
+
+         These masses were centred barely a quarter of a radius behind the
+         skull while reaching four fifths of a radius forward, so their front
+         face sat inside the head - and once the head became a smooth lathe
+         with no wide jaw to hide them, they came through the face as a solid
+         block of hair colour with the drawn features floating on top of it.
+
+         Long hair hangs behind the shoulders. It only needs to be visible
+         from the front at the very edges, which is what the two thin strands
+         are for - and those are narrow enough to stay outside the cheeks. */
       const drop = style === "wavy" ? -1.70 : -2.15;
-      mass(0.99, 0.22, drop * 0.66, 1.05, 0.80, -0.26);
-      mass(0.84, drop * 0.52, drop, style === "wavy" ? 1.22 : 0.96, 0.72, -0.18);
-      // A strand down the front of each shoulder. Without these it is a hood,
-      // not hair - the front is where the eye checks.
+      mass(0.99, 0.22, drop * 0.66, 1.02, 0.62, -0.62);
+      mass(0.84, drop * 0.52, drop, style === "wavy" ? 1.20 : 0.94, 0.60, -0.56);
+      // A strand down each shoulder, outboard of the face so it frames rather
+      // than covers. Without them it is a hood, not hair.
       [-1, 1].forEach(sd =>
-        mass(0.34, 0.02, drop * 0.80, 0.70, 0.70, 0.14, sd * 0.84, sd * 0.07));
+        mass(0.26, 0.02, drop * 0.80, 0.62, 0.62, -0.10, sd * 1.02, sd * 0.07));
     }
     else if (style === "bob"){
-      mass(0.92, 0.20, -0.98, 1.03, 0.80, -0.22);
-      [-1, 1].forEach(sd => mass(0.42, 0.10, -1.02, 0.68, 0.94, 0.02, sd * 0.80));
+      mass(0.92, 0.20, -0.98, 1.00, 0.62, -0.58);
+      [-1, 1].forEach(sd => mass(0.34, 0.10, -1.02, 0.60, 0.78, -0.10, sd * 0.98));
     }
     else if (style === "braids"){
-      mass(0.88, 0.20, -0.72, 1.01, 0.76, -0.24);
+      mass(0.88, 0.20, -0.72, 0.98, 0.60, -0.58);
       [-1, 1].forEach(sd => {
         // Three beads to a braid: the kink is what makes it a braid rather
         // than a length of rope.
@@ -785,6 +803,38 @@ const Avatar = (() => {
      Hair under a cap shows at the back and the sides. The front of the head
      is where the face is, and it is now excluded by construction - the sweep
      starts past the edge of the face cap and stops before the other edge. */
+  /* The head curve, in one place.
+
+     The skull and anything that sits on it - a crown of hair, a cap - have to
+     be the same shape or they cross. That is not a tuning problem, it is an
+     arithmetic one: the crown used to be a sphere while the head became a
+     superellipse, so the shell sank inside the skull at the top and stood
+     proud of it at the equator, which is exactly eye level. The result was a
+     dome of hair covering the face with the drawn features floating on it.
+
+     Both are generated from this now, the hair simply a few per cent larger,
+     so a crown follows the skull by construction at every latitude.
+
+     t runs 0 at the crown to 1 at the chin; tEnd truncates it, which is what
+     turns the same curve into a hairline. */
+  const HEAD_N = 2.8;
+  function headProfile(R, k, tEnd){
+    const pts = [];
+    const STEPS = 26;
+    const end = tEnd === undefined ? 1 : tEnd;
+    const n = Math.max(2, Math.round(STEPS * end));
+    for (let i = 0; i <= n; i++){
+      const t = (i / n) * end;
+      const u = 1 - t * 2;
+      let r = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(u), HEAD_N)), 1 / HEAD_N);
+      r *= 1 + u * 0.055;
+      if (i === 0 && t === 0) r = 0;             // close the crown
+      if (end >= 1 && i === n) r = 0;            // and the chin, when we reach it
+      pts.push(new THREE.Vector2(Math.max(0.0001, r * R * k), u * R * 1.10 * k));
+    }
+    return pts;
+  }
+
   function buildFringe(color, R, wrap){
     const g = new THREE.Group();
     const mat = toon(color);
@@ -797,12 +847,9 @@ const Avatar = (() => {
     // Kept just inside the skull front to back so it can never bulge through.
     back.scale.set(1.03, 1.0, 0.97);
     g.add(back);
-    [-1, 1].forEach(s => {
-      const burn = wrap(new THREE.SphereGeometry(R*0.22, 10, 8), mat, 0.05);
-      burn.position.set(s * R * 0.88, -R * 0.22, -R * 0.06);
-      burn.scale.set(0.5, 0.95, 0.8);
-      g.add(burn);
-    });
+    // The sideburns are gone with the jaw sphere. They were two more balls
+    // pushed into the side of the head, and on a smooth egg every one of those
+    // reads as a lump rather than as hair.
     return g;
   }
 
@@ -927,14 +974,31 @@ const Avatar = (() => {
        anything else. */
     const head = new THREE.Group();
     head.position.y = HEAD_Y;
-    const skull = wrap(new THREE.SphereGeometry(HEAD_R, 34, 26), skinMat);
-    skull.scale.set(1, 1.08, 0.96);
-    head.add(skull);
+    /* One head, not three.
 
-    const jaw = wrap(new THREE.SphereGeometry(HEAD_R * 0.88, 22, 18), skinMat);
-    jaw.position.set(0, -HEAD_R * 0.20, HEAD_R * 0.05);
-    jaw.scale.set(0.95, 0.76, 0.93);
-    head.add(jaw);
+       This was a sphere with a second smaller sphere pushed into the bottom of
+       it for a jaw, and a band of hair around the middle. Three intersecting
+       balls do not make a face - they make lumps, and every seam where one
+       surface enters another catches the light as a crease. At phone size the
+       result reads as a pile of blobs, which is what it looked like.
+
+       If the budget will not stretch to a sculpted head, the answer is not a
+       worse sculpted head - it is to stop sculpting. A Mii is one smooth egg
+       with flat features printed on the front, and it works precisely because
+       there is nothing on it to go wrong. No jaw, no cheeks, no brow ridge, no
+       seams.
+
+       A lathe gives exactly that: one surface, generated from a single curve,
+       with no intersections anywhere on it. The curve is an ellipse leaned
+       slightly heavy at the top and drawn in to a rounded chin, which is the
+       whole shape of the head. */
+    /* A superellipse, not a circle. A circular profile tapers to a point at
+       the chin; a Mii head is closer to a rounded box, full in the cheeks and
+       broad across a rounded chin. The curve lives in headProfile so the hair
+       can be generated from the same one. */
+    const skull = wrap(new THREE.LatheGeometry(headProfile(HEAD_R, 1), 40), skinMat);
+    skull.scale.set(1, 1, 0.94);                 // a shade flatter front to back
+    head.add(skull);
 
     // The drawn features sit on a shallow cap across the front of the head.
     const faceGeo = new THREE.SphereGeometry(HEAD_R * 1.008, 30, 24,
