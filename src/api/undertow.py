@@ -137,10 +137,18 @@ OMENS = [
 
 REACTIONS = ["eye", "flame", "hand", "skull"]
 
+DEFAULT_LOADOUT = ["wave", "dance", "clap", "cheer", "point", "laugh", "sit", "flex"]
+
 # Where a game is played. Same rules everywhere; only the scenery changes.
 MAPS = ["village", "grove", "bay"]
 
-EMOTES = ["wave", "dance", "point", "sit", "cheer", "shrug"]
+EMOTES = [
+    "wave", "dance", "spin", "clap", "cheer", "point", "bow", "flex",
+    "laugh", "think", "sit", "sleep", "robot", "wiggle",
+]
+
+# How many an islander carries on their wheel at once.
+EMOTE_SLOTS = 8
 
 # The village players walk around in, in world units.
 VILLAGE_RADIUS = 26.0
@@ -273,6 +281,9 @@ class Player:
 
     # Voice: whether this player's mic is live.
     voice: bool = False
+
+    # The emotes on this player's wheel.
+    loadout: List[str] = field(default_factory=lambda: list(DEFAULT_LOADOUT))
 
     # How they went, once they have.
     manner: Optional[str] = None
@@ -576,6 +587,20 @@ class Room:
     def act_emote(self, actor: Player, name: Any) -> None:
         actor.emote = name if name in EMOTES else None
 
+    def act_loadout(self, actor: Player, names: Any) -> None:
+        """The eight emotes on this player's wheel. Whitelisted and length
+        capped, and it is only ever theirs - nobody sets anyone else's."""
+        if not isinstance(names, list):
+            return
+        picked = [n for n in names if isinstance(n, str) and n in EMOTES]
+        # Preserve order, drop duplicates, clamp to the wheel size.
+        seen, clean = set(), []
+        for n in picked:
+            if n not in seen:
+                seen.add(n); clean.append(n)
+        if clean:
+            actor.loadout = clean[:EMOTE_SLOTS]
+
     def act_islander(self, actor: Player, face: Any, colors: Any) -> None:
         """
         Store a player's Islander.
@@ -816,6 +841,7 @@ class Room:
             "code": self.code,
             "map": self.map,
             "maps": MAPS,
+            "emotes": EMOTES,
             "phase": self.phase.value,
             "round": self.round,
             "remaining": round(remaining, 1),
@@ -848,6 +874,7 @@ class Room:
             "alive": viewer.alive,
             "host": viewer.is_host,
             "vote": viewer.vote,
+            "loadout": viewer.loadout,
             "role": viewer.role.value if playing else None,
             "title": ROLE_TITLES[viewer.role] if playing else None,
             "blurb": ROLE_BLURBS[viewer.role] if playing else None,

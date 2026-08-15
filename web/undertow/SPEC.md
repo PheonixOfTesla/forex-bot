@@ -69,6 +69,19 @@ Nintendo, not "web game". Concretely:
 - **S4.6** Hand-modelled character quality (Smash Bros tier) — **NOT
   ACHIEVABLE PROCEDURALLY.** Needs bought or commissioned art; the system is
   built so a config swaps the mesh source without touching the game
+- **S4.7** Emotes and dances, Fortnite / Apex style — DONE
+  - 14 to choose from: wave, dance, spin, clap, cheer, point, bow, flex,
+    laugh, think, sit, sleep, robot, wiggle
+  - Each one is a distinct full-body animation with real joint bends, not a
+    recoloured wave
+- **S4.8** A customisable wheel: pick any 8 of the 14 in the character maker,
+  and they are the 8 on your radial — DONE
+- **S4.9** The wheel opens over the world without leaving it, slots laid on a
+  circle from the top going clockwise, thumb-reachable on a phone — DONE
+- **S4.10** Three quick-picks on the HUD for the emotes you use most, so the
+  common case is one tap — DONE
+- **S4.11** The loadout is yours and only yours: the server whitelists every
+  name, de-duplicates, clamps to 8, and nobody can set another player's — DONE
 
 ## 5. Multiplayer
 

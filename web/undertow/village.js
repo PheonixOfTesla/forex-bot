@@ -927,32 +927,126 @@ const Village = (() => {
       rig.head.rotation.z = 0;
     }
 
-    // Emotes override the arms for a couple of seconds.
+    /* Emotes. Each drives the limbs directly for a few seconds, so they read
+       clearly from across a plaza at phone size - big arcs, whole-body motion,
+       nothing subtle enough to be lost at that scale. */
     if (rig.emote){
       rig.emoteT += dt;
       const e = rig.emoteT;
-      if (rig.emote === "wave"){
+      const E = rig.emote;
+      const kneeL = rig.legL.userData.knee, kneeR = rig.legR.userData.knee;
+      const elbowL = rig.armL.userData.knee, elbowR = rig.armR.userData.knee;
+
+      if (E === "wave"){
         rig.armR.rotation.x = -2.5;
-        rig.armR.rotation.z = Math.sin(e * 11) * 0.5 - 0.3;
-      } else if (rig.emote === "cheer"){
-        rig.armL.rotation.x = rig.armR.rotation.x = -2.8;
-        rig.group.position.y += Math.abs(Math.sin(e * 7)) * 0.28;
-      } else if (rig.emote === "dance"){
-        rig.group.rotation.y += Math.sin(e * 6) * 0.5;
-        rig.group.position.y += Math.abs(Math.sin(e * 9)) * 0.22;
-        rig.armL.rotation.x = -1.7 + Math.sin(e * 9) * 0.9;
-        rig.armR.rotation.x = -1.7 - Math.sin(e * 9) * 0.9;
-      } else if (rig.emote === "point"){
-        rig.armR.rotation.x = -1.55;
-        rig.armR.rotation.z = -0.12;
-      } else if (rig.emote === "shrug"){
-        rig.armL.rotation.z =  0.9; rig.armR.rotation.z = -0.9;
-        rig.armL.rotation.x = -0.5; rig.armR.rotation.x = -0.5;
-      } else if (rig.emote === "sit"){
-        rig.group.position.y -= 0.42;
-        rig.legL.rotation.x = -1.5; rig.legR.rotation.x = -1.5;
+        rig.armR.rotation.z = Math.sin(e * 11) * 0.55 - 0.3;
+        rig.head.rotation.z = Math.sin(e * 11) * 0.06;
       }
-      if (e > 3.2) rig.emote = "";
+      else if (E === "cheer"){
+        rig.armL.rotation.x = rig.armR.rotation.x = -2.85;
+        rig.armL.rotation.z = 0.25; rig.armR.rotation.z = -0.25;
+        rig.group.position.y += Math.abs(Math.sin(e * 7)) * 0.34;
+      }
+      else if (E === "dance"){
+        // Hips one way, arms the other, head bobbing on the beat.
+        rig.group.rotation.y += Math.sin(e * 6) * 0.55;
+        rig.group.position.y += Math.abs(Math.sin(e * 9)) * 0.24;
+        rig.armL.rotation.x = -1.7 + Math.sin(e * 9) * 0.95;
+        rig.armR.rotation.x = -1.7 - Math.sin(e * 9) * 0.95;
+        rig.legL.rotation.x = Math.sin(e * 9) * 0.35;
+        rig.legR.rotation.x = -Math.sin(e * 9) * 0.35;
+        rig.head.rotation.z = Math.sin(e * 9) * 0.14;
+      }
+      else if (E === "spin"){
+        rig.group.rotation.y += e * 7;
+        rig.armL.rotation.z = 1.35; rig.armR.rotation.z = -1.35;
+        rig.armL.rotation.x = rig.armR.rotation.x = -0.15;
+        rig.group.position.y += Math.abs(Math.sin(e * 5)) * 0.16;
+      }
+      else if (E === "clap"){
+        const swing = Math.abs(Math.sin(e * 10));
+        rig.armL.rotation.x = rig.armR.rotation.x = -1.45;
+        rig.armL.rotation.z = 0.15 + swing * 0.55;
+        rig.armR.rotation.z = -0.15 - swing * 0.55;
+        rig.head.rotation.x = -0.08;
+      }
+      else if (E === "point"){
+        rig.armR.rotation.x = -1.55;
+        rig.armR.rotation.z = -0.12 + Math.sin(e * 5) * 0.05;
+        rig.head.rotation.y = -0.2;
+      }
+      else if (E === "bow"){
+        const hold = e > 1.8 ? Math.max(0, 1 - (e - 1.8) * 2) : Math.min(1, e * 2.2);
+        rig.torso.rotation.x = hold * 1.0;
+        rig.head.rotation.x = hold * 0.35;
+        rig.armL.rotation.x = rig.armR.rotation.x = hold * 0.9;
+        rig.group.position.y -= hold * 0.12;
+      }
+      else if (E === "flex"){
+        rig.armL.rotation.z = 1.45; rig.armR.rotation.z = -1.45;
+        rig.armL.rotation.x = rig.armR.rotation.x = -0.5;
+        const pump = Math.abs(Math.sin(e * 5));
+        elbowL.rotation.x = -2.1 - pump * 0.4;
+        elbowR.rotation.x = -2.1 - pump * 0.4;
+        rig.head.rotation.y = Math.sin(e * 2.5) * 0.28;
+      }
+      else if (E === "laugh"){
+        rig.torso.rotation.x = -0.3 + Math.sin(e * 12) * 0.1;
+        rig.head.rotation.x = -0.42 + Math.sin(e * 12) * 0.1;
+        rig.armL.rotation.x = rig.armR.rotation.x = -0.9;
+        rig.armL.rotation.z = 0.5; rig.armR.rotation.z = -0.5;
+        rig.group.position.y += Math.abs(Math.sin(e * 12)) * 0.07;
+      }
+      else if (E === "think"){
+        rig.armR.rotation.x = -2.25;
+        rig.armR.rotation.z = -0.62;
+        elbowR.rotation.x = -1.2;
+        rig.head.rotation.z = 0.2;
+        rig.head.rotation.x = 0.12 + Math.sin(e * 1.6) * 0.05;
+      }
+      else if (E === "sit"){
+        rig.group.position.y -= 0.5;
+        rig.legL.rotation.x = rig.legR.rotation.x = -1.5;
+        kneeL.rotation.x = 1.5; kneeR.rotation.x = 1.5;
+        rig.armL.rotation.x = rig.armR.rotation.x = -0.25;
+      }
+      else if (E === "sleep"){
+        rig.group.position.y -= 0.5;
+        rig.legL.rotation.x = rig.legR.rotation.x = -1.5;
+        kneeL.rotation.x = 1.5; kneeR.rotation.x = 1.5;
+        rig.head.rotation.z = 0.55;
+        rig.head.rotation.x = 0.25;
+        rig.torso.rotation.x = 0.18 + Math.sin(e * 1.4) * 0.05;   // slow breathing
+      }
+      else if (E === "robot"){
+        // Deliberately stepped rather than smooth: it should look mechanical.
+        const step = Math.floor(e * 5) % 2;
+        rig.armL.rotation.x = step ? -1.6 : -0.2;
+        rig.armR.rotation.x = step ? -0.2 : -1.6;
+        elbowL.rotation.x = -1.5; elbowR.rotation.x = -1.5;
+        rig.head.rotation.y = (step ? 1 : -1) * 0.32;
+      }
+      else if (E === "wiggle"){
+        rig.group.rotation.y += Math.sin(e * 12) * 0.22;
+        rig.torso.rotation.z = Math.sin(e * 12) * 0.18;
+        rig.armL.rotation.z = 0.9 + Math.sin(e * 12) * 0.3;
+        rig.armR.rotation.z = -0.9 + Math.sin(e * 12) * 0.3;
+        rig.head.rotation.z = -Math.sin(e * 12) * 0.16;
+      }
+      else if (E === "shrug"){
+        rig.armL.rotation.z = 0.95; rig.armR.rotation.z = -0.95;
+        rig.armL.rotation.x = rig.armR.rotation.x = -0.55;
+        rig.head.rotation.z = Math.sin(e * 2) * 0.1;
+      }
+
+      if (e > 3.4){
+        rig.emote = "";
+        // Put back anything an emote bent, or the pose sticks.
+        rig.torso.rotation.set(0, 0, 0);
+        rig.head.rotation.set(0, 0, 0);
+        kneeL.rotation.x = kneeR.rotation.x = 0;
+        elbowL.rotation.x = elbowR.rotation.x = 0;
+      }
     } else {
       rig.armL.rotation.z = rig.armR.rotation.z = 0;
     }

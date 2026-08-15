@@ -307,6 +307,10 @@ async def handle(room: Room, player: Any, message: Dict[str, Any], websocket: We
                 pass
         return False
 
+    if kind == "loadout":
+        room.act_loadout(player, message.get("names"))
+        return True
+
     if kind == "map":
         room.act_map(player, message.get("name"))
         return True
