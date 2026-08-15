@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Eidolon turnaround</title>
+<script src="/atropos/three.min.js"></script><script src="/atropos/avatar.js"></script>
+<style>html,body{margin:0;height:100%;background:#EAF4FA;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
+</head><body><canvas id="c"></canvas><script>
+const r=new THREE.WebGLRenderer({canvas:c,antialias:true});
+r.setPixelRatio(2); r.setSize(innerWidth,innerHeight); r.setClearColor(0xEAF4FA,1);
+const sc=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,0.1,100);
+sc.add(new THREE.HemisphereLight(0xE8F4FF,0xD8C9A8,1.05));
+const sun=new THREE.DirectionalLight(0xFFF6E2,0.8); sun.position.set(4,8,6); sc.add(sun);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(40,48),
+  new THREE.MeshToonMaterial({color:0xDCEAF2,gradientMap:Avatar.gradientMap()}));
+floor.rotation.x=-Math.PI/2; sc.add(floor);
+const CFGS = JSON.parse(decodeURIComponent(location.hash.slice(1) || "%5B%5D"));
+const built=[];
+CFGS.forEach((cfg,i)=>{
+  const a=Avatar.build(cfg);
+  a.root.position.x=(i-(CFGS.length-1)/2)*1.9;
+  sc.add(a.root); built.push(a);
+});
+window.__ready=true;
+let t=0;
+function tick(){
+  t+=0.016;
+  built.forEach((a,i)=>{
+    a.root.rotation.y = window.__spin ? t*0.8 : (window.__yaw||0);
+    const ph=t*3+i;
+    a.armL.rotation.x=Math.sin(ph)*0.12-0.06;
+    a.armR.rotation.x=-Math.sin(ph)*0.12-0.06;
+    a.head.rotation.y=Math.sin(t*0.7+i)*0.12;
+  });
+  cam.position.set(0,1.55,6.4); cam.lookAt(0,1.25,0);
+  r.render(sc,cam); requestAnimationFrame(tick);
+}
+tick();
+</script></body></html>
