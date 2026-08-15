@@ -42,7 +42,9 @@ const Avatar = (() => {
       skin: pick(SKIN), hair: pick(HAIR), hairStyle: pick(HAIR_STYLES),
       shirt: pick(CLOTH), pants: pick(PANTS), shoes: pick(SHOES),
       eyes: pick(EYE_STYLES), brows: pick(BROW_STYLES), mouth: pick(MOUTH_STYLES),
-      glasses: Math.random() < 0.22, face: null
+      glasses: Math.random() < 0.22, face: null,
+      hat: true, hatStyle: pick(HAT_STYLES), hatColor: pick(HAT_COLORS),
+      brand: "CLOCKWORK HUB"
     };
   }
 
@@ -336,6 +338,123 @@ const Avatar = (() => {
     return g;
   }
 
+  /* --- headwear --------------------------------------------------------
+     Hats do a job hair cannot. Procedural hair reads as a helmet because the
+     hairline is the hard part; a cap is honestly just a crown and a brim, so
+     it renders clean, gives the whole cast one silhouette, and carries a
+     brand. A little fringe underneath keeps nobody looking bald.
+     -------------------------------------------------------------------- */
+  // One hat, tuned properly. Five styles each needed their own fitting pass
+  // and all five came out worse than a single cap that fits.
+  const HAT_STYLES = ["cap", "capBack"];
+  const HAT_COLORS = ["#2B2438","#E05B4B","#3B82C4","#4CAF6E","#E8A33D","#F2F0E6","#8E5FA8","#38B2AC"];
+
+  const brandCache = {};
+  function brandTexture(label, ink, cloth){
+    const key = label + "|" + ink + "|" + cloth;
+    if (brandCache[key]) return brandCache[key];
+    const c = document.createElement("canvas");
+    c.width = 512; c.height = 256;
+    const g = c.getContext("2d");
+    g.fillStyle = cloth; g.fillRect(0, 0, 512, 256);
+
+    const parts = String(label || "CLOCKWORK HUB").trim().split(/\s+/);
+    const top = parts.slice(0, -1).join(" ") || parts[0];
+    const bottom = parts.length > 1 ? parts[parts.length - 1] : "";
+
+    g.fillStyle = ink;
+    g.textAlign = "center"; g.textBaseline = "middle";
+    const fit = (text, maxW, size) => {
+      let s = size;
+      g.font = `900 ${s}px ui-rounded, -apple-system, "Segoe UI", system-ui, sans-serif`;
+      while (g.measureText(text).width > maxW && s > 12){
+        s -= 4;
+        g.font = `900 ${s}px ui-rounded, -apple-system, "Segoe UI", system-ui, sans-serif`;
+      }
+    };
+    if (bottom){
+      fit(top, 430, 92);    g.fillText(top, 256, 100);
+      fit(bottom, 430, 92); g.fillText(bottom, 256, 186);
+    } else {
+      fit(top, 430, 110);   g.fillText(top, 256, 128);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    brandCache[key] = tex;
+    return tex;
+  }
+
+  function buildHat(cfg, R, wrap){
+    const g = new THREE.Group();
+    const back = (cfg.hatStyle || "cap") === "capBack";
+    const cloth = cfg.hatColor || "#2B2438";
+    const mat = toon(cloth);
+    const lum = (() => {
+      const n = parseInt(cloth.slice(1), 16);
+      return (((n>>16)&255)*0.299 + ((n>>8)&255)*0.587 + (n&255)*0.114) / 255;
+    })();
+    const ink = lum > 0.6 ? "#2A2333" : "#FFFFFF";
+
+    // Crown: a squashed dome sitting on the top of the skull.
+    const crown = wrap(
+      new THREE.SphereGeometry(R*1.06, 24, 16, 0, Math.PI*2, 0, Math.PI*0.5), mat, 0.05);
+    crown.scale.set(1, 0.84, 1);
+    crown.position.y = R * 0.16;
+    g.add(crown);
+
+    // Band around the base of the crown.
+    const band = wrap(new THREE.CylinderGeometry(R*1.065, R*1.065, R*0.20, 24),
+                      toon(shade(cloth, -0.14)), 0.05);
+    band.position.y = R * 0.22;
+    g.add(band);
+
+    const button = wrap(new THREE.SphereGeometry(R*0.09, 10, 8), toon(shade(cloth, 0.25)), 0.09);
+    button.position.y = R * 0.95;
+    g.add(button);
+
+    // Peak: a flattened blob offset to one side. Explicit placement rather
+    // than a cylinder wedge, whose angular origin is easy to get backwards.
+    const facing = back ? -1 : 1;
+    const peak = wrap(new THREE.SphereGeometry(R*0.92, 20, 12), mat, 0.06);
+    peak.scale.set(1.16, 0.075, 0.92);
+    peak.position.set(0, R * 0.30, facing * R * 0.70);
+    peak.rotation.x = facing * -0.10;
+    g.add(peak);
+
+    // Brand panel on the crown front, above the peak and clear of the mesh.
+    const panel = new THREE.Mesh(
+      new THREE.PlaneGeometry(R * 1.06, R * 0.50),
+      new THREE.MeshBasicMaterial({
+        map: brandTexture(cfg.brand || "CLOCKWORK HUB", ink, cloth)
+      }));
+    // The logo lives on the same panel the peak hangs off, as on a real cap:
+    // wear it backwards and the wordmark faces backwards too. 1.0R clears the
+    // crown's cross-section at this height so the lettering cannot sink in.
+    panel.position.set(0, R * 0.62, facing * R * 0.98);
+    panel.rotation.y = back ? Math.PI : 0;
+    panel.rotation.x = -0.10;
+    g.add(panel);
+
+    return g;
+  }
+
+  /* Just enough hair to show under a hat: a back fringe and sideburns. */
+  function buildFringe(color, R, wrap){
+    const g = new THREE.Group();
+    const mat = toon(color);
+    const back = wrap(new THREE.SphereGeometry(R*0.98, 18, 14, 0, Math.PI*2, Math.PI*0.32, Math.PI*0.34), mat, 0.04);
+    back.position.z = -R * 0.08;
+    back.scale.set(1.02, 1.0, 1.04);
+    g.add(back);
+    [-1, 1].forEach(s => {
+      const burn = wrap(new THREE.SphereGeometry(R*0.22, 10, 8), mat, 0.05);
+      burn.position.set(s * R * 0.88, -R * 0.22, -R * 0.06);
+      burn.scale.set(0.5, 0.95, 0.8);
+      g.add(burn);
+    });
+    return g;
+  }
+
   /* --- the whole character -------------------------------------------- */
   function build(cfg, opts){
     const o = opts || {};
@@ -399,7 +518,12 @@ const Avatar = (() => {
       head.add(ear);
     });
 
-    head.add(buildHair(cfg.hairStyle, cfg.hair, HEAD_R));
+    if (cfg.hat === false){
+      head.add(buildHair(cfg.hairStyle, cfg.hair, HEAD_R));
+    } else {
+      head.add(buildFringe(cfg.hair, HEAD_R, wrap));
+      head.add(buildHat(cfg, HEAD_R, wrap));
+    }
     rig.add(head);
 
     /* Limbs, pivoted so they swing from shoulder and hip. */
@@ -444,7 +568,7 @@ const Avatar = (() => {
 
   return {
     build, faceTexture, defaults, toon, gradientMap, shade,
-    SKIN, HAIR, CLOTH, PANTS, SHOES,
-    HAIR_STYLES, EYE_STYLES, BROW_STYLES, MOUTH_STYLES
+    SKIN, HAIR, CLOTH, PANTS, SHOES, HAT_COLORS,
+    HAIR_STYLES, HAT_STYLES, EYE_STYLES, BROW_STYLES, MOUTH_STYLES
   };
 })();
