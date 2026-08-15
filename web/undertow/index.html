@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <meta name="theme-color" content="#8ED0EE" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="description" content="A sunlit island party game. One of you is the Undertow. Tap the link, pick a character, and play on your phone." />
+<meta name="description" content="An island party game after dark. One of you has the notebook. Tap the link, pick a character, and play on your phone." />
 <link rel="canonical" href="https://theclockworkhub.com/games/molua" />
 
 <!-- This link gets texted and AirDropped, so the preview is the front door.
@@ -13,7 +13,7 @@
      game's name, art and player count on it. -->
 <meta property="og:site_name" content="Clockwork Hub" />
 <meta property="og:title" content="Molua — join the island" />
-<meta property="og:description" content="One of you is the Undertow. Everyone else has until morning. 4–16 players, about seven minutes, no app." />
+<meta property="og:description" content="One of you has the notebook. Everyone else has until morning. 4–16 players, about seven minutes, no app." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://theclockworkhub.com/games/molua" />
 <meta property="og:image" content="https://theclockworkhub.com/og-molua.png" />
@@ -22,7 +22,7 @@
 <meta property="og:image:alt" content="Cartoon islanders on a sunny beach under palm trees" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Molua — join the island" />
-<meta name="twitter:description" content="One of you is the Undertow. Tap to join." />
+<meta name="twitter:description" content="One of you has the notebook. Tap to join." />
 <meta name="twitter:image" content="https://theclockworkhub.com/og-molua.png" />
 <title>Molua Island</title>
 <script src="/undertow/config.js?v=538bdde"></script>
@@ -273,6 +273,30 @@ button{background:none;border:none;cursor:pointer}
 }
 #sound-btn.on{display:grid}
 #sound-btn.off{opacity:.5}
+#who-btn{
+  position:fixed;right:var(--sp);top:calc(var(--safe-t) + 186px);z-index:7;
+  width:40px;height:40px;border-radius:50%;background:rgba(255,253,247,.94);
+  display:none;place-items:center;box-shadow:0 3px 10px rgba(43,36,56,.22);
+}
+#who-btn.on{display:grid}
+#who{position:fixed;inset:0;z-index:9;display:none;place-items:center;
+  background:rgba(12,10,22,.72);padding:22px}
+#who.on{display:grid}
+.who-card{background:#FFFCF4;border-radius:22px;padding:20px 18px;width:min(420px,100%);
+  max-height:82vh;overflow-y:auto}
+.who-title{font-size:20px;font-weight:900;margin-bottom:12px}
+.who-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #EFE8DA}
+.who-row:last-of-type{border-bottom:0}
+.who-name{font-weight:800;font-size:15px;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who-tag{font-size:11px;font-weight:800;letter-spacing:.05em;padding:3px 8px;border-radius:99px;
+  background:#EFE8DA;color:#6A5F52;flex:0 0 auto}
+.who-tag.host{background:#FBE7BE;color:#7A5A18}
+.who-tag.bot{background:#E2E8F5;color:#3B5178}
+.who-tag.out{background:#EADFF7;color:#5A3F8C}
+.who-dot{width:10px;height:10px;border-radius:50%;background:#5E8C3E;flex:0 0 auto}
+.who-dot.out{background:#9B8FB0}
+.who-row.me .who-name{color:#B8860B}
 
 /* The running transcript sits over the world with no panel behind it, so the
    island stays visible. Bubbles carry the moment; this carries what you
@@ -301,7 +325,9 @@ button{background:none;border:none;cursor:pointer}
 }
 #reveal-seq.on{display:grid}
 .rv-inner{max-width:460px}
-.rv-eyebrow{font-size:12px;letter-spacing:.28em;color:#C9B6F0;font-weight:800;margin-bottom:10px}
+.rv-icon{color:#EBD9A8;margin-bottom:10px}
+.rv-icon svg{filter:drop-shadow(0 0 16px rgba(235,217,168,.45))}
+.rv-eyebrow{font-size:12px;letter-spacing:.28em;color:#EBD9A8;font-weight:800;margin-bottom:10px}
 .rv-line{font-size:clamp(24px,7vw,36px);font-weight:900;color:#fff;line-height:1.15}
 .rv-dots i{opacity:0;animation:rvd 1.2s infinite}
 .rv-dots i:nth-child(2){animation-delay:.2s}
@@ -543,6 +569,18 @@ button{background:none;border:none;cursor:pointer}
     <rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/>
     <path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01"/>
   </symbol>
+  <symbol id="i-notebook" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6.5 3.2h11a1.3 1.3 0 0 1 1.3 1.3v15a1.3 1.3 0 0 1-1.3 1.3h-11A1.8 1.8 0 0 1 4.7 19V5a1.8 1.8 0 0 1 1.8-1.8Z"/>
+    <path d="M8.2 3.2v17.6"/>
+    <path d="M11.4 8.2h4.2M11.4 11.6h4.2M11.4 15h2.6"/>
+  </symbol>
+  <symbol id="i-people" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="9" cy="8" r="3.2"/>
+    <path d="M3.2 19.2c0-3.2 2.6-5.2 5.8-5.2s5.8 2 5.8 5.2"/>
+    <path d="M16.4 5.4a3.2 3.2 0 0 1 0 5.6M17.6 14.4c2.1.5 3.4 2.2 3.4 4.8"/>
+  </symbol>
   <symbol id="i-bay" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
     <path d="M12 3v11M12 5l6 9H12M12 8L7 14h5"/>
@@ -600,9 +638,10 @@ button{background:none;border:none;cursor:pointer}
      that, and it is the same three seconds on every screen at once. -->
 <div id="reveal-seq" aria-live="assertive">
   <div class="rv-inner">
-    <div class="rv-eyebrow">NIGHTFALL IS COMING</div>
-    <div class="rv-line" id="rv-line">Choosing the Undertow<span class="rv-dots"><i>.</i><i>.</i><i>.</i></span></div>
-    <div class="rv-sub" id="rv-sub">One of you is about to become the tide.</div>
+    <div class="rv-icon"><svg width="54" height="54" aria-hidden="true"><use href="#i-notebook"/></svg></div>
+    <div class="rv-eyebrow">THE NOTEBOOK</div>
+    <div class="rv-line" id="rv-line">Someone is being given it<span class="rv-dots"><i>.</i><i>.</i><i>.</i></span></div>
+    <div class="rv-sub" id="rv-sub">Nobody knows who yet.</div>
     <div class="rv-card" id="rv-card">
       <div class="rv-role" id="rv-role"></div>
       <div class="rv-how" id="rv-how"></div>
@@ -615,21 +654,21 @@ button{background:none;border:none;cursor:pointer}
 <div id="howto" aria-hidden="true">
   <div class="ht-card">
     <div class="ht-title">How Molua works</div>
-    <p class="ht-lead">One player is secretly chosen as the <b>Undertow</b>.
-      They can eliminate you simply by selecting you.</p>
+    <p class="ht-lead">One player is secretly given <b>the notebook</b>. Whoever
+      holds it can eliminate you simply by writing your name in it.</p>
     <p class="ht-lead">Everyone else is the <b>village</b>, and the village has
-      one job: work out who the Undertow is &mdash; <b>without eliminating
-      their own people.</b></p>
+      one job: <b>find who has the notebook</b> &mdash; without eliminating
+      their own people.</p>
     <ol class="ht-steps">
-      <li><b>Nightfall.</b> Everyone waits. The Undertow chooses someone, and
-        an order for them to obey.</li>
+      <li><b>Nightfall.</b> Everyone waits. Whoever has the notebook writes one
+        name in it, and an order for them to obey.</li>
       <li><b>Forty Seconds.</b> The chosen player performs that order out loud,
         in the room, before they go. Watch how they do it.</li>
       <li><b>The Gathering.</b> Argue. Accuse. Defend yourself.</li>
       <li><b>The Verdict.</b> Most votes is out. Then it starts again.</li>
     </ol>
     <p class="ht-lead" style="margin-bottom:0">The village wins by finding the
-      Undertow. The Undertow wins by outlasting the village.</p>
+      notebook. The notebook wins by outlasting the village.</p>
     <button class="btn" id="ht-close" style="margin-top:16px">Got it</button>
   </div>
 </div>
@@ -638,6 +677,17 @@ button{background:none;border:none;cursor:pointer}
   <button id="say-send" type="submit" aria-label="Send"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-send"/></svg></button>
 </form>
 <button id="sound-btn" aria-label="Sound" title="Sound"><svg class="ic" width="18" height="18" aria-hidden="true"><use href="#i-sound"/></svg></button>
+<!-- Who is here. Reachable at any point in the game, by anybody - the roster
+     used to exist only on the lobby card, so the moment a match started
+     nobody could see who they were playing with. -->
+<button id="who-btn" aria-label="Who is here" title="Who is here"><svg class="ic" width="20" height="20" aria-hidden="true"><use href="#i-people"/></svg></button>
+<div id="who" aria-hidden="true">
+  <div class="who-card">
+    <div class="who-title">On the island</div>
+    <div id="who-list"></div>
+    <button class="btn" id="who-close" style="margin-top:14px">Close</button>
+  </div>
+</div>
 <div id="wheel" role="dialog" aria-label="Emotes" aria-modal="true"><div id="wheel-ring"></div></div>
 <div id="emotes">
   <button id="wheel-btn" aria-label="More emotes"></button>
@@ -649,7 +699,7 @@ button{background:none;border:none;cursor:pointer}
 <!-- GATE -->
 <section id="gate" class="panel on">
   <div class="wordmark">MOLUA</div>
-  <p class="sub">A sunny island. Everyone is friends. One of you is the Undertow.</p>
+  <p class="sub">An island at sunset. Everyone is friends. One of you has the notebook.</p>
   <div class="card stack">
     <input id="name-in" class="field" placeholder="Your name" maxlength="14"
            autocomplete="off" autocapitalize="words" spellcheck="false" />
@@ -743,13 +793,13 @@ button{background:none;border:none;cursor:pointer}
     </div>
     <!-- One person with one phone is still four threads short of a game.
          Rather than not play, the host fills the rest with robots. -->
-    <div id="bot-row" style="display:flex;gap:8px;align-items:stretch">
-      <button id="bot-btn" class="btn ghost"
-              style="flex:1 1 auto;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">+ Add a robot</button>
-      <button id="unbot-btn" class="btn ghost"
-              style="flex:0 0 56px;width:56px;font-size:18px;padding:0">&minus;</button>
+    <!-- Pick a number, rather than tapping plus four times. A host filling a
+         room wants "three computers", not four separate decisions. -->
+    <div id="bot-row">
+      <div class="label" style="margin:0 0 6px">Add computer players</div>
+      <div class="chips" id="bot-chips"></div>
     </div>
-    <button id="start-btn" class="btn" disabled>Start the game</button>
+    <button id="start-btn" class="btn" disabled>Begin</button>
     <button id="howto-btn" class="btn ghost">How do we play?</button>
     <button id="walk-btn" class="btn ghost">Walk around while you wait</button>
   </div>
@@ -1132,11 +1182,17 @@ function buildId(){
    theirs, which is why it can be pure presentation and cannot go wrong. */
 let revealShown = false;
 
+/* Nobody is called anything until they have to be.
+
+   The killer has no name in this game - they have the notebook. That is the
+   whole idea, and it is why the opening shows a closed book with no name
+   under it: at that moment the room genuinely does not know who is holding
+   it, and neither does the screen. Only the one player who has it is told. */
 const ROLE_LINE = {
-  undertow:  "You are the Undertow",
+  undertow:  "You have the notebook",
   navigator: "You are the Navigator",
-  reef:      "You are the Reef",
-  villager:  "You are a Villager"
+  reef:      "You know who has it",
+  villager:  "Find who has the notebook"
 };
 const ROLE_TINT = {
   undertow:  "#B3392B",
@@ -1152,8 +1208,8 @@ function runReveal(m){
   card.classList.remove("on");
   go.style.display = "none";
   $("rv-line").innerHTML =
-    'Choosing the Undertow<span class="rv-dots"><i>.</i><i>.</i><i>.</i></span>';
-  $("rv-sub").textContent = "One of you is about to become the tide.";
+    'Someone is being given it<span class="rv-dots"><i>.</i><i>.</i><i>.</i></span>';
+  $("rv-sub").textContent = "Nobody knows who yet.";
   seq.classList.add("on");
   Sound.nightfall && Sound.nightfall();
 
@@ -1165,7 +1221,7 @@ function runReveal(m){
   go.onclick = null;
 
   setTimeout(() => {
-    $("rv-line").textContent = "It is decided.";
+    $("rv-line").textContent = "It has been given.";
     $("rv-sub").textContent = "Only you can see what you are.";
     $("rv-role").textContent = ROLE_LINE[m.role] || m.role;
     $("rv-role").style.color = ROLE_TINT[m.role] || "#2B2438";
@@ -1434,6 +1490,8 @@ function render(s){
   Village.sync(s.players, islanders);
   $("mic").classList.add("on");
   $("sound-btn").classList.add("on");
+  $("who-btn").classList.add("on");
+  if ($("who").classList.contains("on")) renderWho();   // keep it live while open
   // The say bar is owned by syncWorldChrome now - turning it on here as well
   // is what put two of them on screen during Nightfall.
   // Someone arriving or leaving should be audible, not just visible.
@@ -1556,13 +1614,8 @@ function renderLobby(s, m){
   // Robots are the host's business, and only worth offering while the room is
   // short. Once there are enough threads the row gets out of the way rather
   // than sitting above the start button inviting a tap.
-  const brow = $("bot-row");
-  brow.style.display = m.host ? "flex" : "none";
-  const botCount = s.players.filter(p => p.bot).length;
-  $("bot-btn").textContent = enough
-    ? (botCount ? `+ Add a robot (${botCount})` : "+ Add a robot")
-    : `+ Add a robot — need ${s.minPlayers - s.players.length} more`;
-  $("unbot-btn").style.display = botCount ? "" : "none";
+  renderBotChips(s, m);
+  start.textContent = enough ? "Begin" : `Begin — need ${s.minPlayers - s.players.length} more`;
 }
 
 function renderPlay(s, m){
@@ -1725,7 +1778,7 @@ function renderVerdict(s, m){
 function renderOver(s, m){
   const won = s.winner === "undertow";
   $("reveal").innerHTML = `
-    <div class="big">${won ? "The Undertow wins." : "Molua wins."}</div>
+    <div class="big">${won ? "The notebook wins." : "Molua wins."}</div>
     <div class="finals">${s.players.map(p =>
       `<div class="final ${p.role}">${escapeHtml(p.name)} · ${escapeHtml(p.title||"")}</div>`).join("")}</div>`;
   $("hint").textContent = "";
@@ -1783,7 +1836,10 @@ function renderCrawl(s){
 function renderChat(s, m){
   const panel = $("chat");
   // The living are silent at night; Spirits can always talk to each other.
-  const canTalk = !m.alive || ["lobby","gathering","over"].includes(s.phase);
+  /* Always. See actSay on the server for why: these are children in one room
+     and they will talk through Nightfall whatever the software says. All a
+     disabled box achieved was shutting out the quiet one who types. */
+  const canTalk = true;
   panel.classList.add("on");
 
   const log = $("chat-log");
@@ -2205,13 +2261,66 @@ $("fold").onclick = () => {
   $("fold").textContent = folded ? "▴ show" : "▾ hide";
   syncWorldChrome();
 };
+/* Who is on the island.
+
+   The roster lived on the lobby card and nowhere else, so the moment a match
+   started nobody could see who they were playing with - which is absurd in a
+   game whose entire subject is the other players. This is the same list,
+   reachable at any point, by anybody, alive or not. */
+function renderWho(){
+  const list = $("who-list");
+  if (!list || !state) return;
+  list.innerHTML = "";
+  state.players.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "who-row" + (p.pid === myPid ? " me" : "");
+    const dot = document.createElement("span");
+    dot.className = "who-dot" + (p.alive ? "" : " out");
+    const name = document.createElement("span");
+    name.className = "who-name";
+    name.textContent = p.name + (p.pid === myPid ? " (you)" : "");
+    row.appendChild(dot); row.appendChild(name);
+    const tag = (text, cls) => {
+      const t = document.createElement("span");
+      t.className = "who-tag " + cls; t.textContent = text;
+      row.appendChild(t);
+    };
+    if (p.host) tag("HOST", "host");
+    if (p.bot) tag("ROBOT", "bot");
+    if (!p.alive) tag("OUT", "out");
+    list.appendChild(row);
+  });
+}
+
+$("who-btn").onclick = () => { renderWho(); $("who").classList.add("on"); Sound.tap(); };
+$("who-close").onclick = () => { $("who").classList.remove("on"); Sound.tap(); };
+$("who").addEventListener("click", (e) => {
+  if (e.target.id === "who") $("who").classList.remove("on");
+});
+
 $("howto-btn").onclick = () => { $("howto").classList.add("on"); Sound.tap(); };
 $("ht-close").onclick = () => { $("howto").classList.remove("on"); Sound.tap(); };
 $("howto").addEventListener("click", (e) => {
   if (e.target.id === "howto") $("howto").classList.remove("on");
 });
-$("bot-btn").onclick = () => { net && net.send({ t:"bot" }); Sound.tap(); };
-$("unbot-btn").onclick = () => { net && net.send({ t:"unbot" }); Sound.tap(); };
+function renderBotChips(s, m){
+  const row = $("bot-row");
+  row.style.display = m.host ? "" : "none";
+  if (!m.host) return;
+  const have = s.players.filter(p => p.bot).length;
+  const humans = s.players.length - have;
+  const chips = $("bot-chips");
+  chips.innerHTML = "";
+  // Never offer more than the room can hold.
+  const most = Math.max(0, Math.min(9, s.maxPlayers - humans));
+  for (let n = 0; n <= most; n++){
+    const b = document.createElement("button");
+    b.className = "chip" + (n === have ? " on" : "");
+    b.textContent = n === 0 ? "None" : String(n);
+    b.onclick = () => { net && net.send({ t:"bots", n }); Sound.tap(); };
+    chips.appendChild(b);
+  }
+}
 $("walk-btn").onclick = () => {
   walking = true;
   $("lobby").classList.remove("on");
