@@ -416,6 +416,14 @@ body.panel-min #crawl{max-width:min(78vw,420px)}
 .who-dot{width:10px;height:10px;border-radius:50%;background:#5E8C3E;flex:0 0 auto}
 .who-dot.out{background:#9B8FB0}
 .who-row.me .who-name{color:#B8860B}
+.finals{display:flex;flex-direction:column;gap:5px;margin-top:6px}
+.final{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:12px;
+  background:var(--paper-2);font-size:14px}
+.final .fn{font-weight:800;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.final .ft{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--ink-soft)}
+.final.won{background:#EAF6EC;box-shadow:inset 0 0 0 2px rgba(94,140,62,.35)}
+.final.won .ft{color:#3F6B33}
+.final.undertow .ft{color:var(--cut)}
 .who-invite{margin-top:16px;padding-top:14px;border-top:2px solid #EFE8DA;
   display:flex;flex-direction:column;gap:8px}
 .who-code-label{font-size:11px;letter-spacing:.22em;font-weight:800;
@@ -846,7 +854,11 @@ body.panel-min #crawl{max-width:min(78vw,420px)}
       <button class="btn" id="who-share">Share this island</button>
       <button class="btn ghost" id="who-copy">Copy link</button>
     </div>
-    <button class="btn ghost" id="who-close" style="margin-top:12px">Close</button>
+    <!-- Abandon the match. The real failure at a summer camp is not a lost
+         game, it is a game that will not end so the group can move on. -->
+    <button class="btn ghost" id="who-reset"
+            style="margin-top:12px;display:none;color:var(--cut)">End this match</button>
+    <button class="btn ghost" id="who-close" style="margin-top:8px">Close</button>
   </div>
 </div>
 <div id="wheel" role="dialog" aria-label="Emotes" aria-modal="true"><div id="wheel-ring"></div></div>
@@ -1760,8 +1772,10 @@ function render(s){
 
   const copy = PHASE_COPY[phase] || { name:phase, sub:"" };
   $("phase-name").textContent = copy.name;
+  // "Round 2 of 3" rather than "Round 2". A match is three rounds now, and a
+  // room that can see it is on the last one plays the last one differently.
   $("phase-sub").textContent = s.round && phase !== "lobby"
-    ? `Round ${s.round} · ${copy.sub}` : copy.sub;
+    ? `Round ${s.round} of ${s.maxRounds || 3} · ${copy.sub}` : copy.sub;
   setClock(s.remaining, s.duration);
 
   if (phase === "lobby"){
@@ -2032,17 +2046,40 @@ function renderVerdict(s, m){
   $("hint").textContent = "";
 }
 
+/* The end of a match, and the beginning of the next one.
+
+   The result used to name the winning side and list everybody's role in one
+   undifferentiated column, which makes you work out from memory who was
+   actually on the winning side - and that is the entire pleasure of the
+   ending. Winners are named as winners now, and the notebook is called out
+   separately, because it is the one everybody wants to see. */
 function renderOver(s, m){
   const won = s.winner === "undertow";
+  const results = s.results || s.players.map(p => ({
+    name: p.name, role: p.role, title: p.title, won: false, survived: p.alive
+  }));
+  const winners = results.filter(r => r.won);
+  const losers  = results.filter(r => !r.won);
+  const held    = results.find(r => r.role === "undertow");
+
+  const row = (r) => `<div class="final ${r.role}${r.won ? " won" : ""}">`
+    + `<span class="fn">${escapeHtml(r.name)}</span>`
+    + `<span class="ft">${escapeHtml(r.title || "")}</span></div>`;
+
+  setCallTo(won ? "The notebook wins" : "Molua wins",
+            held ? `${held.name} had it` : "", won ? "vote" : "wait");
+
   $("reveal").innerHTML = `
-    <div class="big">${won ? "The notebook wins." : "Molua wins."}</div>
-    <div class="finals">${s.players.map(p =>
-      `<div class="final ${p.role}">${escapeHtml(p.name)} · ${escapeHtml(p.title||"")}</div>`).join("")}</div>`;
+    <div class="label">Winners</div>
+    <div class="finals">${winners.map(row).join("") || '<div class="final">Nobody</div>'}</div>
+    <div class="label" style="margin-top:12px">And the rest</div>
+    <div class="finals">${losers.map(row).join("") || '<div class="final">Nobody</div>'}</div>`;
   $("hint").textContent = "";
+
   if (m.host){
     const b = document.createElement("button");
-    b.className = "btn"; b.textContent = "Play again";
-    b.onclick = () => net.send({ t:"again" });
+    b.className = "btn"; b.textContent = "New game";
+    b.onclick = () => { net.send({ t:"newgame" }); Sound.confirm(); };
     $("actions").appendChild(b);
   }
 }
@@ -2531,6 +2568,8 @@ function renderWho(){
   const list = $("who-list");
   if (!list || !state) return;
   $("who-code").textContent = state.code || "—";
+  const canReset = !!(state.me && state.me.host) && state.phase !== "lobby";
+  $("who-reset").style.display = canReset ? "" : "none";
   list.innerHTML = "";
   state.players.forEach(p => {
     const row = document.createElement("div");
@@ -2618,6 +2657,11 @@ $("talk-form").addEventListener("submit", (e) => {
 });
 
 $("begin-float").onclick = () => { net && net.send({ t:"start" }); Sound.confirm(); };
+$("who-reset").onclick = () => {
+  if (!confirm("End this match and send everyone back to the lobby?")) return;
+  net && net.send({ t:"reset" });
+  $("who").classList.remove("on");
+};
 $("who-share").onclick = share;
 $("who-copy").onclick = () => copyLink($("who-copy"));
 $("who-btn").onclick = () => { renderWho(); $("who").classList.add("on"); Sound.tap(); };
