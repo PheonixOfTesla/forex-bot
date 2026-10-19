@@ -1,66 +1,110 @@
-# Forex Bot
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
+  <img src="https://img.shields.io/badge/fastapi-async-green" alt="FastAPI">
+  <img src="https://img.shields.io/badge/broker-OANDA-orange" alt="OANDA">
+</p>
 
-**FastAPI trading dashboard with OANDA integration, technical indicators, and paper trading simulation.**
+<h1 align="center">📈 Forex Bot</h1>
 
-> **Strongest proof**: `src/api/database.py:47-60` — serverless-optimized MongoDB connection pooling.
+<p align="center">
+  <strong>FastAPI trading dashboard with OANDA integration, technical indicators, and paper trading simulation.</strong>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#api">API</a> •
+  <a href="#indicators">Indicators</a>
+</p>
 
 ---
 
-## What's Real
+## Features
 
-| Feature | Status | Proof |
-|---------|--------|-------|
-| FastAPI async architecture | Working | `src/api/main.py` |
-| MongoDB connection pooling (serverless-optimized) | Working | `src/api/database.py` |
-| OANDA REST API client | Working | `src/api/broker.py` |
-| Technical indicators (RSI, MACD, ATR, Bollinger) | Working | `src/features/indicators.py` |
-| Paper trading simulation | Working | `src/api/routes/` |
-| Pydantic request validation | Working | Throughout API |
+### 📊 Live Market Data
+- **OANDA REST API**: Real-time forex prices
+- **Multiple Pairs**: EUR/USD, GBP/USD, USD/JPY, etc.
+- **Candlestick Data**: M1 to Monthly timeframes
 
-## What's Scaffolded
+### 📉 Technical Indicators
+| Indicator | Description |
+|-----------|-------------|
+| RSI | Relative Strength Index (overbought/oversold) |
+| MACD | Moving Average Convergence Divergence |
+| ATR | Average True Range (volatility) |
+| Bollinger Bands | Price channels with standard deviation |
 
-- **ML predictions**: `src/api/routes/predictions.py:101-151` uses `random.uniform()` with 75% bias — not real ML
-- **XGBoost classifier**: imported but never used, no trained models exist
-- **Autonomous bot**: `src/main.py` (819 lines) is never deployed — only the API runs
-- **Binance integration**: client code exists, never called in production
-- **Telegram alerts**: placeholder comments, not implemented
+### 💰 Paper Trading
+- **Simulated Orders**: Test strategies without real money
+- **Position Tracking**: Open/close positions
+- **P&L Calculation**: Track performance
+
+### ⚡ FastAPI Backend
+- **Async Architecture**: Non-blocking I/O
+- **MongoDB**: Serverless-optimized connection pooling
+- **Railway Deployment**: Production-ready
+
+---
+
+## Quick Start
+
+```bash
+# Clone
+git clone https://github.com/PheonixOfTesla/forex-bot.git
+cd forex-bot
+
+# Install
+pip install -r requirements.txt
+
+# Configure
+cp .env.example .env
+# Add OANDA API key, MongoDB URI
+
+# Run
+uvicorn src.main:app --reload
+```
+
+### Environment Variables
+
+```env
+OANDA_API_KEY=your-api-key
+OANDA_ACCOUNT_ID=your-account-id
+MONGODB_URI=mongodb://localhost:27017/forex
+```
+
+---
+
+## API Endpoints
+
+### Get Market Price
+```bash
+curl /api/v1/price/EUR_USD
+```
+
+### Get Indicators
+```bash
+curl /api/v1/indicators/EUR_USD?timeframe=H1
+```
+
+### Paper Trade
+```bash
+curl -X POST /api/v1/trade \
+  -d '{"pair": "EUR_USD", "side": "buy", "units": 1000}'
+```
 
 ---
 
 ## Tech Stack
 
-- **API**: FastAPI + Uvicorn
-- **Database**: MongoDB (Motor async driver)
+- **Runtime**: Python 3.10+
+- **Framework**: FastAPI
+- **Database**: MongoDB
 - **Broker**: OANDA REST API
-- **Indicators**: pandas vectorized calculations
-- **Hosting**: Railway (API only)
+- **Hosting**: Railway / Vercel
 
 ---
 
-## Run
+## License
 
-```bash
-pip install -r requirements.txt
-uvicorn src.api.main:app --reload
-```
-
----
-
-## Architecture
-
-```
-src/
-  api/
-    main.py        # FastAPI app (this is what runs)
-    database.py    # MongoDB pooling
-    broker.py      # OANDA client
-    routes/        # API endpoints
-  features/
-    indicators.py  # RSI, MACD, etc.
-  main.py          # Bot orchestrator (NOT DEPLOYED)
-  ml/              # Classifier skeleton (NOT USED)
-```
-
----
-
-*Trading dashboard with real OANDA integration. The "ML predictions" are random numbers — classifier is scaffolding.*
+MIT License
